@@ -13,8 +13,8 @@ struct ScenesWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: HomeProvider()) { entry in
             ScenesWidgetView(home: entry.home)
         }
-        .configurationDisplayName("Scenes")
-        .description("Cozy, Movie, Night… one tap sets every light and air conditioner.")
+        .configurationDisplayName("Cenas")
+        .description("Aconchego, Filme, Noite… um toque ajusta todas as luzes e ares.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -63,8 +63,8 @@ struct LightWidget: Widget {
         AppIntentConfiguration(kind: Self.kind, intent: LightConfiguration.self, provider: ConfiguredProvider<LightConfiguration>()) { entry in
             LightWidgetView(entry: entry)
         }
-        .configurationDisplayName("Light")
-        .description("One lamp, glowing in its colour. Tap to switch it.")
+        .configurationDisplayName("Luz")
+        .description("Uma luz, brilhando na sua cor. Toque para acender ou apagar.")
         .supportedFamilies(Self.families)
     }
 
@@ -96,12 +96,12 @@ struct LightWidgetView: View {
                 }
                 .buttonStyle(.plain)
                 .containerBackground(for: .widget) { Color.clear }
-                .accessibilityLabel("\(light.name), \(light.on ? "on" : "off")")
+                .accessibilityLabel("\(light.name), \(light.on ? "acesa" : "apagada")")
             } else {
                 card(light, home)
             }
         } else {
-            EmptyHome(text: "No lamps in this home yet")
+            EmptyHome(text: "Ainda não há luzes nesta casa")
         }
     }
 
@@ -148,7 +148,7 @@ struct LightWidgetView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(light.name), \(light.on ? "on" : "off")")
+        .accessibilityLabel("\(light.name), \(light.on ? "acesa" : "apagada")")
         .containerBackground(for: .widget) {
             ZStack {
                 WidgetBackdrop()
@@ -170,8 +170,8 @@ struct RoomWidget: Widget {
         AppIntentConfiguration(kind: Self.kind, intent: RoomConfiguration.self, provider: ConfiguredProvider<RoomConfiguration>()) { entry in
             RoomWidgetView(entry: entry)
         }
-        .configurationDisplayName("Room")
-        .description("Every lamp of one room, each a tap away.")
+        .configurationDisplayName("Cômodo")
+        .description("Todas as luzes de um cômodo, cada uma a um toque.")
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
@@ -191,12 +191,12 @@ struct RoomWidgetView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(room.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(Palette.text)
-                        Text(on == 0 ? "All off" : "\(on) of \(lights.count) on")
+                        Text(on == 0 ? "Todas apagadas" : "\(on) de \(lights.count) acesas")
                             .font(.system(size: 11.5, weight: .medium)).foregroundStyle(on == 0 ? Palette.faint : Palette.warm)
                     }
                     Spacer()
                     Button(intent: ToggleRoomIntent(roomID: room.id, on: on == 0)) {
-                        Text(on == 0 ? "All on" : "All off")
+                        Text(on == 0 ? "Acender todas" : "Apagar todas")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Palette.text)
                             .padding(.horizontal, 12)
@@ -219,7 +219,7 @@ struct RoomWidgetView: View {
             .homeBackground(warmth: min(1, Double(on) / 3))
             .widgetURL(DeepLink.device(room.id))
         } else {
-            EmptyHome(text: "No room with lamps yet")
+            EmptyHome(text: "Ainda não há cômodo com luzes")
         }
     }
 }
@@ -232,7 +232,7 @@ private struct RoomClimate: View {
             ClimateDial(ac: ac, lineWidth: 5).frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 1) {
                 Text(ac.name).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.text)
-                Text(ac.on ? "\(ac.modeName) to \(ac.targetText)" : "Off")
+                Text(ac.on ? "\(ac.modeName) a \(ac.targetText)" : "Desligado")
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(ac.on ? ac.tint : Palette.faint)
             }
             Spacer()
@@ -252,8 +252,8 @@ struct ClimateWidget: Widget {
         AppIntentConfiguration(kind: Self.kind, intent: ClimateConfiguration.self, provider: ConfiguredProvider<ClimateConfiguration>()) { entry in
             ClimateWidgetView(entry: entry)
         }
-        .configurationDisplayName("Climate")
-        .description("An air conditioner's set-point and the room's temperature, with power and − / +.")
+        .configurationDisplayName("Clima")
+        .description("A temperatura desejada de um ar e a do ambiente, com liga/desliga e − / +.")
         .supportedFamilies(Self.families)
     }
 
@@ -281,7 +281,7 @@ struct ClimateWidgetView: View {
             if family == .systemMedium { medium(ac, home) } else { small(ac) }
             #endif
         } else {
-            EmptyHome(text: "No air conditioner in this home")
+            EmptyHome(text: "Não há ar-condicionado nesta casa")
         }
     }
 
@@ -319,7 +319,7 @@ struct ClimateWidgetView: View {
                         .font(.system(size: 34, weight: .light))
                         .foregroundStyle(ac.on ? Palette.text : Palette.muted)
                         .contentTransition(.numericText(value: ac.target))
-                    Text("target").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Palette.faint)
+                    Text("desejada").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Palette.faint)
                 }
             }
             .frame(width: 118)
@@ -327,14 +327,14 @@ struct ClimateWidgetView: View {
                 Text(ac.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.text).lineLimit(1)
                 Text(home.room(ac.room)?.name ?? "").font(.system(size: 11.5, weight: .medium)).foregroundStyle(Palette.faint)
                 HStack(spacing: 6) {
-                    chip(ac.on ? ac.modeName : "Off", ac.on ? ac.modeSymbol : "power", ac.tint)
-                    if ac.on { chip("Fan \(ac.fan)", "fan", Palette.muted) }
+                    chip(ac.on ? ac.modeName : "Desligado", ac.on ? ac.modeSymbol : "power", ac.tint)
+                    if ac.on { chip("Ventilação \(ac.fanName)", "fan", Palette.muted) }
                 }
                 .padding(.top, 2)
                 if let room = ac.roomText {
                     HStack(spacing: 4) {
                         Image(systemName: "thermometer.medium").font(.system(size: 11, weight: .semibold))
-                        Text("Room \(room)").font(.system(size: 12, weight: .semibold))
+                        Text("Ambiente \(room)").font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundStyle(Palette.muted)
                 }
@@ -373,9 +373,9 @@ struct ClimateWidgetView: View {
             Label(ac.name, systemImage: ac.on ? ac.modeSymbol : "air.conditioner.horizontal")
                 .font(.system(size: 13, weight: .semibold))
                 .widgetAccentable()
-            Text(ac.on ? "\(ac.modeName) to \(ac.targetText)" : "Off")
+            Text(ac.on ? "\(ac.modeName) a \(ac.targetText)" : "Desligado")
                 .font(.system(size: 13, weight: .medium))
-            if let room = ac.roomText { Text("Room \(room)").font(.system(size: 12)).foregroundStyle(.secondary) }
+            if let room = ac.roomText { Text("Ambiente \(room)").font(.system(size: 12)).foregroundStyle(.secondary) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .containerBackground(for: .widget) { Color.clear }
@@ -395,8 +395,8 @@ struct StatusWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: HomeProvider()) { entry in
             StatusWidgetView(home: entry.home)
         }
-        .configurationDisplayName("Home Status")
-        .description("Lamps on and the air conditioner, at a glance.")
+        .configurationDisplayName("Situação da casa")
+        .description("Luzes acesas e o ar-condicionado, num relance.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
@@ -430,10 +430,10 @@ struct StatusWidgetView: View {
                         .widgetAccentable()
                     Text(home.lightsLine).font(.system(size: 13, weight: .medium))
                     if let ac = home.acsOn.first {
-                        Text("\(ac.modeName) \(ac.targetText)\(ac.roomText.map { " · room \($0)" } ?? "")")
+                        Text("\(ac.modeName) \(ac.targetText)\(ac.roomText.map { " · ambiente \($0)" } ?? "")")
                             .font(.system(size: 12)).foregroundStyle(.secondary)
                     } else if let scene = home.activeScene {
-                        Text("Scene: \(scene.name)").font(.system(size: 12)).foregroundStyle(.secondary)
+                        Text("Cena: \(scene.name)").font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -444,7 +444,7 @@ struct StatusWidgetView: View {
     }
 
     private func inline(long: Bool) -> String {
-        var parts = [home.lightsOn == 0 ? "Lights off" : "\(home.lightsOn) \(long ? "lights " : "")on"]
+        var parts = [home.lightsOn == 0 ? "Luzes apagadas" : "\(home.lightsOn) \(long ? "luzes " : "")acesas"]
         if let ac = home.acsOn.first { parts.append("\(ac.modeName) \(ac.targetText)") }
         return "⌂ " + parts.joined(separator: " · ")
     }

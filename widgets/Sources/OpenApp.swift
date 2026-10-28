@@ -10,11 +10,11 @@ import Foundation
 enum AppScreen: String, AppEnum {
     case home, editor, settings
 
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Screen"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Tela"
     static let caseDisplayRepresentations: [AppScreen: DisplayRepresentation] = [
-        .home: DisplayRepresentation(title: "Home", subtitle: "The home in 3D", image: .init(systemName: "house.fill")),
-        .editor: DisplayRepresentation(title: "Floor Plan", subtitle: "The editor", image: .init(systemName: "pencil.and.ruler.fill")),
-        .settings: DisplayRepresentation(title: "Settings", subtitle: "Connections, sync, quick actions", image: .init(systemName: "gearshape.fill")),
+        .home: DisplayRepresentation(title: "Casa", subtitle: "A casa em 3D", image: .init(systemName: "house.fill")),
+        .editor: DisplayRepresentation(title: "Planta", subtitle: "O editor", image: .init(systemName: "pencil.and.ruler.fill")),
+        .settings: DisplayRepresentation(title: "Ajustes", subtitle: "Conexões e opções", image: .init(systemName: "gearshape.fill")),
     ]
 
     var symbol: String {
@@ -47,16 +47,16 @@ enum OpenAppRouter {
 
 @available(iOS 18.0, *)
 struct OpenHouseControlIntent: AppIntent {
-    static let title: LocalizedStringResource = "Open House Control"
-    static let description = IntentDescription("Opens House Control on the home, the floor plan editor or settings.")
+    static let title: LocalizedStringResource = "Abrir o HomeOs Bar"
+    static let description = IntentDescription("Abre o HomeOs Bar na casa, no editor da planta ou nos ajustes.")
     static let openAppWhenRun = true
 
-    @Parameter(title: "Screen", default: .home) var screen: AppScreen
+    @Parameter(title: "Tela", default: .home) var screen: AppScreen
 
     init() {}
     init(screen: AppScreen) { self.screen = screen }
 
-    static var parameterSummary: some ParameterSummary { Summary("Open House Control on \(\.$screen)") }
+    static var parameterSummary: some ParameterSummary { Summary("Abrir o HomeOs Bar em \(\.$screen)") }
 
     @MainActor
     func perform() async throws -> some IntentResult {

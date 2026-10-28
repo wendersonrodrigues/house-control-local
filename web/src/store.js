@@ -1,10 +1,13 @@
 import { post, call, isNative } from './bridge.js';
+import { linkOf } from './config.js';
 
 const STORAGE_KEY = 'house-control:state:v1';
 
 export const AC_MODES = ['cool', 'heat', 'dry', 'fan', 'auto'];
-export const AC_FANS = ['auto', 'low', 'medium', 'high', 'turbo'];
+export const AC_FANS = ['auto', 'silent', 'low', 'medium', 'high', 'turbo'];
 export const AC_SWINGS = ['swing', 'l1', 'l2', 'l3', 'l4', 'l5', 'off'];
+// How long a simulated gate takes to open or close.
+const GATE_TRAVEL = 4000;
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -26,9 +29,13 @@ export function createStore(config) {
   const lightCfg = new Map(config.lights.map((l) => [l.id, l]));
   const acCfg = new Map(config.acs.map((a) => [a.id, a]));
 
-  const state = { lights: {}, acs: {}, scene: null };
+  const state = { lights: {}, acs: {}, gates: {}, toggles: {}, scene: null };
   for (const l of config.lights) state.lights[l.id] = defaultLight(l);
   for (const a of config.acs) state.acs[a.id] = defaultAC(a, config.outdoorTemp);
+  for (const g of config.gates) state.gates[g.id] = { state: 'closed', online: true };
+  for (const t of config.toggles) state.toggles[t.id] = { on: false, online: true };
+  const gateCfg = new Map(config.gates.map((g) => [g.id, g]));
+  const toggleCfg = new Map(config.toggles.map((t) => [t.id, t]));
   // What each real AC can do, as reported by the native side. A simulated AC can do everything.
   const features = {};
 
@@ -39,6 +46,8 @@ export function createStore(config) {
       for (const [id, s] of Object.entries(saved.lights || {})) if (state.lights[id]) Object.assign(state.lights[id], s);
       for (const [id, s] of Object.entries(saved.acs || {})) if (state.acs[id]) Object.assign(state.acs[id], s);
       for (const [id, f] of Object.entries(saved.features || {})) if (state.acs[id]) features[id] = f;
+      for (const [id, g] of Object.entries(saved.gates || {})) if (state.gates[id]) Object.assign(state.gates[id], g);
+      for (const [id, t] of Object.entries(saved.toggles || {})) if (state.toggles[id]) Object.assign(state.toggles[id], t);
       state.scene = saved.scene || null;
       restored = true;
     }
@@ -61,7 +70,7 @@ export function createStore(config) {
       post('summary', summary());
       // The native shell passes this on to its other views of the same home (the panel
       // and the island each run their own store), which adopt it without re-sending.
-      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, scene: state.scene, source: change.source ?? store.source ?? null });
+      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, scene: state.scene, source: change.source ?? store.source ?? null });
     }
   }
 
@@ -116,6 +125,36 @@ export function createStore(config) {
     }
     if (any) emit({ type: kind, id, reverted: true });
     store.onDeviceError?.(id, error.message);
+  }
+
+  // The gate, the shortcuts and the automation switches: one command each, never merged
+  // (two presses on the gate are two commands). Without a real device the result is simulated.
+  async function order(kind, id, patch) {
+    if (!isNative) return;
+    await call('command', { kind, id, patch, state: {} });
+  }
+
+  function writeGate(id, patch) {
+    const cur = state.gates[id];
+    if (!cur) return false;
+    const changed = Object.entries(patch).some(([k, v]) => cur[k] !== v);
+    Object.assign(cur, patch);
+    return changed;
+  }
+
+  function adoptExtras(update) {
+    let any = false;
+    for (const [id, g] of Object.entries(update.gates || {})) {
+      if (!state.gates[id]) continue;
+      const { timer, ...clean } = g;
+      any = writeGate(id, clean) || any;
+    }
+    for (const [id, t] of Object.entries(update.toggles || {})) {
+      const cur = state.toggles[id];
+      if (!cur) continue;
+      for (const k of ['on', 'online']) if (k in t && cur[k] !== t[k]) { cur[k] = t[k]; any = true; }
+    }
+    return any;
   }
 
   function sanitizeLight(id, patch) {
@@ -189,6 +228,52 @@ export function createStore(config) {
 
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
+    gateCfg,
+    toggleCfg,
+
+    /** "open", "close" or "stop". The gate shows it moving until the real one reports. */
+    gateAction(id, action) {
+      const cur = state.gates[id];
+      if (!cur) return;
+      const before = cur.state;
+      const moving = action === 'open' ? 'opening' : action === 'close' ? 'closing' : before;
+      if (writeGate(id, { state: moving })) emit({ type: 'gate', id });
+      const simulated = !isNative || !linkOf(gateCfg.get(id));
+      order('gate', id, { action }).then(() => {
+        if (!simulated || action === 'stop') return;
+        clearTimeout(cur.timer);
+        cur.timer = setTimeout(() => {
+          if (writeGate(id, { state: action === 'open' ? 'open' : 'closed' })) emit({ type: 'gate', id });
+        }, GATE_TRAVEL);
+      }, (error) => {
+        if (writeGate(id, { state: before })) emit({ type: 'gate', id, reverted: true });
+        store.onDeviceError?.(id, error.message);
+      });
+    },
+
+    /** Runs a shortcut (a Home Assistant script). Resolves when Home Assistant took it. */
+    async runShortcut(id) {
+      try {
+        await order('shortcut', id, { run: true });
+        return true;
+      } catch (error) {
+        store.onDeviceError?.(id, error.message);
+        return false;
+      }
+    },
+
+    setToggle(id, on) {
+      const cur = state.toggles[id];
+      if (!cur || cur.on === on) return;
+      cur.on = on;
+      emit({ type: 'toggle', id });
+      order('toggle', id, { on }).catch((error) => {
+        cur.on = !on;
+        emit({ type: 'toggle', id, reverted: true });
+        store.onDeviceError?.(id, error.message);
+      });
+    },
+
     setLight(id, patch) {
       if (writeLight(id, patch)) { state.scene = null; emit({ type: 'light', id }); }
     },
@@ -222,7 +307,7 @@ export function createStore(config) {
     },
 
     /** Reports the state again, for a view that has only just started. */
-    share() { post('state', { lights: state.lights, acs: state.acs, scene: state.scene }); },
+    share() { post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, scene: state.scene }); },
 
     // The state of another view of this home (see emit). Nothing goes to the devices:
     // the view where the change was made has already sent it.
@@ -230,6 +315,7 @@ export function createStore(config) {
       let any = false;
       for (const [id, s] of Object.entries(other.lights || {})) any = writeLight(id, s, { remote: true }) || any;
       for (const [id, s] of Object.entries(other.acs || {})) any = writeAC(id, s, { remote: true }) || any;
+      any = adoptExtras(other) || any;
       const scene = other.scene ?? null;
       if (scene !== state.scene) { state.scene = scene; any = true; }
       if (any) emit({ type: 'bulk', remote: true, adopted: true, source: other.source || null });
@@ -240,6 +326,7 @@ export function createStore(config) {
       let any = false;
       for (const [id, patch] of Object.entries(update.lights || {})) any = writeLight(id, patch, { remote: true }) || any;
       for (const [id, patch] of Object.entries(update.acs || {})) any = writeAC(id, patch, { remote: true }) || any;
+      any = adoptExtras(update) || any;
       for (const [id, f] of Object.entries(update.features || {})) {
         if (!state.acs[id] || JSON.stringify(features[id]) === JSON.stringify(f)) continue;
         features[id] = f;

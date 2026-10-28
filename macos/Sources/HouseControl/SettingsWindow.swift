@@ -23,7 +23,7 @@ final class SettingsModel: ObservableObject {
     @Published var openAtLogin: LoginItem.State = .off
     @Published var islandShown = false
     @Published var plans: [Plan] = []
-    @Published var activePlan = "home"
+    @Published var activePlan = PlanStore.defaultPlan
     @Published var connections: [Connection] = []
     @Published var phones: [String] = []
     @Published var aiLive = false
@@ -41,7 +41,7 @@ final class SettingsModel: ObservableObject {
     var revealLog: () -> Void = {}
 }
 
-/// House Control → Settings… (⌘,): the app's options in one window, the way every Mac app has
+/// HomeOs Bar → Ajustes… (⌘,): the app's options in one window, the way every Mac app has
 /// them. The panel's gear menu and the menu bar icon's right-click menu lead here too.
 @MainActor
 final class SettingsWindowController: NSWindowController {
@@ -51,19 +51,21 @@ final class SettingsWindowController: NSWindowController {
     init() {
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
-        let panes: [(String, String, AnyView)] = [
-            ("General", "gearshape", AnyView(GeneralPane())),
-            ("Home", "house", AnyView(HomePane())),
-            ("Connections", "point.3.connected.trianglepath.dotted", AnyView(ConnectionsPane())),
-            ("Phone", "iphone", AnyView(PhonePane())),
-            ("AI Access", "sparkles", AnyView(AgentPane())),
-            ("About", "info.circle", AnyView(AboutPane())),
+        // (id for show(pane:), title, symbol, view); the phone and AI panes only where the edition has them.
+        var panes: [(String, String, String, AnyView)] = [
+            ("General", "Geral", "gearshape", AnyView(GeneralPane())),
+            ("Home", "Casa", "house", AnyView(HomePane())),
+            ("Connections", "Conexões", "point.3.connected.trianglepath.dotted", AnyView(ConnectionsPane())),
         ]
-        for (title, symbol, view) in panes {
+        if Edition.phones { panes.append(("Phone", "Celular", "iphone", AnyView(PhonePane()))) }
+        if Edition.aiAccess { panes.append(("AI Access", "Acesso por IA", "sparkles", AnyView(AgentPane()))) }
+        panes.append(("About", "Sobre", "info.circle", AnyView(AboutPane())))
+        for (id, title, symbol, view) in panes {
             let host = NSHostingController(rootView: view.environmentObject(model))
             host.sizingOptions = .preferredContentSize
             host.title = title // the tab controller names the window after the pane on show
             let item = NSTabViewItem(viewController: host)
+            item.identifier = id
             item.label = title
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
             tabs.addTabViewItem(item)
@@ -89,7 +91,7 @@ final class SettingsWindowController: NSWindowController {
     func show(pane: String? = nil) {
         onShow?()
         if let pane, let tabs = window?.contentViewController as? NSTabViewController,
-           let index = tabs.tabViewItems.firstIndex(where: { $0.label == pane }) {
+           let index = tabs.tabViewItems.firstIndex(where: { $0.identifier as? String == pane }) {
             tabs.selectedTabViewItemIndex = index
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -120,27 +122,27 @@ private struct GeneralPane: View {
     var body: some View {
         Pane {
             Section {
-                Toggle("Open at Login", isOn: Binding(get: { model.openAtLogin == .on }, set: model.setOpenAtLogin))
+                Toggle("Abrir ao iniciar sessão", isOn: Binding(get: { model.openAtLogin == .on }, set: model.setOpenAtLogin))
                 if model.openAtLogin == .needsApproval {
                     LabeledContent {
-                        Button("Open Login Items…") { model.setOpenAtLogin(true) }
+                        Button("Abrir Itens de Início…") { model.setOpenAtLogin(true) }
                     } label: {
-                        Text("Waiting for your OK in System Settings → General → Login Items.")
+                        Text("Aguardando sua permissão em Ajustes do Sistema → Geral → Itens de Início.")
                             .foregroundStyle(.secondary)
                     }
                 }
             } footer: {
-                Footnote("House Control starts with your Mac and waits in the menu bar.")
+                Footnote("O HomeOs Bar abre junto com o Mac e fica esperando na barra de menu.")
             }
             Section {
-                Toggle("Show the Island", isOn: Binding(get: { model.islandShown }, set: model.setIsland))
+                Toggle("Mostrar a Ilha", isOn: Binding(get: { model.islandShown }, set: model.setIsland))
             } footer: {
-                Footnote("Lamps on, the AC and scenes at a glance, in the middle of the menu bar. Click it to open it up.")
+                Footnote("Luzes acesas, ar-condicionado, portão e atalhos num relance, no meio da barra de menu. Clique para abrir.")
             }
-            Section("Getting around") {
-                Tip(symbol: "cursorarrow.click", text: "Click the house in the menu bar for the panel.")
-                Tip(symbol: "contextualmenu.and.cursorarrow", text: "Right-click it for the menu: editor, phone pairing, AI Access.")
-                Tip(symbol: "command", text: "⌘, opens these settings from any House Control window.")
+            Section("Como usar") {
+                Tip(symbol: "cursorarrow.click", text: "Clique na casinha da barra de menu para abrir o painel.")
+                Tip(symbol: "contextualmenu.and.cursorarrow", text: "Clique com o botão direito para o menu: editor da casa, planta e registro.")
+                Tip(symbol: "command", text: "⌘, abre estes ajustes de qualquer janela do HomeOs Bar.")
             }
         }
     }
@@ -152,17 +154,17 @@ private struct HomePane: View {
     var body: some View {
         Pane {
             Section {
-                Picker("Floor plan", selection: Binding(get: { model.activePlan }, set: model.selectPlan)) {
+                Picker("Planta", selection: Binding(get: { model.activePlan }, set: model.selectPlan)) {
                     ForEach(model.plans) { Text($0.name).tag($0.id) }
                 }
                 .pickerStyle(.radioGroup)
             } footer: {
-                Footnote("Draw your own home in the editor, or load a plan file. The demos are simulated: nothing real switches.")
+                Footnote("Desenhe sua casa no editor ou carregue um arquivo de planta. As demonstrações são simuladas: nada de verdade é acionado.")
             }
             Section {
-                ActionRow(symbol: "pencil.and.ruler", title: "Edit Home…", detail: "Rooms, lamps, ACs, furniture and scenes", action: model.editHome)
-                ActionRow(symbol: "square.and.arrow.down", title: "Load Floor Plan…", detail: "A plan file from another Mac or a backup", action: model.loadPlan)
-                ActionRow(symbol: "folder", title: "Reveal Plan File", detail: "The plan as JSON, in the Finder", action: model.revealPlan)
+                ActionRow(symbol: "pencil.and.ruler", title: "Editar casa…", detail: "Cômodos, luzes, ares, portão, atalhos e chaves", action: model.editHome)
+                ActionRow(symbol: "square.and.arrow.down", title: "Carregar planta…", detail: "Um arquivo de planta de outro Mac ou de um backup", action: model.loadPlan)
+                ActionRow(symbol: "folder", title: "Mostrar arquivo da planta", detail: "A planta em JSON, no Finder", action: model.revealPlan)
             }
         }
     }
@@ -176,7 +178,7 @@ private struct ConnectionsPane: View {
             Section {
                 ForEach(model.connections) { connection in
                     LabeledContent {
-                        Button(connection.connected ? "Manage…" : "Connect…") { model.openConnection(connection.id) }
+                        Button(connection.connected ? "Gerenciar…" : "Conectar…") { model.openConnection(connection.id) }
                     } label: {
                         HStack(spacing: 10) {
                             Badge(symbol: connection.symbol, tint: connection.tint)
@@ -192,7 +194,7 @@ private struct ConnectionsPane: View {
                     }
                 }
             } footer: {
-                Footnote("Connections are set up in the editor, where you also link each lamp and AC to its real device. Home Assistant and Hue are shared with a paired phone.")
+                Footnote("A conexão é feita no editor, onde você também vincula cada luz, ar, portão, atalho e chave à entidade real do Home Assistant.")
             }
         }
     }
@@ -205,15 +207,15 @@ private struct PhonePane: View {
         Pane {
             Section {
                 if model.phones.isEmpty {
-                    Label("No phone is connected right now", systemImage: "iphone.slash").foregroundStyle(.secondary)
+                    Label("Nenhum celular conectado agora", systemImage: "iphone.slash").foregroundStyle(.secondary)
                 } else {
                     ForEach(model.phones, id: \.self) { phone in
                         Label { Text(phone) } icon: { Image(systemName: "iphone").foregroundStyle(.green) }
                     }
                 }
-                ActionRow(symbol: "qrcode", title: "Pair Phone…", detail: "Show the code to scan with House Control on an Android phone or iPhone", action: model.pairPhone)
+                ActionRow(symbol: "qrcode", title: "Parear celular…", detail: "Mostra o código para ler com o House Control num Android ou iPhone", action: model.pairPhone)
             } footer: {
-                Footnote("Paired, the phone gets this floor plan and its connections and keeps them in step with the Mac, whichever one you edit. A phone stays connected while its app is open.")
+                Footnote("Pareado, o celular recebe esta planta e as conexões e fica sincronizado com o Mac. Ele continua conectado enquanto o app estiver aberto.")
             }
         }
     }
@@ -226,20 +228,20 @@ private struct AgentPane: View {
         Pane {
             Section {
                 LabeledContent {
-                    if model.aiLive { Button("Stop", role: .destructive, action: model.stopAgent) }
+                    if model.aiLive { Button("Parar", role: .destructive, action: model.stopAgent) }
                 } label: {
                     HStack(spacing: 10) {
                         Badge(symbol: "sparkles", tint: .purple)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("AI Access")
-                            Text(model.aiLive ? "Live: an assistant can run your home" : "Off")
+                            Text("Acesso por IA")
+                            Text(model.aiLive ? "Ativo: um assistente pode controlar sua casa" : "Desligado")
                                 .foregroundStyle(model.aiLive ? .green : .secondary).font(.callout)
                         }
                     }
                 }
-                ActionRow(symbol: "link", title: "Open AI Access…", detail: "The link and what an assistant may do", action: model.openAgent)
+                ActionRow(symbol: "link", title: "Abrir Acesso por IA…", detail: "O link e o que o assistente pode fazer", action: model.openAgent)
             } footer: {
-                Footnote("A private link that lets an AI assistant such as Claude or ChatGPT see and switch your home, with the limits you choose. It ends when you stop it or quit House Control.")
+                Footnote("Um link privado que permite a um assistente de IA, como Claude ou ChatGPT, ver e controlar sua casa, com os limites que você escolher. Termina quando você parar ou fechar o app.")
             }
         }
     }
@@ -256,23 +258,21 @@ private struct AboutPane: View {
                 HStack(spacing: 14) {
                     Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("House Control").font(.title3.weight(.semibold))
-                        Text(version.isEmpty ? "Development build" : "Version \(version)\(build.isEmpty || build == version ? "" : " (\(build))")")
+                        Text(Edition.name).font(.title3.weight(.semibold))
+                        Text(version.isEmpty ? "Versão de desenvolvimento" : "Versão \(version)\(build.isEmpty || build == version ? "" : " (\(build))")")
                             .foregroundStyle(.secondary)
-                        Text("Your home as a live 3D model, in the menu bar.").foregroundStyle(.secondary).font(.callout)
+                        Text("Sua casa como uma maquete 3D ao vivo, na barra de menu. Baseado no House Control.").foregroundStyle(.secondary).font(.callout)
                     }
                 }
                 .padding(.vertical, 4)
             }
             Section {
-                LinkRow(symbol: "globe", title: "Website", url: About.website)
-                LinkRow(symbol: "questionmark.circle", title: "Support", url: About.support)
-                LinkRow(symbol: "hand.raised", title: "Privacy Policy", url: About.privacy)
-                LinkRow(symbol: "shippingbox", title: "Source Code", url: About.source)
-                LinkRow(symbol: "at", title: "\(About.developer) on X", url: About.x)
+                LinkRow(symbol: "shippingbox", title: "Código deste fork", url: About.forkSource)
+                LinkRow(symbol: "globe", title: "House Control, o projeto original", url: About.source)
+                LinkRow(symbol: "at", title: "\(About.developer) no X", url: About.x)
             }
             Section {
-                ActionRow(symbol: "doc.text.magnifyingglass", title: "Reveal Device Log", detail: "What was sent to your devices, for a bug report", action: model.revealLog)
+                ActionRow(symbol: "doc.text.magnifyingglass", title: "Mostrar registro dos dispositivos", detail: "O que foi enviado aos dispositivos, para investigar problemas", action: model.revealLog)
             }
         }
     }

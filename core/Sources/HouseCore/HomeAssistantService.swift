@@ -15,16 +15,24 @@ public final class HomeAssistantService: DeviceService {
         var token: String
         var name: String?
         var version: String?
+        /// The address from outside the home network (Nabu Casa, a tunnel, a reverse proxy),
+        /// used while `url` does not answer.
+        var external: String?
     }
 
     private let vault: SecretStore
     private var config: Config?
+    /// The address that answered last: `config.url`, or `config.external` while away from home.
+    private var active: String?
+    /// When the local address was last tried while on the external one.
+    private var lastLocalTry = Date.distantPast
     private let session: URLSession
     private var socket: URLSessionWebSocketTask?
     private var socketRetry: Task<Void, Never>?
     /// Each climate entity's own names for the panel's fan speeds and modes, from the last read.
     private var fanNames: [String: [String: String]] = [:]
     private var modeNames: [String: [String: String]] = [:]
+    private var swingNames: [String: [String]] = [:]
     /// The entities linked in the plan: only their changes are worth a read.
     private var watched: Set<String> = []
     private var changePending = false
@@ -42,23 +50,28 @@ public final class HomeAssistantService: DeviceService {
 
     public var info: [String: Any] {
         guard let config else { return ["connected": false] }
-        return ["connected": true, "url": config.url, "name": config.name ?? "Home Assistant", "version": config.version ?? ""]
+        return ["connected": true, "url": config.url, "external": config.external ?? "",
+                "active": active ?? config.url, "away": active != nil && active != config.url,
+                "name": config.name ?? "Home Assistant", "version": config.version ?? ""]
     }
 
     /// For the iPhone: the Mac shares its connection over the paired, encrypted sync.
     public var shareable: [String: Any]? {
         guard let config else { return nil }
-        return ["url": config.url, "token": config.token, "name": config.name ?? "", "version": config.version ?? ""]
+        return ["url": config.url, "token": config.token, "name": config.name ?? "", "version": config.version ?? "",
+                "external": config.external ?? ""]
     }
 
     // MARK: - Connecting
 
-    /// Checks the address and the token, then keeps them.
-    public func connect(url raw: String, token: String) async throws {
+    /// Checks the address and the token, then keeps them. `external` is optional: the address
+    /// to fall back on away from home. One of the two has to answer.
+    public func connect(url raw: String, token: String, external rawExternal: String? = nil) async throws {
         let url = try Self.normalize(raw)
+        let external = try rawExternal.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : try Self.normalize($0) }
         let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { throw ServiceFailure("Paste a long-lived access token (your profile in Home Assistant → Security).") }
-        var candidate = Config(url: url, token: token)
+        guard !token.isEmpty else { throw ServiceFailure("Cole um token de acesso de longa duração (seu perfil no Home Assistant → Segurança).") }
+        var candidate = Config(url: url, token: token, external: external)
         let about = try await request("GET", "/api/config", config: candidate) as? [String: Any] ?? [:]
         candidate.name = about["location_name"] as? String
         candidate.version = about["version"] as? String
@@ -74,8 +87,10 @@ public final class HomeAssistantService: DeviceService {
             return
         }
         let name = (shared["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        guard config?.url != url || config?.token != token || config?.name != name else { return }
-        config = Config(url: url, token: token, name: name, version: shared["version"] as? String)
+        let external = (shared["external"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        guard config?.url != url || config?.token != token || config?.name != name || config?.external != external else { return }
+        config = Config(url: url, token: token, name: name, version: shared["version"] as? String, external: external)
+        active = nil
         vault.write(try? JSONEncoder().encode(config))
         listen()
     }
@@ -84,6 +99,7 @@ public final class HomeAssistantService: DeviceService {
 
     public func disconnect() {
         config = nil
+        active = nil
         vault.write(nil)
         socketRetry?.cancel()
         socket?.cancel(with: .goingAway, reason: nil)
@@ -93,11 +109,11 @@ public final class HomeAssistantService: DeviceService {
     /// "homeassistant.local:8123" → "http://homeassistant.local:8123".
     static func normalize(_ raw: String) throws -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !s.isEmpty else { throw ServiceFailure("Enter the address of your Home Assistant, for example http://homeassistant.local:8123") }
+        guard !s.isEmpty else { throw ServiceFailure("Digite o endereço do seu Home Assistant, por exemplo http://homeassistant.local:8123") }
         if !s.contains("://") { s = "http://" + s }
         while s.hasSuffix("/") { s.removeLast() }
         guard let url = URL(string: s), url.host != nil, ["http", "https"].contains(url.scheme ?? "") else {
-            throw ServiceFailure("“\(raw)” is not a web address")
+            throw ServiceFailure("“\(raw)” não é um endereço web")
         }
         if url.port == nil, url.scheme == "http", (url.host ?? "").hasSuffix(".local") || url.host == "homeassistant" {
             s += ":8123" // Home Assistant's default port, which people leave out
@@ -139,6 +155,7 @@ public final class HomeAssistantService: DeviceService {
             if id.hasPrefix("climate.") {
                 fanNames[id] = FanNames.table(attributes["fan_modes"] as? [String] ?? [])
                 modeNames[id] = Self.modeTable(attributes["hvac_modes"] as? [String] ?? [])
+                swingNames[id] = attributes["swing_modes"] as? [String] ?? []
             }
             out[id] = Self.reading(from: state)
         }
@@ -147,7 +164,7 @@ public final class HomeAssistantService: DeviceService {
 
     public func send(kind: DeviceKind, id: String, patch: [String: Any], state: [String: Any]) async throws {
         for call in Self.calls(for: id, patch: patch, state: state,
-                               fans: fanNames[id] ?? [:], modes: modeNames[id] ?? [:]) {
+                               fans: fanNames[id] ?? [:], modes: modeNames[id] ?? [:], swings: swingNames[id] ?? []) {
             _ = try await request("POST", "/api/services/\(call.domain)/\(call.service)", body: call.data)
         }
     }
@@ -178,7 +195,16 @@ public final class HomeAssistantService: DeviceService {
         case "sensor":
             guard isTemperature(attributes) else { return nil }
             device = ServiceDevice(id: id, name: name, kind: .sensor)
-            device.detail = "temperature sensor"
+            device.detail = "sensor de temperatura"
+        case "cover":
+            device = ServiceDevice(id: id, name: name, kind: .gate)
+            device.detail = "cover · " + (attributes["device_class"] as? String ?? "portão")
+        case "script", "scene":
+            device = ServiceDevice(id: id, name: name, kind: .shortcut)
+            device.detail = domain
+        case "input_boolean", "automation":
+            device = ServiceDevice(id: id, name: name, kind: .toggle)
+            device.detail = domain == "automation" ? "automação" : "input_boolean"
         default:
             return nil
         }
@@ -246,7 +272,7 @@ public final class HomeAssistantService: DeviceService {
             let fans = FanNames.table(attributes["fan_modes"] as? [String] ?? [])
             if let current = attributes["fan_mode"] as? String, let fan = FanNames.panel(current), fans[fan] != nil { ac["fan"] = fan }
             let swings = attributes["swing_modes"] as? [String] ?? []
-            if let swing = attributes["swing_mode"] as? String, !swings.isEmpty { ac["swing"] = swing == "off" ? "off" : "swing" }
+            if let swing = attributes["swing_mode"] as? String, !swings.isEmpty { ac["swing"] = panelSwing(swing) }
             let presets = attributes["preset_modes"] as? [String] ?? []
             let preset = attributes["preset_mode"] as? String ?? ""
             if presets.contains("sleep") { ac["sleep"] = preset == "sleep" }
@@ -256,8 +282,16 @@ public final class HomeAssistantService: DeviceService {
                 "modes": ["cool", "heat", "dry", "fan", "auto"].filter { modes[$0] != nil },
                 "fans": FanNames.order.filter { fans[$0] != nil },
                 "swing": swings.contains("off") && swings.count > 1,
+                // The directions it offers besides "swing" (all ways) and "off": Midea's horizontal / vertical.
+                "swings": ["swing", "horizontal", "vertical", "off"].filter { panel in
+                    panel == "swing" ? swings.contains { !["off", "horizontal", "vertical"].contains($0) } : swings.contains(panel)
+                },
                 "sleep": presets.contains("sleep"), "eco": presets.contains("eco"),
             ]
+        } else if id.hasPrefix("cover.") {
+            reading.gate = ["open", "closed", "opening", "closing"].contains(value) ? value : "closed"
+        } else if id.hasPrefix("input_boolean.") || id.hasPrefix("automation.") {
+            reading.toggle = value == "on"
         } else if id.hasPrefix("sensor."), let t = Double(value) {
             reading.temperature = (attributes["unit_of_measurement"] as? String) == "°F" ? (t - 32) * 5 / 9 : t
         }
@@ -270,17 +304,34 @@ public final class HomeAssistantService: DeviceService {
         var data: [String: Any]
     }
 
+    /// The panel's airflow for a climate entity's `swing_mode`: "off", "horizontal", "vertical",
+    /// or "swing" for anything that moves both ways ("on", "both").
+    static func panelSwing(_ name: String) -> String {
+        ["off", "horizontal", "vertical"].contains(name) ? name : "swing"
+    }
+
     static func calls(for id: String, patch: [String: Any], state: [String: Any],
-                      fans: [String: String], modes: [String: String]) -> [Call] {
+                      fans: [String: String], modes: [String: String], swings: [String] = []) -> [Call] {
         let domain = id.split(separator: ".").first.map(String.init) ?? ""
         let target: [String: Any] = ["entity_id": id]
         func call(_ service: String, _ data: [String: Any] = [:], domain d: String = domain) -> Call {
             Call(domain: d, service: service, data: target.merging(data) { $1 })
         }
 
-        if domain == "switch" {
+        if ["switch", "input_boolean", "automation"].contains(domain) {
             guard let on = patch["on"] as? Bool else { return [] }
             return [call(on ? "turn_on" : "turn_off")]
+        }
+        if domain == "cover" {
+            switch patch["action"] as? String {
+            case "open": return [call("open_cover")]
+            case "close": return [call("close_cover")]
+            case "stop": return [call("stop_cover")]
+            default: return []
+            }
+        }
+        if domain == "script" || domain == "scene" {
+            return patch["run"] as? Bool == true ? [call("turn_on")] : []
         }
         if domain == "light" {
             if patch["on"] as? Bool == false { return [call("turn_off")] }
@@ -310,7 +361,10 @@ public final class HomeAssistantService: DeviceService {
             out.append(call("set_fan_mode", ["fan_mode": name]))
         }
         if let swing = patch["swing"] as? String {
-            out.append(call("set_swing_mode", ["swing_mode": swing == "off" ? "off" : "on"]))
+            // "swing" is whatever moves both ways on this unit: "on" for most, "both" for Midea.
+            let name = swing != "swing" ? swing
+                : swings.first { $0 == "on" } ?? swings.first { $0 == "both" } ?? swings.first { $0 != "off" } ?? "on"
+            out.append(call("set_swing_mode", ["swing_mode": name]))
         }
         for preset in ["sleep", "eco"] {
             if let enabled = patch[preset] as? Bool {
@@ -322,36 +376,63 @@ public final class HomeAssistantService: DeviceService {
 
     // MARK: - HTTP
 
+    /// The addresses to try, in order: the one that answered last first. While on the external
+    /// address the local one is tried again once a minute, so coming home switches back.
+    static func addresses(_ config: Config, active: String?, localDue: Bool) -> [String] {
+        guard let external = config.external, external != config.url else { return [config.url] }
+        return active == external && !localDue ? [external, config.url] : [config.url, external]
+    }
+
     @discardableResult
     private func request(_ method: String, _ path: String, body: [String: Any]? = nil,
                          raw: Bool = false, config: Config? = nil) async throws -> Any? {
-        guard let config = config ?? self.config, let url = URL(string: config.url + path) else {
-            throw ServiceFailure("Connect Home Assistant first")
+        guard let config = config ?? self.config else {
+            throw ServiceFailure("Conecte o Home Assistant primeiro")
         }
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let localDue = active == config.external && Date().timeIntervalSince(lastLocalTry) > 60
+        if localDue { lastLocalTry = Date() }
+        let bases = Self.addresses(config, active: active, localDue: localDue)
+        var unreachable: [String] = []
+        for (index, base) in bases.enumerated() {
+            guard let url = URL(string: base + path) else { continue }
+            var request = URLRequest(url: url)
+            request.httpMethod = method
+            // A home network answers in milliseconds: no need to wait long before going outside.
+            if index == 0, bases.count > 1 { request.timeoutInterval = 2.5 }
+            request.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
+            if let body {
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            }
+            let data: Data, response: URLResponse
+            do {
+                (data, response) = try await session.data(for: request)
+            } catch {
+                unreachable.append("\(base): \(error.localizedDescription)")
+                continue
+            }
+            use(base)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            switch status {
+            case 200..<300: break
+            case 401, 403: throw ServiceFailure("O Home Assistant recusou o token. Crie um novo token de acesso de longa duração e conecte de novo.")
+            case 404: throw ServiceFailure("O Home Assistant não conhece \(path). A API está ativada?")
+            default:
+                let text = String(data: data, encoding: .utf8)?.prefix(200) ?? ""
+                throw ServiceFailure("O Home Assistant respondeu \(status) \(text)")
+            }
+            if raw { return String(data: data, encoding: .utf8) }
+            return data.isEmpty ? nil : try? JSONSerialization.jsonObject(with: data)
         }
-        let data: Data, response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            throw ServiceFailure("Home Assistant at \(config.url) did not answer: \(error.localizedDescription)")
-        }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        switch status {
-        case 200..<300: break
-        case 401, 403: throw ServiceFailure("Home Assistant refused the token. Create a new long-lived access token and connect again.")
-        case 404: throw ServiceFailure("Home Assistant does not know \(path). Is the API enabled?")
-        default:
-            let text = String(data: data, encoding: .utf8)?.prefix(200) ?? ""
-            throw ServiceFailure("Home Assistant answered \(status) \(text)")
-        }
-        if raw { return String(data: data, encoding: .utf8) }
-        return data.isEmpty ? nil : try? JSONSerialization.jsonObject(with: data)
+        throw ServiceFailure("O Home Assistant não respondeu (\(unreachable.joined(separator: "; ")))")
+    }
+
+    /// Remembers which address answered; the live updates follow it.
+    private func use(_ base: String) {
+        guard active != base else { return }
+        let moved = active != nil
+        active = base
+        if moved, config != nil { listen() }
     }
 
     // MARK: - Live updates
@@ -361,7 +442,7 @@ public final class HomeAssistantService: DeviceService {
     private func listen() {
         socketRetry?.cancel()
         socket?.cancel(with: .goingAway, reason: nil)
-        guard let config, var parts = URLComponents(string: config.url + "/api/websocket") else { return }
+        guard let config, var parts = URLComponents(string: (active ?? config.url) + "/api/websocket") else { return }
         parts.scheme = parts.scheme == "https" ? "wss" : "ws"
         guard let url = parts.url else { return }
         let task = session.webSocketTask(with: url)
@@ -396,8 +477,11 @@ public final class HomeAssistantService: DeviceService {
             guard task === socket, config != nil else { return }
             socketRetry = Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard !Task.isCancelled, let self else { return }
+                // The address may have stopped answering (left home): find the one that does.
+                _ = try? await self.request("GET", "/api/")
                 guard !Task.isCancelled else { return }
-                self?.listen()
+                self.listen()
             }
         }
     }

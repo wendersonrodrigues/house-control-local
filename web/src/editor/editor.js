@@ -19,11 +19,31 @@ const sv = (tag, attrs = {}, ...kids) => {
   return el;
 };
 
-const KEYS = { room: 'rooms', light: 'lights', ac: 'acs', furniture: 'furniture', opening: 'openings', scene: 'scenes' };
-const TITLES = { room: 'Rooms', light: 'Lights', ac: 'Air conditioners', furniture: 'Furniture', opening: 'Doors & windows', scene: 'Scenes' };
+const KEYS = { room: 'rooms', light: 'lights', ac: 'acs', furniture: 'furniture', opening: 'openings', scene: 'scenes',
+  gate: 'gates', shortcut: 'shortcuts', toggle: 'toggles' };
+const TITLES = { room: 'Cômodos', light: 'Luzes', ac: 'Ares-condicionados', furniture: 'Móveis', opening: 'Portas e janelas', scene: 'Cenas',
+  gate: 'Portões', shortcut: 'Atalhos', toggle: 'Chaves de automação' };
+// Not on the plan: linked to a Home Assistant entity and shown in the panel only.
+const EXTRAS = ['gate', 'shortcut', 'toggle'];
+const EXTRA_ICONS = ['sparkles', 'lightsOff', 'bulb', 'outside', 'sun', 'moon', 'home', 'gate', 'presence', 'eye', 'automation', 'toggle', 'shield'];
 const FLOOR_FILL = { oak: '#4a3d2e', walnut: '#3c2f28', tile: '#39424b', stone: '#30353c' };
 const WALLS = ['north', 'east', 'south', 'west'];
 const SCENE_ICONS = ['sun', 'sofa', 'film', 'moon', 'door', 'table', 'bed', 'tv', 'sparkles'];
+// What the pickers show for the plan's own words (the file keeps the English ones).
+const NAMES = {
+  oak: 'Carvalho', walnut: 'Nogueira', tile: 'Cerâmica', stone: 'Pedra',
+  ceiling: 'Teto', pendant: 'Pendente', spots: 'Spots', floor: 'Coluna', table: 'Abajur', strip: 'Fita de LED',
+  north: 'Norte', south: 'Sul', east: 'Leste', west: 'Oeste',
+  rug: 'Tapete', sofa: 'Sofá', armchair: 'Poltrona', coffeeTable: 'Mesa de centro', tv: 'TV', sideboard: 'Aparador',
+  diningSet: 'Mesa de jantar', island: 'Ilha de cozinha', kitchen: 'Cozinha', fridge: 'Geladeira', bed: 'Cama',
+  nightstand: 'Criado-mudo', dresser: 'Cômoda', plant: 'Planta', vanity: 'Pia de banheiro', bathtub: 'Banheira',
+  toilet: 'Vaso sanitário', desk: 'Escrivaninha', wardrobe: 'Guarda-roupa', bookshelf: 'Estante',
+  door: 'Porta', open: 'Passagem aberta', window: 'Janela',
+  // Icons of shortcuts and switches.
+  sparkles: 'Brilho', lightsOff: 'Luzes apagadas', bulb: 'Lâmpada', outside: 'Área externa', sun: 'Sol', moon: 'Lua',
+  home: 'Casa', gate: 'Portão', presence: 'Presença', eye: 'Vigilância', automation: 'Automação', toggle: 'Chave', shield: 'Segurança',
+};
+const named = (values) => values.map((v) => [v, NAMES[v] || v]);
 const REGIONS = [
   ['eu', 'Central Europe'], ['eu-w', 'Western Europe'], ['us', 'Western America'], ['us-e', 'Eastern America'],
   ['cn', 'China'], ['in', 'India'], ['sg', 'Singapore'],
@@ -58,7 +78,7 @@ export async function bootEditor(root) {
   const links = createConnections({
     rerender: () => {
       renderSidebar();
-      if (['connections', 'service', 'light', 'ac'].includes(sel.kind)) renderInspector();
+      if (['connections', 'service', 'light', 'ac', ...EXTRAS].includes(sel.kind)) renderInspector();
     },
     toast,
     usedBy: () => links.usedMap(doc),
@@ -71,12 +91,12 @@ export async function bootEditor(root) {
 
   /* ---------- layout ---------- */
 
-  const nameInput = h('input.title-input', { value: doc.name || 'Home', spellcheck: 'false', 'aria-label': 'Home name' });
+  const nameInput = h('input.title-input', { value: doc.name || 'Home', spellcheck: 'false', 'aria-label': 'Nome da casa' });
   nameInput.addEventListener('input', () => { snapshot('name'); doc.name = nameInput.value; touch({ inspector: sel.kind === 'home' }); });
   const status = h('div.status');
-  const saveBtn = h('button.btn.primary', { onclick: save }, icon('check', 15, 2.4), 'Save & apply');
-  const hint = h('div.hint', isPhone ? 'Tap to select · drag what is selected · pinch to zoom'
-    : 'Drag rooms, lamps and furniture · drag a room’s corner to resize · everything snaps to 5 cm');
+  const saveBtn = h('button.btn.primary', { onclick: save }, icon('check', 15, 2.4), 'Salvar e aplicar');
+  const hint = h('div.hint', isPhone ? 'Toque para escolher · arraste o que está escolhido · pince para ampliar'
+    : 'Arraste cômodos, luzes e móveis · arraste o canto de um cômodo para redimensionar · tudo encaixa a cada 5 cm');
   const toastEl = h('div.toast');
 
   const sidebar = h('aside.side');
@@ -90,10 +110,10 @@ export async function bootEditor(root) {
     h('header.bar',
       h('div.bar-title', icon('home', 17), nameInput),
       h('div.bar-actions',
-        h('button.btn', { title: 'Undo (⌘Z)', onclick: () => stepHistory(undo, redo) }, 'Undo'),
-        h('button.btn', { title: 'Redo (⇧⌘Z)', onclick: () => stepHistory(redo, undo) }, 'Redo'),
-        h('button.btn', { onclick: importPlan }, 'Import…'),
-        h('button.btn', { onclick: exportPlan }, 'Export…'),
+        h('button.btn', { title: 'Desfazer (⌘Z)', onclick: () => stepHistory(undo, redo) }, 'Desfazer'),
+        h('button.btn', { title: 'Refazer (⇧⌘Z)', onclick: () => stepHistory(redo, undo) }, 'Refazer'),
+        h('button.btn', { onclick: importPlan }, 'Importar…'),
+        h('button.btn', { onclick: exportPlan }, 'Exportar…'),
         saveBtn)),
     sidebar,
     h('main.canvas', plan, hint),
@@ -153,10 +173,10 @@ export async function bootEditor(root) {
   function validate() {
     try {
       valid = normalize(structuredClone(doc));
-      const linked = [...doc.lights, ...doc.acs].filter(isLinked).length;
+      const linked = [...doc.lights, ...doc.acs, ...doc.gates, ...doc.shortcuts, ...doc.toggles].filter(isLinked).length;
       status.className = 'status';
-      status.replaceChildren(h('span.ok', '●'), ` ${doc.rooms.length} rooms · ${doc.lights.length} lights · ${doc.acs.length} ACs · `,
-        `${linked} linked to real devices`, dirty ? h('span.dirty', ' · unsaved changes') : '');
+      status.replaceChildren(h('span.ok', '●'), ` ${doc.rooms.length} cômodos · ${doc.lights.length} luzes · ${doc.acs.length} ares · `,
+        `${linked} vinculados a dispositivos reais`, dirty ? h('span.dirty', ' · alterações não salvas') : '');
     } catch (e) {
       valid = null;
       status.className = 'status bad';
@@ -180,7 +200,7 @@ export async function bootEditor(root) {
   }
 
   function buildPreview() {
-    previewToggle.replaceChildren(icon(previewLights ? 'bright' : 'moon', 14), previewLights ? 'Lights on' : 'Lights off');
+    previewToggle.replaceChildren(icon(previewLights ? 'bright' : 'moon', 14), previewLights ? 'Luzes acesas' : 'Luzes apagadas');
     if (!valid) return;
     if (isPhone && !phone.show3D) { world?.dispose(); world = null; previewHost.replaceChildren(); return; }
     world?.dispose();
@@ -209,11 +229,12 @@ export async function bootEditor(root) {
 
   function rowLabel(kind, item) {
     if (kind === 'room') return [item.name || item.id, `${fix(item.rect[2])} × ${fix(item.rect[3])} m`];
-    if (kind === 'light') return [item.name || item.id, `${roomName(item.room)} · ${item.type}`];
-    if (kind === 'ac') return [item.name || item.id, `${roomName(item.room)} · ${item.wall} wall`];
-    if (kind === 'furniture') return [item.type, roomName(roomAt(item.pos)?.id) || '—'];
-    if (kind === 'opening') return [item.type || 'door', `${fix(Math.hypot(item.to[0] - item.from[0], item.to[1] - item.from[1]))} m`];
-    return [item.name || item.id, `${Object.keys(item.lights || {}).length} rules`];
+    if (kind === 'light') return [item.name || item.id, `${roomName(item.room)} · ${NAMES[item.type] || item.type}`];
+    if (kind === 'ac') return [item.name || item.id, `${roomName(item.room)} · parede ${(NAMES[item.wall] || item.wall).toLowerCase()}`];
+    if (kind === 'furniture') return [NAMES[item.type] || item.type, roomName(roomAt(item.pos)?.id) || '—'];
+    if (kind === 'opening') return [NAMES[item.type || 'door'], `${fix(Math.hypot(item.to[0] - item.from[0], item.to[1] - item.from[1]))} m`];
+    if (EXTRAS.includes(kind)) return [item.name || item.id, item.link?.id || 'Não vinculado'];
+    return [item.name || item.id, `${Object.keys(item.lights || {}).length} regras`];
   }
 
   const roomName = (id) => doc.rooms.find((r) => r.id === id)?.name || id || '';
@@ -221,21 +242,21 @@ export async function bootEditor(root) {
 
   function renderSidebar() {
     const nodes = [h(`button.row.home-row${sel.kind === 'home' ? '.active' : ''}`, { onclick: () => select({ kind: 'home' }) },
-      icon('home', 15), h('span.row-name', 'Home settings')),
+      icon('home', 15), h('span.row-name', 'Ajustes da casa')),
     links.sidebarRow(sel.kind === 'connections' || sel.kind === 'service', () => select({ kind: 'connections' }))];
     for (const kind of Object.keys(KEYS)) {
       const items = doc[KEYS[kind]];
       nodes.push(h('div.group',
         h('span', `${TITLES[kind]}`), h('span.n', items.length),
-        h('button.add', { title: `Add to ${TITLES[kind].toLowerCase()}`, 'aria-label': `Add ${kind}`, onclick: () => add(kind) }, icon('plus', 14, 2.4))));
+        h('button.add', { title: `Adicionar em ${TITLES[kind].toLowerCase()}`, 'aria-label': `Adicionar em ${TITLES[kind].toLowerCase()}`, onclick: () => add(kind) }, icon('plus', 14, 2.4))));
       items.forEach((item, index) => {
         const [name, sub] = rowLabel(kind, item);
         const active = sel.kind === kind && sel.index === index;
         nodes.push(h(`div.row${active ? '.active' : ''}`, { role: 'button', tabindex: 0, onclick: () => select({ kind, index }) },
           h('span.row-name', name),
-          isLinked(item) ? h('span.linked', { title: 'Linked to a real device' }, icon('link', 12, 2.2)) : null,
+          isLinked(item) ? h('span.linked', { title: 'Vinculado a um dispositivo real' }, icon('link', 12, 2.2)) : null,
           h('span.row-sub', sub),
-          h('button.del', { title: 'Remove', 'aria-label': `Remove ${name}`, onclick: (e) => { e.stopPropagation(); remove(kind, index); } }, icon('close', 13, 2.4))));
+          h('button.del', { title: 'Remover', 'aria-label': `Remover ${name}`, onclick: (e) => { e.stopPropagation(); remove(kind, index); } }, icon('close', 13, 2.4))));
       });
     }
     const top = sidebar.scrollTop;
@@ -244,7 +265,7 @@ export async function bootEditor(root) {
   }
 
   function uniqueId(base) {
-    const ids = new Set([...doc.rooms, ...doc.lights, ...doc.acs, ...doc.scenes].map((x) => x.id));
+    const ids = new Set([...doc.rooms, ...doc.lights, ...doc.acs, ...doc.scenes, ...doc.gates, ...doc.shortcuts, ...doc.toggles].map((x) => x.id));
     if (!ids.has(base)) return base;
     for (let i = 2; ; i++) if (!ids.has(`${base}${i}`)) return `${base}${i}`;
   }
@@ -257,21 +278,27 @@ export async function bootEditor(root) {
     if (kind === 'room') {
       const maxX = Math.max(0, ...doc.rooms.map((r) => r.rect[0] + r.rect[2]));
       const minZ = Math.min(...doc.rooms.map((r) => r.rect[1]), 0);
-      list.push({ id: uniqueId('room'), name: 'New room', rect: [fix(maxX), fix(doc.rooms.length ? minZ : 0), 3, 3], floor: 'oak' });
+      list.push({ id: uniqueId('room'), name: 'Novo cômodo', rect: [fix(maxX), fix(doc.rooms.length ? minZ : 0), 3, 3], floor: 'oak' });
     } else if (kind === 'light') {
-      if (!room) return toast('Add a room first', true);
-      list.push({ id: uniqueId(`${room.id}.light`), name: 'New light', room: room.id, type: 'ceiling', pos: freeSpot(room, center), capabilities: [] });
+      if (!room) return toast('Adicione um cômodo primeiro', true);
+      list.push({ id: uniqueId(`${room.id}.light`), name: 'Nova luz', room: room.id, type: 'ceiling', pos: freeSpot(room, center), capabilities: [] });
     } else if (kind === 'ac') {
-      if (!room) return toast('Add a room first', true);
-      list.push({ id: uniqueId(`${room.id}.ac`), name: `${room.name} AC`, room: room.id, wall: 'north', pos: [center[0], room.rect[1]], y: 2.2 });
+      if (!room) return toast('Adicione um cômodo primeiro', true);
+      list.push({ id: uniqueId(`${room.id}.ac`), name: `Ar ${room.name}`, room: room.id, wall: 'north', pos: [center[0], room.rect[1]], y: 2.2 });
     } else if (kind === 'furniture') {
       list.push({ type: 'sofa', pos: center, rot: 0 });
     } else if (kind === 'opening') {
-      if (!room) return toast('Add a room first', true);
+      if (!room) return toast('Adicione um cômodo primeiro', true);
       const z = room.rect[1] + room.rect[3];
       list.push({ type: 'door', from: [fix(center[0] - 0.45), fix(z)], to: [fix(center[0] + 0.45), fix(z)] });
     } else if (kind === 'scene') {
-      list.push({ id: uniqueId('scene'), name: 'New scene', icon: 'sparkles', lights: { '*': { on: false } } });
+      list.push({ id: uniqueId('scene'), name: 'Nova cena', icon: 'sparkles', lights: { '*': { on: false } } });
+    } else if (kind === 'gate') {
+      list.push({ id: uniqueId('portao'), name: 'Portão' });
+    } else if (kind === 'shortcut') {
+      list.push({ id: uniqueId('atalho'), name: 'Novo atalho', icon: 'sparkles' });
+    } else if (kind === 'toggle') {
+      list.push({ id: uniqueId('chave'), name: 'Nova chave', icon: 'automation' });
     }
     sel = { kind, index: list.length - 1 };
     touch();
@@ -552,42 +579,42 @@ export async function bootEditor(root) {
       : h('div.insp-head', h('h2', title), sub ? h('span', sub) : null));
 
     if (kind === 'home') {
-      head('Home', 'Global settings of this plan');
+      head('Casa', 'Ajustes gerais desta planta');
       doc.camera ||= { azimuth: 34, elevation: 47 };
-      if (isPhone) nodes.push(section('Real devices', links.sidebarRow(false, () => select({ kind: 'connections' }))));
-      nodes.push(section('Building',
-        row(bind('Wall height, m', number(0.1), { ...prop(doc, 'wallHeight', 2.6), parse: parseNum }),
-          bind('Inner walls shown, m', number(0.05), { ...prop(doc, 'interiorWallHeight', 1.25), parse: parseNum })),
-        bind('Outdoor temperature, °C', number(1), { ...prop(doc, 'outdoorTemp', 27), parse: parseNum })),
-      section('Default camera',
-        row(bind('Azimuth, °', number(1), { ...prop(doc.camera, 'azimuth', 34), parse: parseNum }),
-          bind('Elevation, °', number(1), { ...prop(doc.camera, 'elevation', 47), parse: parseNum })),
-        h('p.note', 'Walls facing the camera are cut away, so the azimuth decides which side of the home is open.')),
-      section('How it works',
+      if (isPhone) nodes.push(section('Dispositivos reais', links.sidebarRow(false, () => select({ kind: 'connections' }))));
+      nodes.push(section('Construção',
+        row(bind('Altura das paredes, m', number(0.1), { ...prop(doc, 'wallHeight', 2.6), parse: parseNum }),
+          bind('Altura visível das paredes internas, m', number(0.05), { ...prop(doc, 'interiorWallHeight', 1.25), parse: parseNum })),
+        bind('Temperatura externa, °C', number(1), { ...prop(doc, 'outdoorTemp', 27), parse: parseNum })),
+      section('Câmera inicial',
+        row(bind('Azimute, °', number(1), { ...prop(doc.camera, 'azimuth', 34), parse: parseNum }),
+          bind('Elevação, °', number(1), { ...prop(doc.camera, 'elevation', 47), parse: parseNum })),
+        h('p.note', 'As paredes viradas para a câmera ficam cortadas, então o azimute decide qual lado da casa aparece aberto.')),
+      section('Como funciona',
         h('p.note', isPhone
-          ? 'Tap anything on the plan, or find it under Items, to edit it. “Save” keeps the plan on this iPhone and sends it to your paired computer. Coordinates are metres: x grows to the right (east), z grows downwards (south).'
-          : 'Pick anything on the plan or in the list to edit it. “Save & apply” writes the plan to disk and reloads the menu bar panel. Coordinates are metres: x grows to the right (east), z grows downwards (south).')));
+          ? 'Toque em qualquer item da planta, ou procure em Itens, para editar. “Salvar” guarda a planta neste iPhone e envia ao computador pareado. As coordenadas são em metros: x cresce para a direita (leste), z cresce para baixo (sul).'
+          : 'Escolha qualquer item na planta ou na lista para editar. “Salvar e aplicar” grava a planta e recarrega o painel da barra de menu. Portão, atalhos e chaves não aparecem na planta: ficam no painel. As coordenadas são em metros: x cresce para a direita (leste), z cresce para baixo (sul).')));
     } else if (kind === 'connections') {
-      head('Connections', 'Where your real lamps and air conditioners live');
-      if (isPhone) nodes.push(h('button.back-link', { onclick: () => select({ kind: 'home' }) }, icon('back', 14, 2.2), 'Home'));
+      head('Conexões', 'Onde ficam seus dispositivos reais');
+      if (isPhone) nodes.push(h('button.back-link', { onclick: () => select({ kind: 'home' }) }, icon('back', 14, 2.2), 'Casa'));
       nodes.push(...links.overview());
     } else if (kind === 'service') {
-      nodes.push(h('button.back-link', { onclick: () => { links.stopPairing(); select({ kind: 'connections' }); } }, icon('back', 14, 2.2), 'Connections'));
+      nodes.push(h('button.back-link', { onclick: () => { links.stopPairing(); select({ kind: 'connections' }); } }, icon('back', 14, 2.2), 'Conexões'));
       nodes.push(h('div.insp-head.svc-head', links.tile(sel.service, 40),
         h('div', h('h2', links.title(sel.service)), h('span', links.blurb(sel.service)))));
       nodes.push(...[links.detail(sel.service, tuyaPanel)].flat());
     } else if (!item) {
-      head('Nothing selected');
-      if (isPhone) nodes.push(h('p.note', 'Tap a room, a lamp or anything else on the plan.'));
+      head('Nada escolhido');
+      if (isPhone) nodes.push(h('p.note', 'Toque num cômodo, numa luz ou em qualquer item da planta.'));
     } else if (kind === 'room') {
       head(item.name || item.id, `id: ${item.id}`);
-      nodes.push(section('Room',
-        bind('Name', text(), prop(item, 'name', '')),
-        bind('Floor', choice(FLOOR_KINDS), { ...prop(item, 'floor', 'oak'), event: 'change' })),
-      section('Position & size, m',
+      nodes.push(section('Cômodo',
+        bind('Nome', text(), prop(item, 'name', '')),
+        bind('Piso', choice(named(FLOOR_KINDS)), { ...prop(item, 'floor', 'oak'), event: 'change' })),
+      section('Posição e tamanho, m',
         row(bind('X', number(0.1), { ...at(item, 'rect', 0), parse: parseNum }), bind('Z', number(0.1), { ...at(item, 'rect', 1), parse: parseNum })),
-        row(bind('Width', number(0.1), { ...at(item, 'rect', 2), parse: parseNum }), bind('Depth', number(0.1), { ...at(item, 'rect', 3), parse: parseNum })),
-        h('p.note', 'Rooms that share an edge get an interior wall there. Add a door or an “open” gap to connect them.')));
+        row(bind('Largura', number(0.1), { ...at(item, 'rect', 2), parse: parseNum }), bind('Profundidade', number(0.1), { ...at(item, 'rect', 3), parse: parseNum })),
+        h('p.note', 'Cômodos que dividem um lado ganham uma parede interna ali. Adicione uma porta ou uma passagem aberta para ligá-los.')));
     } else if (kind === 'light') {
       head(item.name || item.id, `id: ${item.id}`);
       item.capabilities ||= [];
@@ -595,57 +622,57 @@ export async function bootEditor(root) {
         get: () => item.capabilities.includes(name),
         set: (on) => { item.capabilities = item.capabilities.filter((c) => c !== name); if (on) item.capabilities.push(name); },
       });
-      nodes.push(section('Light',
-        bind('Name', text(), prop(item, 'name', '')),
-        row(bind('Room', choice(doc.rooms.map((r) => [r.id, r.name || r.id])), { ...prop(item, 'room'), event: 'change' }),
-          bind('Fixture', choice(LIGHT_KINDS), { ...prop(item, 'type'), event: 'change' }))),
-      section('Position, m',
+      nodes.push(section('Luz',
+        bind('Nome', text(), prop(item, 'name', '')),
+        row(bind('Cômodo', choice(doc.rooms.map((r) => [r.id, r.name || r.id])), { ...prop(item, 'room'), event: 'change' }),
+          bind('Luminária', choice(named(LIGHT_KINDS)), { ...prop(item, 'type'), event: 'change' }))),
+      section('Posição, m',
         row(bind('X', number(), { ...at(item, 'pos', 0), parse: parseNum }), bind('Z', number(), { ...at(item, 'pos', 1), parse: parseNum })),
-        row(bind('Height (auto if empty)', number(), { ...optional(item, 'y'), parse: optNum }),
-          bind('Rotation, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum })),
-        item.type === 'strip' ? bind('Strip length, m', number(0.1), { ...prop(item, 'length', 1), parse: parseNum }) : null),
-      section('What it can do',
+        row(bind('Altura (automática se vazia)', number(), { ...optional(item, 'y'), parse: optNum }),
+          bind('Rotação, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum })),
+        item.type === 'strip' ? bind('Comprimento da fita, m', number(0.1), { ...prop(item, 'length', 1), parse: parseNum }) : null),
+      section('O que ela faz',
         h('div.checks',
-          bind('Dimming', h('input', { type: 'checkbox' }), { ...cap('brightness'), event: 'change' }),
-          bind('White temperature', h('input', { type: 'checkbox' }), { ...cap('temp'), event: 'change' }),
-          bind('Colour', h('input', { type: 'checkbox' }), { ...cap('color'), event: 'change' })),
-        h('p.note', 'Leave all three off for a lamp on a plain smart plug: it is then a simple on/off switch.')),
+          bind('Brilho ajustável', h('input', { type: 'checkbox' }), { ...cap('brightness'), event: 'change' }),
+          bind('Temperatura de branco', h('input', { type: 'checkbox' }), { ...cap('temp'), event: 'change' }),
+          bind('Cor', h('input', { type: 'checkbox' }), { ...cap('color'), event: 'change' })),
+        h('p.note', 'Deixe as três desmarcadas para um interruptor simples: ela só liga e desliga (é o caso das luzes Tuya da casa).')),
       links.deviceSection(item, 'light', linkHooks));
     } else if (kind === 'ac') {
       head(item.name || item.id, `id: ${item.id}`);
-      nodes.push(section('Air conditioner',
-        bind('Name', text(), prop(item, 'name', '')),
-        row(bind('Room', choice(doc.rooms.map((r) => [r.id, r.name || r.id])), { ...prop(item, 'room'), event: 'change' }),
-          bind('Mounted on wall', choice(WALLS), { ...prop(item, 'wall', 'north'), event: 'change' }))),
-      section('Position, m',
+      nodes.push(section('Ar-condicionado',
+        bind('Nome', text(), prop(item, 'name', '')),
+        row(bind('Cômodo', choice(doc.rooms.map((r) => [r.id, r.name || r.id])), { ...prop(item, 'room'), event: 'change' }),
+          bind('Parede', choice(named(WALLS)), { ...prop(item, 'wall', 'north'), event: 'change' }))),
+      section('Posição, m',
         row(bind('X', number(), { ...at(item, 'pos', 0), parse: parseNum }), bind('Z', number(), { ...at(item, 'pos', 1), parse: parseNum })),
-        row(bind('Height', number(), { ...prop(item, 'y', 2.2), parse: parseNum }),
-          bind('Min / max °C', text(), {
+        row(bind('Altura', number(), { ...prop(item, 'y', 2.2), parse: parseNum }),
+          bind('Mín. / máx. °C', text(), {
             get: () => `${item.min ?? 16}-${item.max ?? 30}`,
             set: ([a, b]) => { item.min = a; item.max = b; },
             parse: (v) => { const m = /^(\d+)\s*-\s*(\d+)$/.exec(v.trim()); return m && +m[1] < +m[2] ? [+m[1], +m[2]] : undefined; },
           })),
-        h('p.note', 'Dragging the unit on the plan snaps it to the nearest wall of its room.')),
+        h('p.note', 'Arrastar o aparelho na planta o encaixa na parede mais próxima do cômodo.')),
       links.deviceSection(item, 'ac', linkHooks),
       links.sensorSection(item, linkHooks));
     } else if (kind === 'furniture') {
-      head(item.type, 'Decoration only');
-      nodes.push(section('Furniture',
-        bind('Type', choice(FURNITURE_TYPES), { ...prop(item, 'type'), event: 'change' }),
+      head(NAMES[item.type] || item.type, 'Só decoração');
+      nodes.push(section('Móvel',
+        bind('Tipo', choice(named(FURNITURE_TYPES)), { ...prop(item, 'type'), event: 'change' }),
         row(bind('X', number(), { ...at(item, 'pos', 0), parse: parseNum }), bind('Z', number(), { ...at(item, 'pos', 1), parse: parseNum })),
-        row(bind('Rotation, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum }),
-          bind('Width, m', number(0.1), { ...optional(item, 'width'), parse: optNum })),
-        bind('Colour (hex, optional)', text(), optional(item, 'color')),
-        h('p.note', 'The short line on the plan marks the front. Rotation 0° faces south (towards the bottom of the plan).')));
+        row(bind('Rotação, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum }),
+          bind('Largura, m', number(0.1), { ...optional(item, 'width'), parse: optNum })),
+        bind('Cor (hex, opcional)', text(), optional(item, 'color')),
+        h('p.note', 'O tracinho na planta marca a frente. Rotação 0° fica virada para o sul (para baixo na planta).')));
     } else if (kind === 'opening') {
-      head(item.type || 'door', 'A gap or a window in a wall');
-      nodes.push(section('Opening',
-        bind('Type', choice([['door', 'Door'], ['open', 'Open passage'], ['window', 'Window']]), { ...prop(item, 'type', 'door'), event: 'change' }),
-        row(bind('From X', number(), { ...at(item, 'from', 0), parse: parseNum }), bind('From Z', number(), { ...at(item, 'from', 1), parse: parseNum })),
-        row(bind('To X', number(), { ...at(item, 'to', 0), parse: parseNum }), bind('To Z', number(), { ...at(item, 'to', 1), parse: parseNum })),
-        item.type === 'window' ? row(bind('Sill, m', number(), { ...prop(item, 'sill', 0.85), parse: parseNum }),
-          bind('Head, m', number(), { ...prop(item, 'head', 2.1), parse: parseNum })) : null,
-        h('p.note', 'Both points must lie on the same wall line (same X or same Z). Windows only show on the far walls; the walls facing the camera are cut away.')));
+      head(NAMES[item.type || 'door'], 'Uma passagem ou janela na parede');
+      nodes.push(section('Abertura',
+        bind('Tipo', choice(named(['door', 'open', 'window'])), { ...prop(item, 'type', 'door'), event: 'change' }),
+        row(bind('De X', number(), { ...at(item, 'from', 0), parse: parseNum }), bind('De Z', number(), { ...at(item, 'from', 1), parse: parseNum })),
+        row(bind('Até X', number(), { ...at(item, 'to', 0), parse: parseNum }), bind('Até Z', number(), { ...at(item, 'to', 1), parse: parseNum })),
+        item.type === 'window' ? row(bind('Peitoril, m', number(), { ...prop(item, 'sill', 0.85), parse: parseNum }),
+          bind('Topo, m', number(), { ...prop(item, 'head', 2.1), parse: parseNum })) : null,
+        h('p.note', 'Os dois pontos precisam estar na mesma linha de parede (mesmo X ou mesmo Z). Janelas só aparecem nas paredes do fundo; as viradas para a câmera ficam cortadas.')));
     } else if (kind === 'scene') {
       head(item.name || item.id, `id: ${item.id}`);
       item.lights ||= {};
@@ -656,19 +683,28 @@ export async function bootEditor(root) {
           else item.lights[id] = { ...(item.lights[id] || {}), on: v === 'on' };
         },
       });
-      const tri = () => choice([['', 'Leave as is'], ['on', 'On'], ['off', 'Off']]);
-      nodes.push(section('Scene',
-        row(bind('Name', text(), prop(item, 'name', '')), bind('Icon', choice(SCENE_ICONS), { ...prop(item, 'icon', 'sun'), event: 'change' }))),
-      section('Lights',
-        bind('All lights (default)', tri(), { ...rule('*'), event: 'change' }),
+      const tri = () => choice([['', 'Não mexer'], ['on', 'Acender'], ['off', 'Apagar']]);
+      nodes.push(section('Cena',
+        row(bind('Nome', text(), prop(item, 'name', '')), bind('Ícone', choice(SCENE_ICONS), { ...prop(item, 'icon', 'sun'), event: 'change' }))),
+      section('Luzes',
+        bind('Todas as luzes (padrão)', tri(), { ...rule('*'), event: 'change' }),
         doc.lights.map((l) => bind(`${l.name} · ${roomName(l.room)}`, tri(), { ...rule(l.id), event: 'change' })),
-        h('p.note', 'Brightness, temperature and colour per light are kept from the plan file; edit them there for fine control.')),
-      section('Air conditioners',
-        bind('All ACs', choice([['', 'Leave as is'], ['off', 'Turn off'], ['on', 'Turn on']]), {
+        h('p.note', 'Brilho, temperatura e cor de cada luz vêm do arquivo da planta; edite lá para ajustes finos.')),
+      section('Ares-condicionados',
+        bind('Todos os ares', choice([['', 'Não mexer'], ['off', 'Desligar'], ['on', 'Ligar']]), {
           get: () => (item.acs?.['*']?.on === true ? 'on' : item.acs?.['*']?.on === false ? 'off' : ''),
           set: (v) => { item.acs ||= {}; if (v === '') delete item.acs['*']; else item.acs['*'] = { on: v === 'on' }; },
           event: 'change',
         })));
+    } else if (EXTRAS.includes(kind)) {
+      const what = { gate: ['Portão', 'Abre e fecha com dois toques no painel e na ilha'],
+        shortcut: ['Atalho', 'Roda um script ou uma cena do Home Assistant'],
+        toggle: ['Chave de automação', 'Liga e desliga um input_boolean ou uma automação'] }[kind];
+      head(item.name || item.id, what[1]);
+      nodes.push(section(what[0],
+        bind('Nome', text(), prop(item, 'name', '')),
+        kind === 'gate' ? null : bind('Ícone', choice(named(EXTRA_ICONS)), { ...prop(item, 'icon', kind === 'toggle' ? 'automation' : 'sparkles'), event: 'change' })),
+      links.deviceSection(item, kind, linkHooks));
     }
     const key = `${sel.kind}:${sel.index ?? sel.service ?? ''}`;
     const same = key === inspector.dataset.key;
@@ -812,7 +848,7 @@ export async function bootEditor(root) {
     if (!valid) return;
     if (!isNative) {
       download();
-      toast('Browser preview: the plan was downloaded instead of applied');
+      toast('Prévia no navegador: a planta foi baixada em vez de aplicada');
       return;
     }
     try {
@@ -820,7 +856,7 @@ export async function bootEditor(root) {
       dirty = false;
       validate();
       haptic('success');
-      toast(isPhone ? 'Saved' : 'Saved — the menu bar panel now shows this home');
+      toast(isPhone ? 'Salvo' : 'Salvo — o painel da barra de menu já mostra esta casa');
     } catch (e) {
       toast(e.message, true);
     }
@@ -836,7 +872,7 @@ export async function bootEditor(root) {
     if (!isNative) { download(); return; }
     try {
       const r = await call('exportPlan', { config: doc });
-      if (r.ok) toast('Plan exported');
+      if (r.ok) toast('Planta exportada');
     } catch (e) { toast(e.message, true); }
   }
 
@@ -845,7 +881,7 @@ export async function bootEditor(root) {
       try {
         normalize(structuredClone(json));
       } catch (e) {
-        toast(`Not a valid plan: ${e.message}`, true);
+        toast(`Planta inválida: ${e.message}`, true);
         return;
       }
       snapshot();
@@ -854,7 +890,7 @@ export async function bootEditor(root) {
       nameInput.value = doc.name || 'Home';
       sel = { kind: 'home' };
       touch();
-      toast('Plan imported — review it and press “Save & apply”');
+      toast('Planta importada — revise e clique em “Salvar e aplicar”');
     };
     if (isNative) {
       try {
@@ -865,7 +901,7 @@ export async function bootEditor(root) {
     }
     const input = h('input', { type: 'file', accept: 'application/json,.json' });
     input.addEventListener('change', async () => {
-      try { load(JSON.parse(await input.files[0].text())); } catch (e) { toast(`Could not read the file: ${e.message}`, true); }
+      try { load(JSON.parse(await input.files[0].text())); } catch (e) { toast(`Não foi possível ler o arquivo: ${e.message}`, true); }
     });
     input.click();
   }
@@ -1182,7 +1218,7 @@ export async function bootEditor(root) {
   // A plan saved on the other device (the Mac, or the paired iPhone) while this editor is open.
   incoming.planArrived = (config, from) => {
     if (dirty) {
-      toast(`${from || 'Your other device'} saved a newer plan. Saving here replaces it.`, true);
+      toast(`${from || 'Seu outro dispositivo'} salvou uma planta mais nova. Salvar aqui substitui a dela.`, true);
       return;
     }
     doc = structuredClone(config);
@@ -1192,7 +1228,7 @@ export async function bootEditor(root) {
     touch();
     dirty = false;
     validate();
-    toast(`Updated from ${from || 'your other device'}`);
+    toast(`Atualizado por ${from || 'seu outro dispositivo'}`);
   };
 
   window.__editor = { get doc() { return doc; }, select, tuya, links, phone };

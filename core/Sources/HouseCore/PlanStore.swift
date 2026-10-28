@@ -4,14 +4,18 @@ import CryptoKit
 /// Persists which floor plan is active and the user's own plan file.
 /// Everything lives in ~/Library/Application Support/HouseControl (or HOUSE_DATA_DIR).
 public final class PlanStore {
-    public static let bundled = ["home", "studio"]
+    public static let bundled = ["homeos", "home", "studio"]
+    /// HomeOs Bar starts on the house's own plan, linked to Home Assistant.
+    public static let defaultPlan = "homeos"
+    /// Bundled plans whose links are real (the demos stay simulated).
+    public static let linkedBundled: Set<String> = ["homeos"]
 
     public let directory: URL
     public var customPlanURL: URL { directory.appendingPathComponent("plan.json") }
     private var settingsURL: URL { directory.appendingPathComponent("settings.json") }
 
     /// "home" / "studio" for the bundled demos, or "custom" for plan.json.
-    public private(set) var activePlan = "home"
+    public private(set) var activePlan = PlanStore.defaultPlan
 
     public init() {
         // HOUSE_DATA_DIR points the app at another folder: a throw-away one for testing or
@@ -28,7 +32,7 @@ public final class PlanStore {
            let plan = json["plan"] as? String {
             activePlan = plan
         }
-        if activePlan == "custom", customPlan() == nil { activePlan = "home" }
+        if activePlan == "custom", customPlan() == nil { activePlan = Self.defaultPlan }
     }
 
     public func customPlan() -> [String: Any]? {
@@ -77,7 +81,7 @@ public final class PlanStore {
     public static func validate(_ data: Data) throws -> [String: Any] {
         guard let plan = try JSONSerialization.jsonObject(with: data) as? [String: Any], plan["rooms"] is [Any] else {
             throw NSError(domain: "HouseControl", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "This file is not a House Control floor plan (no \"rooms\" list)."])
+                NSLocalizedDescriptionKey: "Este arquivo não é uma planta do HomeOs Bar (falta a lista \"rooms\")."])
         }
         return plan
     }
@@ -89,7 +93,7 @@ public final class PlanStore {
     /// Forgets the user's plan and falls back to the bundled demo.
     public func removeCustom() {
         try? FileManager.default.removeItem(at: customPlanURL)
-        if activePlan == "custom" { select("home") }
+        if activePlan == "custom" { select(Self.defaultPlan) }
     }
 
     /// The plan the UI should render: the custom JSON inline, or the name of a bundled demo.

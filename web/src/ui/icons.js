@@ -7,6 +7,7 @@ import {
   Undo2, Activity, KeyRound, ArrowUpRight, Camera, Square,
   HouseWifi, Smartphone, Radar, CircleCheck, CircleAlert, ChevronRight, Unlink, LoaderCircle, Router,
   List, Trash2, Scan, Redo2, Map as MapIcon, DoorClosed, Armchair,
+  Warehouse, LightbulbOff, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
 } from 'lucide';
 
 const ICONS = {
@@ -23,6 +24,8 @@ const ICONS = {
   homeassistant: HouseWifi, phone: Smartphone, radar: Radar, ok: CircleCheck, alert: CircleAlert,
   next: ChevronRight, unlink: Unlink, spinner: LoaderCircle, bridge: Router, bulb: Lightbulb,
   list: List, trash: Trash2, fit: Scan, redo: Redo2, map: MapIcon, opening: DoorClosed, furniture: Armchair,
+  gate: Warehouse, lightsOff: LightbulbOff, outside: Trees, toggle: ToggleRight, automation: Bot,
+  presence: Footprints, eye: Eye, up: ArrowUp, downArrow: ArrowDown,
 };
 
 export function icon(name, size = 18, stroke = 1.8) {
@@ -32,4 +35,9 @@ export function icon(name, size = 18, stroke = 1.8) {
   el.setAttribute('stroke-width', stroke);
   el.classList.add('icon');
   return el;
+}
+
+/** A lamp shows its fixture; one that is really a smart plug (a `switch.*` entity), a plug. */
+export function lampIcon(cfg) {
+  return cfg.link?.id?.startsWith('switch.') || !cfg.type ? 'plug' : cfg.type;
 }

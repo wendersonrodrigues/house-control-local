@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import HouseCore
 
 /// Regular window hosting the home editor (rooms, devices, Smart Life links).
 final class EditorController: NSObject, NSWindowDelegate {
@@ -13,7 +14,7 @@ final class EditorController: NSObject, NSWindowDelegate {
                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
         super.init()
-        window.title = "House Control — Edit Home"
+        window.title = "\(Edition.name) — Editar casa"
         window.titlebarAppearsTransparent = true
         window.backgroundColor = NSColor(calibratedRed: 0.04, green: 0.055, blue: 0.1, alpha: 1)
         window.appearance = NSAppearance(named: .darkAqua)

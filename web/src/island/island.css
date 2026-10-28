@@ -278,3 +278,6 @@ html.mode-island #app { display: block; padding: 0; height: 100%; }
   .isle-glow { transform: none; }
 }
 
+
+/* The gate's button, armed by the first press. */
+.chip-power.gate.armed { background: #ff9a3c; color: #241503; }

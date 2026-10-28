@@ -9,10 +9,10 @@ import HouseCore
 // MARK: - Intents the controls run (also offered to Shortcuts)
 
 struct SetLightIntent: SetValueIntent {
-    static let title: LocalizedStringResource = "Switch a Light"
-    static let description = IntentDescription("Turns a House Control lamp on or off.")
-    @Parameter(title: "Light") var light: LightEntity
-    @Parameter(title: "On") var value: Bool
+    static let title: LocalizedStringResource = "Acender ou apagar uma luz"
+    static let description = IntentDescription("Acende ou apaga uma luz do HomeOs Bar.")
+    @Parameter(title: "Luz") var light: LightEntity
+    @Parameter(title: "Ligado") var value: Bool
 
     init() {}
     init(light: LightEntity) { self.light = light }
@@ -24,9 +24,9 @@ struct SetLightIntent: SetValueIntent {
 }
 
 struct SetAllLightsIntent: SetValueIntent {
-    static let title: LocalizedStringResource = "Switch Every Light"
-    static let description = IntentDescription("Turns every lamp of the home on or off.")
-    @Parameter(title: "On") var value: Bool
+    static let title: LocalizedStringResource = "Acender ou apagar todas as luzes"
+    static let description = IntentDescription("Acende ou apaga todas as luzes da casa.")
+    @Parameter(title: "Ligado") var value: Bool
 
     init() {}
 
@@ -37,10 +37,10 @@ struct SetAllLightsIntent: SetValueIntent {
 }
 
 struct SetClimateIntent: SetValueIntent {
-    static let title: LocalizedStringResource = "Switch an Air Conditioner"
-    static let description = IntentDescription("Turns a House Control air conditioner on or off.")
-    @Parameter(title: "Air Conditioner") var ac: ACEntity
-    @Parameter(title: "On") var value: Bool
+    static let title: LocalizedStringResource = "Ligar ou desligar um ar-condicionado"
+    static let description = IntentDescription("Liga ou desliga um ar-condicionado do HomeOs Bar.")
+    @Parameter(title: "Ar-condicionado") var ac: ACEntity
+    @Parameter(title: "Ligado") var value: Bool
 
     init() {}
     init(ac: ACEntity) { self.ac = ac }
@@ -52,9 +52,9 @@ struct SetClimateIntent: SetValueIntent {
 }
 
 struct RunSceneIntent: AppIntent {
-    static let title: LocalizedStringResource = "Apply a Scene"
-    static let description = IntentDescription("Sets every lamp and air conditioner the way a House Control scene says.")
-    @Parameter(title: "Scene") var scene: SceneEntity
+    static let title: LocalizedStringResource = "Aplicar uma cena"
+    static let description = IntentDescription("Deixa luzes e ares do jeito que a cena define.")
+    @Parameter(title: "Cena") var scene: SceneEntity
 
     init() {}
     init(scene: SceneEntity) { self.scene = scene }
@@ -69,20 +69,20 @@ struct RunSceneIntent: AppIntent {
 
 @available(iOS 18.0, macOS 26.0, *)
 struct LightControlConfiguration: ControlConfigurationIntent {
-    static let title: LocalizedStringResource = "Light"
-    @Parameter(title: "Light") var light: LightEntity?
+    static let title: LocalizedStringResource = "Luz"
+    @Parameter(title: "Luz") var light: LightEntity?
 }
 
 @available(iOS 18.0, macOS 26.0, *)
 struct ClimateControlConfiguration: ControlConfigurationIntent {
-    static let title: LocalizedStringResource = "Air Conditioner"
-    @Parameter(title: "Air Conditioner") var ac: ACEntity?
+    static let title: LocalizedStringResource = "Ar-condicionado"
+    @Parameter(title: "Ar-condicionado") var ac: ACEntity?
 }
 
 @available(iOS 18.0, macOS 26.0, *)
 struct SceneControlConfiguration: ControlConfigurationIntent {
-    static let title: LocalizedStringResource = "Scene"
-    @Parameter(title: "Scene") var scene: SceneEntity?
+    static let title: LocalizedStringResource = "Cena"
+    @Parameter(title: "Cena") var scene: SceneEntity?
 }
 
 // MARK: - Controls
@@ -113,12 +113,12 @@ struct LightControl: ControlWidget {
         AppIntentControlConfiguration(kind: Self.kind, provider: Provider()) { value in
             ControlWidgetToggle(value.light?.name ?? "Light", isOn: value.isOn,
                                 action: value.light.map(SetLightIntent.init(light:)) ?? SetLightIntent()) { on in
-                Label(on ? "On" : "Off", systemImage: on ? "lightbulb.fill" : "lightbulb")
+                Label(on ? "Acesa" : "Apagada", systemImage: on ? "lightbulb.fill" : "lightbulb")
             }
             .tint(.orange)
         }
-        .displayName("Light")
-        .description("Switch one lamp.")
+        .displayName("Luz")
+        .description("Acende ou apaga uma luz.")
         .promptsForUserConfiguration()
     }
 }
@@ -134,13 +134,13 @@ struct AllLightsControl: ControlWidget {
 
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind, provider: Provider()) { isOn in
-            ControlWidgetToggle("All Lights", isOn: isOn, action: SetAllLightsIntent()) { on in
-                Label(on ? "On" : "Off", systemImage: on ? "lightbulb.2.fill" : "lightbulb.2")
+            ControlWidgetToggle("Todas as luzes", isOn: isOn, action: SetAllLightsIntent()) { on in
+                Label(on ? "Acesas" : "Apagadas", systemImage: on ? "lightbulb.2.fill" : "lightbulb.2")
             }
             .tint(.orange)
         }
-        .displayName("All Lights")
-        .description("Every lamp of the home at once.")
+        .displayName("Todas as luzes")
+        .description("Todas as luzes da casa de uma vez.")
     }
 }
 
@@ -156,27 +156,27 @@ struct ClimateControl: ControlWidget {
 
     struct Provider: AppIntentControlValueProvider {
         func previewValue(configuration: ClimateControlConfiguration) -> Value {
-            Value(ac: configuration.ac, isOn: true, label: "Cool 23°")
+            Value(ac: configuration.ac, isOn: true, label: "Gelar 23°")
         }
 
         func currentValue(configuration: ClimateControlConfiguration) async throws -> Value {
             let home = HomeData.orSample
             let ac = (configuration.ac?.id ?? home.acs.first?.id).flatMap(home.ac)
             return Value(ac: configuration.ac ?? ac.map { ACEntity($0, in: home) }, isOn: ac?.on ?? false,
-                         label: ac.map { $0.on ? "\($0.modeName) \($0.targetText)" : "Off" } ?? "Off")
+                         label: ac.map { $0.on ? "\($0.modeName) \($0.targetText)" : "Desligado" } ?? "Desligado")
         }
     }
 
     var body: some ControlWidgetConfiguration {
         AppIntentControlConfiguration(kind: Self.kind, provider: Provider()) { value in
-            ControlWidgetToggle(value.ac?.name ?? "Air Conditioner", isOn: value.isOn,
+            ControlWidgetToggle(value.ac?.name ?? "Ar-condicionado", isOn: value.isOn,
                                 action: value.ac.map(SetClimateIntent.init(ac:)) ?? SetClimateIntent()) { on in
-                Label(on ? value.label : "Off", systemImage: on ? "snowflake" : "air.conditioner.horizontal")
+                Label(on ? value.label : "Desligado", systemImage: on ? "snowflake" : "air.conditioner.horizontal")
             }
             .tint(.cyan)
         }
-        .displayName("Air Conditioner")
-        .description("Switch an air conditioner on or off.")
+        .displayName("Ar-condicionado")
+        .description("Liga ou desliga um ar-condicionado.")
         .promptsForUserConfiguration()
     }
 }
@@ -188,11 +188,11 @@ struct SceneControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         AppIntentControlConfiguration(kind: Self.kind, intent: SceneControlConfiguration.self) { configuration in
             ControlWidgetButton(action: configuration.scene.map(RunSceneIntent.init(scene:)) ?? RunSceneIntent()) {
-                Label(configuration.scene?.name ?? "Scene", systemImage: configuration.scene?.symbol ?? "sparkles")
+                Label(configuration.scene?.name ?? "Cena", systemImage: configuration.scene?.symbol ?? "sparkles")
             }
         }
-        .displayName("Scene")
-        .description("Apply a scene with one tap.")
+        .displayName("Cena")
+        .description("Aplica uma cena com um toque.")
         .promptsForUserConfiguration()
     }
 }
@@ -200,8 +200,8 @@ struct SceneControl: ControlWidget {
 #if os(iOS)
 @available(iOS 18.0, *)
 struct OpenControlConfiguration: ControlConfigurationIntent {
-    static let title: LocalizedStringResource = "House Control"
-    @Parameter(title: "Open", default: .home) var screen: AppScreen
+    static let title: LocalizedStringResource = "HomeOs Bar"
+    @Parameter(title: "Abrir", default: .home) var screen: AppScreen
 }
 
 /// A button that opens the app: on the home in 3D (and says how it is), the editor or settings.
@@ -230,11 +230,11 @@ struct OpenAppControl: ControlWidget {
                 guard let home else { return Value(screen: screen, status: "Open", lit: false) }
                 // Short enough for the wide tile: "6 on · AC 23°", "2 lights on", "Lights off".
                 let ac = home.acsOn.first
-                let lights = home.lightsOn == 0 ? "Lights off"
-                    : ac == nil ? "\(home.lightsOn) \(home.lightsOn == 1 ? "light" : "lights") on" : "\(home.lightsOn) on"
-                let status = ac.map { "\(lights) · AC \($0.targetText)" } ?? lights
+                let lights = home.lightsOn == 0 ? "Luzes apagadas"
+                    : ac == nil ? "\(home.lightsOn) \(home.lightsOn == 1 ? "luz acesa" : "luzes acesas")" : "\(home.lightsOn) acesas"
+                let status = ac.map { "\(lights) · Ar \($0.targetText)" } ?? lights
                 return Value(screen: screen, status: status, lit: home.lightsOn > 0 || ac != nil)
-            case .editor: return Value(screen: screen, status: "Floor Plan", lit: false)
+            case .editor: return Value(screen: screen, status: "Planta", lit: false)
             case .settings: return Value(screen: screen, status: "Settings", lit: false)
             }
         }
@@ -244,7 +244,7 @@ struct OpenAppControl: ControlWidget {
         AppIntentControlConfiguration(kind: Self.kind, provider: Provider()) { value in
             ControlWidgetButton(action: OpenHouseControlIntent(screen: value.screen)) {
                 Label {
-                    Text("House Control")
+                    Text("HomeOs Bar")
                     Text(value.status)
                 } icon: {
                     Image(systemName: value.screen == .home && !value.lit ? "house" : value.screen.symbol)
@@ -252,8 +252,8 @@ struct OpenAppControl: ControlWidget {
             }
             .tint(Palette.warm)
         }
-        .displayName("House Control")
-        .description("Opens the app: the home in 3D, the floor plan or settings.")
+        .displayName("HomeOs Bar")
+        .description("Abre o app: a casa em 3D, a planta ou os ajustes.")
     }
 }
 #endif

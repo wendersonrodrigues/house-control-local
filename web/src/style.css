@@ -430,6 +430,22 @@ html.native .card { width: auto; height: auto; box-shadow:
 .tile.dimmable { cursor: ew-resize; }
 
 .tile.ac { grid-column: 1 / -1; cursor: pointer; }
+
+/* The gate (full width, opens on a second press) and the automation switches. */
+.tile.gate { grid-column: 1 / -1; }
+.tile.toggle { grid-column: 1 / -1; cursor: pointer; }
+.tile.offline { opacity: 0.55; }
+.gate-action {
+  flex: none; height: 32px; padding: 0 14px; border-radius: 16px;
+  font-size: 12.5px; font-weight: 600; color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 220ms, color 220ms, transform 320ms var(--spring);
+}
+@media (hover: hover) { .gate-action:hover { background: rgba(255, 255, 255, 0.16); } }
+.gate-action:active { transform: scale(0.94); }
+.gate-action.armed { background: #ff9a3c; color: #241503; animation: gate-armed 900ms ease-in-out infinite alternate; }
+@keyframes gate-armed { to { box-shadow: 0 0 0 4px rgba(255, 154, 60, 0.28); } }
+.scene.shortcut.running { opacity: 0.6; pointer-events: none; }
 .stepper { display: flex; align-items: center; gap: 2px; flex: none; }
 .stepper button {
   width: 28px; height: 28px; border-radius: 10px;

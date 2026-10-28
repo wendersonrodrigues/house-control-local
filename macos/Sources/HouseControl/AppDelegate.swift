@@ -183,38 +183,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if NSApp.currentEvent?.type == .rightMouseUp {
             panel.hide()
             let menu = NSMenu()
-            let settingsItem = menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+            let settingsItem = menu.addItem(withTitle: "Ajustes…", action: #selector(openSettings), keyEquivalent: ",")
             settingsItem.target = self
             settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Edit Home…", action: #selector(openEditor), keyEquivalent: "").target = self
-            menu.addItem(withTitle: "Load Floor Plan…", action: #selector(loadPlan), keyEquivalent: "").target = self
-            menu.addItem(withTitle: "Reveal Plan File", action: #selector(revealPlan), keyEquivalent: "").target = self
-            menu.addItem(withTitle: "Reveal Device Log", action: #selector(revealLog), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Editar casa…", action: #selector(openEditor), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Carregar planta…", action: #selector(loadPlan), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Mostrar arquivo da planta", action: #selector(revealPlan), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Mostrar registro dos dispositivos", action: #selector(revealLog), keyEquivalent: "").target = self
             menu.addItem(.separator())
-            let islandItem = menu.addItem(withTitle: "Show Island", action: #selector(toggleIsland), keyEquivalent: "")
+            let islandItem = menu.addItem(withTitle: "Mostrar a Ilha", action: #selector(toggleIsland), keyEquivalent: "")
             islandItem.target = self
             islandItem.state = island?.isShown == true ? .on : .off
             let login = LoginItem.state
-            let loginItem = menu.addItem(withTitle: login == .needsApproval ? "Open at Login — Allow in Settings…" : "Open at Login",
+            let loginItem = menu.addItem(withTitle: login == .needsApproval ? "Abrir ao iniciar sessão — permitir nos Ajustes…" : "Abrir ao iniciar sessão",
                                          action: #selector(toggleOpenAtLogin), keyEquivalent: "")
             loginItem.target = self
             loginItem.state = login == .on ? .on : login == .needsApproval ? .mixed : .off
-            menu.addItem(withTitle: "Pair Phone…", action: #selector(pairPhone), keyEquivalent: "").target = self
-            let aiItem = menu.addItem(withTitle: agent.isLive ? "AI Access — Live" : "AI Access…", action: #selector(openAgent), keyEquivalent: "")
-            aiItem.target = self
-            aiItem.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)
+            if Edition.phones {
+                menu.addItem(withTitle: "Parear celular…", action: #selector(pairPhone), keyEquivalent: "").target = self
+            }
+            if Edition.aiAccess || agent.isLive {
+                let aiItem = menu.addItem(withTitle: agent.isLive ? "Acesso por IA — ativo" : "Acesso por IA…", action: #selector(openAgent), keyEquivalent: "")
+                aiItem.target = self
+                aiItem.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)
+            }
             if agent.isLive {
-                menu.addItem(withTitle: "Stop AI Access", action: #selector(stopAgent), keyEquivalent: "").target = self
+                menu.addItem(withTitle: "Parar Acesso por IA", action: #selector(stopAgent), keyEquivalent: "").target = self
             }
             for device in sync.connectedDevices {
-                let item = menu.addItem(withTitle: "\(device) is connected", action: nil, keyEquivalent: "")
+                let item = menu.addItem(withTitle: "\(device) está conectado", action: nil, keyEquivalent: "")
                 item.image = NSImage(systemSymbolName: "iphone", accessibilityDescription: nil)
             }
             menu.addItem(.separator())
             menu.addItem(aboutMenuItem())
-            menu.addItem(withTitle: "Reload", action: #selector(reloadAll), keyEquivalent: "").target = self
-            menu.addItem(withTitle: "Quit House Control", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            menu.addItem(withTitle: "Recarregar", action: #selector(reloadAll), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Sair do \(Edition.name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
             statusItem.menu = menu
             statusItem.button?.performClick(nil)
             statusItem.menu = nil
@@ -239,7 +243,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Not signed in here yet: offer the User Code a paired iPhone signed in with.
         if !smartLife.isSmartLifeConnected, !phoneUserCode.isEmpty { account["userCode"] = phoneUserCode }
         boot["smartLife"] = account
-        boot["services"] = hub.servicesInfo
+        boot["services"] = visibleServices
+        boot["edition"] = ["name": Edition.name, "aiAccess": Edition.aiAccess, "phones": Edition.phones]
         if let section = editorSection { boot["section"] = section }
         switch ProcessInfo.processInfo.environment["HOUSE_OPEN_EDITOR"] {
         case "smartlife": boot["section"] = "service:smartlife"
@@ -255,8 +260,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return boot
     }
 
+    /// A bundled plan whose devices are real (the house's own), parsed from the app's resources.
+    private func bundledLinkedPlan(_ id: String) -> [String: Any]? {
+        guard PlanStore.linkedBundled.contains(id),
+              let data = try? Data(contentsOf: WebHost.assetRoot.appendingPathComponent("plans/\(id).json")) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    /// The platforms this edition offers, as the editor shows them.
+    private var visibleServices: [String: Any] { hub.servicesInfo.filter { Edition.platforms.contains($0.key) } }
+
     private func reloadLinks() {
-        hub.setLinks(from: plans.activePlan == "custom" ? plans.customPlan() : nil)
+        hub.setLinks(from: plans.activePlan == "custom" ? plans.customPlan() : bundledLinkedPlan(plans.activePlan))
     }
 
     /// A platform was connected or disconnected: read the devices again and tell the phones.
@@ -280,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hide()
         NSApp.activate(ignoringOtherApps: true)
         let open = NSOpenPanel()
-        open.title = "Choose a floor plan"
+        open.title = "Escolha uma planta"
         open.allowedContentTypes = [.json]
         guard open.runModal() == .OK, let url = open.url else { return }
         do {
@@ -288,7 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             reloadAll()
             editor?.host.load()
         } catch {
-            alert("Could not load this floor plan", error.localizedDescription)
+            alert("Não foi possível carregar esta planta", error.localizedDescription)
         }
     }
 
@@ -301,16 +316,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func aboutMenuItem() -> NSMenuItem {
         let about = NSMenu()
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-        about.addItem(withTitle: "House Control\(version.map { " \($0)" } ?? "")", action: nil, keyEquivalent: "")
+        about.addItem(withTitle: "\(Edition.name)\(version.map { " \($0)" } ?? "")", action: nil, keyEquivalent: "")
         about.addItem(.separator())
         let links: [(String, String, URL)] = [
-            ("Website", "globe", About.website),
-            ("Privacy Policy", "hand.raised", About.privacy),
-            ("Support", "questionmark.circle", About.support),
+            ("Código deste fork", "shippingbox", About.forkSource),
             ("", "", About.website),
-            ("\(About.developer) on X", "at", About.x),
-            ("\(About.developer) on GitHub", "chevron.left.forwardslash.chevron.right", About.github),
-            ("Source Code", "shippingbox", About.source),
+            ("House Control, o projeto original", "globe", About.source),
+            ("\(About.developer) no X", "at", About.x),
+            ("\(About.developer) no GitHub", "chevron.left.forwardslash.chevron.right", About.github),
         ]
         for (title, symbol, url) in links {
             guard !title.isEmpty else { about.addItem(.separator()); continue }
@@ -319,7 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.representedObject = url
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
         }
-        let item = NSMenuItem(title: "About House Control", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: "Sobre o \(Edition.name)", action: nil, keyEquivalent: "")
         item.submenu = about
         return item
     }
@@ -478,7 +491,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Home Assistant, Philips Hue, Apple Home
         case "services.info":
-            host.reply(to: message, hub.servicesInfo)
+            host.reply(to: message, visibleServices)
         case "devices.all":
             Task { @MainActor in
                 let (devices, errors) = await hub.allDevices()
@@ -493,9 +506,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "homeassistant.connect":
             Task { @MainActor in
                 do {
-                    try await hub.connectHomeAssistant(url: message["url"] as? String ?? "", token: message["token"] as? String ?? "")
+                    try await hub.connectHomeAssistant(url: message["url"] as? String ?? "", token: message["token"] as? String ?? "",
+                                                     external: message["external"] as? String)
                     connectionsChanged()
-                    host.reply(to: message, hub.servicesInfo)
+                    host.reply(to: message, visibleServices)
                 } catch {
                     host.reply(to: message, ["error": error.localizedDescription])
                 }
@@ -506,7 +520,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     try await hub.pairHue(host: message["host"] as? String ?? "", bridgeId: message["bridgeId"] as? String,
                                           name: message["name"] as? String)
                     connectionsChanged()
-                    host.reply(to: message, hub.servicesInfo)
+                    host.reply(to: message, visibleServices)
                 } catch is HueService.ButtonNotPressed {
                     host.reply(to: message, ["waiting": true])
                 } catch {
@@ -516,7 +530,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "service.disconnect":
             hub.disconnect(service: message["service"] as? String ?? "")
             connectionsChanged()
-            host.reply(to: message, hub.servicesInfo)
+            host.reply(to: message, visibleServices)
         default:
             break
         }
@@ -589,16 +603,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setOpenAtLogin(_ on: Bool) {
         if on, LoginItem.isTemporaryCopy {
-            alert("Move House Control to Applications first",
-                  "It is running from the disk image or from a temporary copy of the download, which is gone after a restart. "
-                  + "Drag House Control into the Applications folder, open it from there, then turn on Open at Login.")
+            alert("Mova o \(Edition.name) para Aplicativos primeiro",
+                  "Ele está rodando de uma imagem de disco ou de uma cópia temporária, que some ao reiniciar. "
+                  + "Arraste o \(Edition.name) para a pasta Aplicativos, abra de lá e ligue Abrir ao iniciar sessão.")
             return
         }
         do {
             try LoginItem.set(on)
         } catch {
-            alert(on ? "Could not add House Control to Login Items" : "Could not remove House Control from Login Items",
-                  "\(error.localizedDescription)\n\nYou can change it in System Settings → General → Login Items.")
+            alert(on ? "Não foi possível adicionar o \(Edition.name) aos Itens de Início" : "Não foi possível remover o \(Edition.name) dos Itens de Início",
+                  "\(error.localizedDescription)\n\nVocê pode mudar isso em Ajustes do Sistema → Geral → Itens de Início.")
         }
         panel.host.call("openAtLogin", LoginItem.state.rawValue)
         // The very first registration can take a moment to show in the status.
@@ -628,7 +642,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sync.onCatalog = { [weak self] devices, phone in
             guard let self, let catalog = self.hub.homeKit as? RemoteCatalogService else { return }
             catalog.update(devices: devices, from: phone)
-            self.editor?.host.call("servicesChanged", self.hub.servicesInfo)
+            self.editor?.host.call("servicesChanged", self.visibleServices)
         }
         // A home set up or edited on the iPhone becomes this Mac's home too.
         sync.onPlan = { [weak self] data, phone in self?.receivedPlan(data, from: phone) }
@@ -637,7 +651,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !userCode.isEmpty { self.phoneUserCode = userCode }
             if self.hub.adoptConnections(shared) {
                 self.connectionsChanged()
-                self.editor?.host.call("servicesChanged", self.hub.servicesInfo)
+                self.editor?.host.call("servicesChanged", self.visibleServices)
             }
         }
         sync.onPeersChanged = { [weak self] in
@@ -672,7 +686,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hide()
         let pairing = sync.enable(name: computerName)
         if pairingWindow == nil {
-            let window = QRWindowController(title: "Pair Phone")
+            let window = QRWindowController(title: "Parear celular")
             window.onClose = { [weak self] in self?.pairingWindow = nil }
             window.addButton("Copy Pairing Link") { [weak self] in
                 guard let link = self?.sync.pairing?.link else { return }
@@ -692,10 +706,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func resetPairing() {
         let alert = NSAlert()
-        alert.messageText = "Reset pairing?"
-        alert.informativeText = "Every phone paired so far stops syncing until it scans the new code."
-        alert.addButton(withTitle: "Reset")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = "Refazer o pareamento?"
+        alert.informativeText = "Todos os celulares pareados param de sincronizar até lerem o novo código."
+        alert.addButton(withTitle: "Refazer")
+        alert.addButton(withTitle: "Cancelar")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         sync.reset(name: computerName)
         pairPhone()
@@ -788,28 +802,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.openAtLogin = LoginItem.state
         model.islandShown = island?.isShown == true
         var choices = PlanStore.bundled.map { id in
-            SettingsModel.Plan(id: id, name: "Demo · \(id == "home" ? "Apartment" : id.capitalized)")
+            SettingsModel.Plan(id: id, name: id == "homeos" ? "Casa (planta provisória)"
+                               : "Demonstração · \(id == "home" ? "Apartamento" : id == "studio" ? "Estúdio" : id.capitalized)")
         }
-        if plans.hasCustomPlan { choices.insert(.init(id: "custom", name: plans.customPlanName ?? "My home"), at: 0) }
+        if plans.hasCustomPlan { choices.insert(.init(id: "custom", name: plans.customPlanName ?? "Minha casa"), at: 0) }
         model.plans = choices
         model.activePlan = plans.activePlan
         let info = hub.servicesInfo
         func entry(_ id: String) -> [String: Any] { info[id] as? [String: Any] ?? [:] }
         func connected(_ id: String) -> Bool { entry(id)["connected"] as? Bool ?? false }
         let homeKit = entry("homekit")
-        model.connections = [
+        let all: [SettingsModel.Connection] = [
             .init(id: "smartlife", name: "Smart Life", symbol: "bolt.horizontal.fill", tint: .orange,
-                  detail: connected("smartlife") ? "Signed in" : "Not signed in", connected: connected("smartlife")),
+                  detail: connected("smartlife") ? "Conectado" : "Não conectado", connected: connected("smartlife")),
             .init(id: "homeassistant", name: "Home Assistant", symbol: "house.and.flag.fill", tint: .blue,
-                  detail: connected("homeassistant") ? entry("homeassistant")["name"] as? String ?? "Connected" : "Not connected",
+                  detail: connected("homeassistant")
+                    ? [entry("homeassistant")["name"] as? String ?? "Conectado",
+                       entry("homeassistant")["away"] as? Bool == true ? "pelo endereço externo" : nil].compactMap { $0 }.joined(separator: " · ")
+                    : "Não conectado",
                   connected: connected("homeassistant")),
             .init(id: "hue", name: "Philips Hue", symbol: "lightbulb.2.fill", tint: .indigo,
-                  detail: connected("hue") ? entry("hue")["name"] as? String ?? "Connected" : "Not paired", connected: connected("hue")),
+                  detail: connected("hue") ? entry("hue")["name"] as? String ?? "Conectado" : "Não pareado", connected: connected("hue")),
             .init(id: "homekit", name: "Apple Home", symbol: "homekit", tint: .yellow,
                   detail: connected("homekit")
-                    ? "\(homeKit["count"] as? Int ?? 0) devices, from \(homeKit["from"] as? String ?? "your iPhone")"
-                    : "Comes from a paired iPhone", connected: connected("homekit")),
+                    ? "\(homeKit["count"] as? Int ?? 0) dispositivos, de \(homeKit["from"] as? String ?? "seu iPhone")"
+                    : "Vem de um iPhone pareado", connected: connected("homekit")),
         ]
+        model.connections = all.filter { Edition.platforms.contains($0.id) }
         model.phones = sync.connectedDevices
         model.aiLive = agent.isLive
     }
@@ -820,30 +839,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let main = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About House Control", action: #selector(openAbout), keyEquivalent: "").target = self
+        appMenu.addItem(withTitle: "Sobre o \(Edition.name)", action: #selector(openAbout), keyEquivalent: "").target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(withTitle: "Ajustes…", action: #selector(openSettings), keyEquivalent: ",").target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit House Control", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Sair do \(Edition.name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
 
         let editItem = NSMenuItem()
-        let edit = NSMenu(title: "Edit")
-        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        let edit = NSMenu(title: "Editar")
+        edit.addItem(withTitle: "Desfazer", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "Refazer", action: Selector(("redo:")), keyEquivalent: "Z")
         edit.addItem(.separator())
-        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: "Recortar", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copiar", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Colar", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Selecionar tudo", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
 
         let windowItem = NSMenuItem()
-        let window = NSMenu(title: "Window")
-        window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        let window = NSMenu(title: "Janela")
+        window.addItem(withTitle: "Fechar", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        window.addItem(withTitle: "Minimizar", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowItem.submenu = window
         main.addItem(windowItem)
         NSApp.mainMenu = main

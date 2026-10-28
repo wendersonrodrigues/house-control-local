@@ -12,8 +12,8 @@ struct HomeWidget: Widget {
         StaticConfiguration(kind: Self.kind, provider: HomeProvider()) { entry in
             HomeWidgetView(entry: entry)
         }
-        .configurationDisplayName("Home")
-        .description("Your home in 3D, lit the way it is right now. Tap a lamp in the large sizes to switch it.")
+        .configurationDisplayName("Casa")
+        .description("Sua casa em 3D, iluminada como está agora. Nos tamanhos grandes, toque numa luz para acender ou apagar.")
         .supportedFamilies(Self.families)
     }
 
@@ -127,7 +127,7 @@ struct HomeWidgetView: View {
                 .widgetAccentable(ac.on)
             VStack(alignment: .leading, spacing: 0) {
                 Text(ac.name).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.text).lineLimit(1)
-                Text(ac.on ? "\(ac.modeName)\(ac.roomText.map { " · room \($0)" } ?? "")" : "Off\(ac.roomText.map { " · room \($0)" } ?? "")")
+                Text(ac.on ? "\(ac.modeName)\(ac.roomText.map { " · ambiente \($0)" } ?? "")" : "Desligado\(ac.roomText.map { " · ambiente \($0)" } ?? "")")
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.faint).lineLimit(1)
             }
             Spacer(minLength: 4)
@@ -188,7 +188,7 @@ struct HomeWidgetView: View {
                     .widgetAccentable(!on.isEmpty)
                 Text(room.name).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Palette.text).lineLimit(1)
                 Spacer(minLength: 2)
-                Text(on.isEmpty ? "Off" : "\(on.count)/\(lights.count)")
+                Text(on.isEmpty ? "Apagadas" : "\(on.count)/\(lights.count)")
                     .font(.system(size: 11.5, weight: .medium)).foregroundStyle(on.isEmpty ? Palette.faint : Palette.warm)
             }
             .padding(.horizontal, 10)
@@ -196,6 +196,6 @@ struct HomeWidgetView: View {
             .background(Palette.glass, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(room.name): \(on.isEmpty ? "lights off" : "\(on.count) lights on")")
+        .accessibilityLabel("\(room.name): \(on.isEmpty ? "luzes apagadas" : "\(on.count) luzes acesas")")
     }
 }

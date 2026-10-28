@@ -21,3 +21,129 @@ config:
 zeroconf:
 
 demo:
+
+# --- HomeOs Bar: as entidades da casa real, com os mesmos IDs, para testar sem a casa ---
+# Cada luz é um template sobre um input_boolean lab_*; o portão também.
+input_boolean:
+  lab_sala_principal:
+    name: lab Sala Principal
+  lab_sala_cortina:
+    name: lab Sala Cortina
+  lab_sala_central_1:
+    name: lab Sala Central 1
+  lab_sala_central_2:
+    name: lab Sala Central 2
+  lab_sala_spots:
+    name: lab Sala Spots
+  lab_sala_movel:
+    name: lab Sala Movel
+  lab_cozinha_mesa:
+    name: lab Cozinha Mesa
+  lab_cozinha_bancada:
+    name: lab Cozinha Bancada
+  lab_cozinha_spots:
+    name: lab Cozinha Spots
+  lab_garagem:
+    name: lab Garagem
+  lab_corredor:
+    name: lab Corredor
+  lab_quintal:
+    name: lab Quintal
+  lab_portao:
+    name: lab Portão
+  luzes_por_presenca:
+    name: Luzes por presença
+  automacoes_do_portao:
+    name: Automações do portão
+  vigilancia_da_sala:
+    name: Vigilância da sala
+
+template:
+  - light:
+      - name: Sala Principal
+        unique_id: lab_light_sala_principal
+        state: "{{ is_state('input_boolean.lab_sala_principal', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_principal } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_principal } }
+      - name: Sala Cortina
+        unique_id: lab_light_sala_cortina
+        state: "{{ is_state('input_boolean.lab_sala_cortina', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_cortina } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_cortina } }
+      - name: Sala Central 1
+        unique_id: lab_light_sala_central_1
+        state: "{{ is_state('input_boolean.lab_sala_central_1', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_central_1 } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_central_1 } }
+      - name: Sala Central 2
+        unique_id: lab_light_sala_central_2
+        state: "{{ is_state('input_boolean.lab_sala_central_2', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_central_2 } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_central_2 } }
+      - name: Sala Spots
+        unique_id: lab_light_sala_spots
+        state: "{{ is_state('input_boolean.lab_sala_spots', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_spots } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_spots } }
+      - name: Sala Movel
+        unique_id: lab_light_sala_movel
+        state: "{{ is_state('input_boolean.lab_sala_movel', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_movel } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_movel } }
+      - name: Cozinha Mesa
+        unique_id: lab_light_cozinha_mesa
+        state: "{{ is_state('input_boolean.lab_cozinha_mesa', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_cozinha_mesa } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_cozinha_mesa } }
+      - name: Cozinha Bancada
+        unique_id: lab_light_cozinha_bancada
+        state: "{{ is_state('input_boolean.lab_cozinha_bancada', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_cozinha_bancada } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_cozinha_bancada } }
+      - name: Cozinha Spots
+        unique_id: lab_light_cozinha_spots
+        state: "{{ is_state('input_boolean.lab_cozinha_spots', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_cozinha_spots } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_cozinha_spots } }
+      - name: Garagem
+        unique_id: lab_light_garagem
+        state: "{{ is_state('input_boolean.lab_garagem', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_garagem } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_garagem } }
+      - name: Corredor
+        unique_id: lab_light_corredor
+        state: "{{ is_state('input_boolean.lab_corredor', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_corredor } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_corredor } }
+      - name: Quintal
+        unique_id: lab_light_quintal
+        state: "{{ is_state('input_boolean.lab_quintal', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_quintal } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_quintal } }
+  - cover:
+      - name: Portão Garagem
+        unique_id: lab_cover_portao
+        device_class: garage
+        state: "{{ 'open' if is_state('input_boolean.lab_portao', 'on') else 'closed' }}"
+        open_cover: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_portao } }
+        close_cover: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_portao } }
+
+script:
+  apagar_todas_as_luzes:
+    alias: Apagar todas as luzes
+    sequence: [{ action: light.turn_off, target: { entity_id: all } }]
+  ligar_todas_as_luzes:
+    alias: Ligar todas as luzes
+    sequence: [{ action: light.turn_on, target: { entity_id: all } }]
+  ligar_luzes_externas:
+    alias: Ligar luzes externas
+    sequence: [{ action: light.turn_on, target: { entity_id: [light.garagem, light.quintal] } }]
+  apagar_luzes_externas:
+    alias: Apagar luzes externas
+    sequence: [{ action: light.turn_off, target: { entity_id: [light.garagem, light.quintal] } }]
+
+automation:
+  - id: lab_cameras_pessoa
+    alias: Câmeras pessoa detectada notificar com foto
+    triggers: [{ trigger: event, event_type: lab_pessoa_detectada }]
+    actions: [{ delay: 0 }]

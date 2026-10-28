@@ -28,7 +28,7 @@ let nextId = 1;
 const pending = new Map();
 
 export function call(type, payload = {}) {
-  if (!handler) return Promise.reject(new Error('Only available inside the app'));
+  if (!handler) return Promise.reject(new Error('Disponível só dentro do app'));
   return new Promise((resolve, reject) => {
     const id = nextId++;
     pending.set(id, { resolve, reject });

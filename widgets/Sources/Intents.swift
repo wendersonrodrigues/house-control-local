@@ -20,7 +20,7 @@ enum HomeData {
 // MARK: - Entities (what a configurable widget or control can be pointed at)
 
 struct LightEntity: AppEntity {
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Light"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Luz"
     static let defaultQuery = LightQuery()
     var id: String
     var name: String
@@ -52,7 +52,7 @@ struct LightQuery: EntityQuery {
 }
 
 struct RoomEntity: AppEntity {
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Room"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Cômodo"
     static let defaultQuery = RoomQuery()
     var id: String
     var name: String
@@ -76,7 +76,7 @@ struct RoomQuery: EntityQuery {
 }
 
 struct ACEntity: AppEntity {
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Air Conditioner"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Ar-condicionado"
     static let defaultQuery = ACQuery()
     var id: String
     var name: String
@@ -108,7 +108,7 @@ struct ACQuery: EntityQuery {
 }
 
 struct SceneEntity: AppEntity {
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Scene"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Cena"
     static let defaultQuery = SceneQuery()
     var id: String
     var name: String
@@ -139,29 +139,29 @@ struct SceneQuery: EntityQuery {
 // MARK: - Widget configuration
 
 struct LightConfiguration: WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "Light"
-    static let description = IntentDescription("Choose the lamp this widget switches.")
-    @Parameter(title: "Light") var light: LightEntity?
+    static let title: LocalizedStringResource = "Luz"
+    static let description = IntentDescription("Escolha a luz que este widget aciona.")
+    @Parameter(title: "Luz") var light: LightEntity?
 }
 
 struct RoomConfiguration: WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "Room"
-    static let description = IntentDescription("Choose the room whose lamps this widget shows.")
-    @Parameter(title: "Room") var room: RoomEntity?
+    static let title: LocalizedStringResource = "Cômodo"
+    static let description = IntentDescription("Escolha o cômodo cujas luzes este widget mostra.")
+    @Parameter(title: "Cômodo") var room: RoomEntity?
 }
 
 struct ClimateConfiguration: WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "Air Conditioner"
-    static let description = IntentDescription("Choose the air conditioner this widget controls.")
-    @Parameter(title: "Air Conditioner") var ac: ACEntity?
+    static let title: LocalizedStringResource = "Ar-condicionado"
+    static let description = IntentDescription("Escolha o ar-condicionado que este widget controla.")
+    @Parameter(title: "Ar-condicionado") var ac: ACEntity?
 }
 
 // MARK: - Actions behind the widgets' buttons
 
 struct ToggleLightIntent: AppIntent {
-    static let title: LocalizedStringResource = "Toggle Light"
+    static let title: LocalizedStringResource = "Alternar luz"
     static let isDiscoverable = false
-    @Parameter(title: "Light") var lightID: String
+    @Parameter(title: "Luz") var lightID: String
 
     init() {}
     init(lightID: String) { self.lightID = lightID }
@@ -173,10 +173,10 @@ struct ToggleLightIntent: AppIntent {
 }
 
 struct ToggleRoomIntent: AppIntent {
-    static let title: LocalizedStringResource = "Toggle Room Lights"
+    static let title: LocalizedStringResource = "Alternar luzes do cômodo"
     static let isDiscoverable = false
-    @Parameter(title: "Room") var roomID: String
-    @Parameter(title: "On") var on: Bool?
+    @Parameter(title: "Cômodo") var roomID: String
+    @Parameter(title: "Ligado") var on: Bool?
 
     init() {}
     init(roomID: String, on: Bool? = nil) { self.roomID = roomID; self.on = on }
@@ -188,9 +188,9 @@ struct ToggleRoomIntent: AppIntent {
 }
 
 struct AllLightsIntent: AppIntent {
-    static let title: LocalizedStringResource = "Switch All Lights"
+    static let title: LocalizedStringResource = "Acender ou apagar todas as luzes"
     static let isDiscoverable = false
-    @Parameter(title: "On") var on: Bool
+    @Parameter(title: "Ligado") var on: Bool
 
     init() {}
     init(on: Bool) { self.on = on }
@@ -218,7 +218,7 @@ struct ApplySceneIntent: AppIntent {
 struct ACPowerIntent: AppIntent {
     static let title: LocalizedStringResource = "Toggle Air Conditioner"
     static let isDiscoverable = false
-    @Parameter(title: "Air Conditioner") var acID: String
+    @Parameter(title: "Ar-condicionado") var acID: String
 
     init() {}
     init(acID: String) { self.acID = acID }
@@ -232,7 +232,7 @@ struct ACPowerIntent: AppIntent {
 struct ACStepIntent: AppIntent {
     static let title: LocalizedStringResource = "Change Temperature"
     static let isDiscoverable = false
-    @Parameter(title: "Air Conditioner") var acID: String
+    @Parameter(title: "Ar-condicionado") var acID: String
     @Parameter(title: "Step") var step: Int
 
     init() {}
