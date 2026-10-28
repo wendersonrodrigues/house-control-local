@@ -132,8 +132,8 @@ Botão direito na casinha → **Editar casa…**
   um ar assume a faixa de temperatura.
 - **Salvar e aplicar** grava a planta e recarrega o painel.
 
-O app já vem com **Casa (planta provisória)**: os sete cômodos e todas as entidades desta casa já vinculadas, com
-os tamanhos dos cômodos aproximados. Ela fica em [`web/public/plans/homeos.json`](web/public/plans/homeos.json).
+O app já vem com **Casa**: a planta real desta casa (13 cômodos, com garagem, quintal e corredor externo), portas,
+janelas, móveis e todas as entidades já vinculadas, nas posições do projeto luminotécnico. Ela fica em [`web/public/plans/homeos.json`](web/public/plans/homeos.json).
 A planta salva pelo editor vai para `~/Library/Application Support/HouseControl/plan.json`. Todos os campos estão
 em [docs/floor-plan.md](docs/floor-plan.md) (em inglês).
 

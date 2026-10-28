@@ -100,7 +100,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   /* ---------- rooms ---------- */
 
   const roomButtons = new Map();
-  for (const r of [{ id: 'all', name: 'Todos' }, ...config.rooms]) {
+  // Rooms without a device stay in the model but not in the chips (a bathroom, a passage).
+  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs].some((d) => d.room === r.id));
+  for (const r of [{ id: 'all', name: 'Todos' }, ...withDevices]) {
     const count = h('span.count.zero', '0');
     const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
     roomButtons.set(r.id, { b, count });
@@ -112,7 +114,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     ui.room = id;
     layoutTiles();
     update();
-    roomButtons.get(id).b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    roomButtons.get(id)?.b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     onFocus(id === 'all' ? null : { kind: 'room', id });
   }
 

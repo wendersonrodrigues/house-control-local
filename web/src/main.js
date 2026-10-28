@@ -10,7 +10,7 @@ import { isNative, isPhone, post, incoming, haptic } from './bridge.js';
 import { publishWidgets, runWidgetAction } from './widgets.js';
 
 const DEMO_PLANS = [
-  { id: 'homeos', name: 'Casa (planta provisória)' },
+  { id: 'homeos', name: 'Casa' },
   { id: 'home', name: 'Demonstração · Apartamento' },
   { id: 'studio', name: 'Demonstração · Estúdio' },
 ];
