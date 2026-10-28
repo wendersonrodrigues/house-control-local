@@ -48,8 +48,8 @@ extension HomeSnapshot.Light {
     var level: Double { capabilities.contains("brightness") ? brightness : 1 }
 
     var stateText: String {
-        guard on else { return "Off" }
-        return capabilities.contains("brightness") ? "\(Int((brightness * 100).rounded()))%" : "On"
+        guard on else { return "Apagada" }
+        return capabilities.contains("brightness") ? "\(Int((brightness * 100).rounded()))%" : "Acesa"
     }
 }
 
@@ -64,7 +64,14 @@ extension HomeSnapshot.AC {
         }
     }
 
-    var modeName: String { mode.prefix(1).uppercased() + mode.dropFirst() }
+    var modeName: String {
+        ["cool": "Gelar", "heat": "Aquecer", "dry": "Desumidificar", "fan": "Ventilar", "auto": "Automático"][mode]
+            ?? mode.prefix(1).uppercased() + mode.dropFirst()
+    }
+
+    var fanName: String {
+        ["auto": "automática", "silent": "silenciosa", "low": "baixa", "medium": "média", "high": "alta", "turbo": "máxima"][fan] ?? fan
+    }
 
     var tint: Color {
         guard on else { return Palette.muted }

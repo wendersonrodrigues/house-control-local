@@ -7,12 +7,12 @@ import { loadConfig } from '../config.js';
 import { createStore } from '../store.js';
 import { createWorld } from '../three/world.js';
 import { h, clamp } from '../ui/dom.js';
-import { icon } from '../ui/icons.js';
+import { icon, lampIcon } from '../ui/icons.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { post, incoming, isNative } from '../bridge.js';
 
-const MODE_LABEL = { cool: 'Cool', heat: 'Heat', dry: 'Dry', fan: 'Fan', auto: 'Auto' };
+const MODE_LABEL = { cool: 'Gelar', heat: 'Aquecer', dry: 'Desumidificar', fan: 'Ventilar', auto: 'Automático' };
 const NAVY = new THREE.Color('#17274f');
 const tmp = new THREE.Color();
 const css = (c) => `#${c.getHexString()}`;
@@ -47,7 +47,7 @@ export async function bootIsland(root) {
   const canvas = h('canvas', { tabindex: -1 });
   const title = h('div.isle-title', h('span.isle-badge', icon('home', 14)), h('b', config.name));
   const status = h('div.isle-status');
-  const power = h('button.isle-power', { 'aria-label': 'Everything on / off', onclick: toggleEverything }, icon('power', 15, 2.4));
+  const power = h('button.isle-power', { 'aria-label': 'Ligar / desligar tudo', onclick: toggleEverything }, icon('power', 15, 2.4));
   const scenes = h('div.isle-scenes');
   const list = h('div.isle-list');
   const body = h('div.isle-body',
@@ -69,11 +69,49 @@ export async function bootIsland(root) {
     sceneButtons.set(s.id, b);
     scenes.append(b);
   }
-  if (!config.scenes.length) scenes.hidden = true;
+  // Shortcuts fill what is left of the row.
+  for (const sc of config.shortcuts.slice(0, Math.max(0, 5 - config.scenes.length))) {
+    const b = h('button.isle-scene', { onclick: async () => {
+      b.disabled = true;
+      if (await store.runShortcut(sc.id)) { b.classList.add('active'); setTimeout(() => b.classList.remove('active'), 1200); }
+      b.disabled = false;
+    } }, icon(sc.icon, 17), h('span', sc.name));
+    scenes.append(b);
+  }
+  if (!config.scenes.length && !config.shortcuts.length) scenes.hidden = true;
 
   /* ---------- devices ---------- */
 
   const rows = [];
+
+  // The gate, as in the panel: a second press within a few seconds opens or closes it.
+  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…' };
+  for (const cfg of config.gates) {
+    const sub = h('div.chip-sub');
+    let armed = 0;
+    const verb = () => (['open', 'opening'].includes(state.gates[cfg.id].state) ? 'close' : 'open');
+    const action = h('button.chip-power.gate', { 'aria-label': `${cfg.name}: abrir ou fechar`, onclick: (e) => {
+      e.stopPropagation();
+      if (!armed) {
+        action.classList.add('armed');
+        armed = setTimeout(() => { armed = 0; action.classList.remove('armed'); update(); }, 3500);
+        update();
+        return;
+      }
+      clearTimeout(armed); armed = 0; action.classList.remove('armed');
+      store.gateAction(cfg.id, verb());
+    } }, icon('gate', 13, 2.4));
+    const el = h('div.chip.gate', h('span.chip-bubble', icon('gate', 15)), h('div.chip-text', h('div.chip-name', cfg.name), sub), action);
+    list.append(el);
+    const update = () => {
+      const g = state.gates[cfg.id];
+      el.classList.toggle('on', g.state !== 'closed');
+      el.style.setProperty('--c', g.state === 'open' ? '#ffb340' : '#ffd84a');
+      sub.textContent = armed ? (verb() === 'open' ? 'Clique de novo para abrir' : 'Clique de novo para fechar')
+        : g.online === false ? 'Indisponível' : GATE_TEXT[g.state] || g.state;
+    };
+    rows.push(update);
+  }
 
   for (const cfg of config.acs) {
     const sub = h('div.chip-sub');
@@ -83,10 +121,10 @@ export async function bootIsland(root) {
     const el = h('div.chip.ac',
       bubble,
       h('div.chip-text', h('div.chip-name', cfg.name), sub),
-      h('button.chip-step', { 'aria-label': 'Cooler', onclick: step(-1) }, icon('minus', 13, 2.4)),
+      h('button.chip-step', { 'aria-label': 'Mais frio', onclick: step(-1) }, icon('minus', 13, 2.4)),
       value,
-      h('button.chip-step', { 'aria-label': 'Warmer', onclick: step(1) }, icon('plus', 13, 2.4)),
-      h('button.chip-power', { 'aria-label': `${cfg.name} power`, onclick: () => store.setAC(cfg.id, { on: !state.acs[cfg.id].on }) }, icon('power', 13, 2.4)));
+      h('button.chip-step', { 'aria-label': 'Mais quente', onclick: step(1) }, icon('plus', 13, 2.4)),
+      h('button.chip-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: () => store.setAC(cfg.id, { on: !state.acs[cfg.id].on }) }, icon('power', 13, 2.4)));
     let shownMode = null;
     list.append(el);
     rows.push(() => {
@@ -96,7 +134,7 @@ export async function bootIsland(root) {
       el.style.setProperty('--c', MODE_COLORS[s.mode]);
       if (shownMode !== s.mode) { bubble.replaceChildren(icon(s.mode, 15)); shownMode = s.mode; }
       value.textContent = `${s.target}°`;
-      sub.textContent = `${!s.on ? 'Off' : s.idle ? 'Idle' : MODE_LABEL[s.mode]} · ${s.roomTemp.toFixed(0)}° inside`;
+      sub.textContent = `${!s.on ? 'Desligado' : s.idle ? 'Em espera' : MODE_LABEL[s.mode]} · ${s.roomTemp.toFixed(0)}° dentro`;
     });
   }
 
@@ -104,7 +142,7 @@ export async function bootIsland(root) {
     const dimmable = cfg.capabilities.includes('brightness');
     const sub = h('div.chip-sub');
     const el = h(`div.chip.light${dimmable ? '.dimmable' : ''}`, { role: 'button', 'aria-label': cfg.name },
-      h('span.chip-bubble', icon(cfg.capabilities.length ? cfg.type : 'plug', 15)),
+      h('span.chip-bubble', icon(lampIcon(cfg), 15)),
       h('div.chip-text', h('div.chip-name', cfg.name), sub),
       h('i.chip-level'));
     // Click toggles, dragging sideways dims: the same gesture as the panel's tiles.
@@ -145,8 +183,8 @@ export async function bootIsland(root) {
   }
 
   function lightLabel(cfg, s) {
-    if (!s.on) return 'Off';
-    return cfg.capabilities.includes('brightness') ? `${Math.round(s.brightness * 100)}%` : 'On';
+    if (!s.on) return 'Apagada';
+    return cfg.capabilities.includes('brightness') ? `${Math.round(s.brightness * 100)}%` : 'Acesa';
   }
 
   function toggleEverything() {
@@ -223,7 +261,7 @@ export async function bootIsland(root) {
 
     status.replaceChildren(
       h('i.dot', { style: onCount || acOn ? {} : { background: 'rgba(255,255,255,.25)', boxShadow: 'none' } }),
-      h('b', onCount ? `${onCount} of ${lights.length}` : 'No'), ' lights on', acOn ? ` · ${acOn.target}°` : '');
+      h('b', onCount ? `${onCount} de ${lights.length}` : 'Nenhuma'), onCount === 1 ? ' luz acesa' : ' luzes acesas', acOn ? ` · ${acOn.target}°` : '');
     power.classList.toggle('on', onCount > 0 || Boolean(acOn));
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);
     for (const row of rows) row();
@@ -287,15 +325,15 @@ export async function bootIsland(root) {
     });
     if (acs.length === 1 && !lights.length) {
       const [cfg, s] = [acs[0], state.acs[acs[0].id]];
-      return { left: ear(s.mode, cfg.name, s.on ? MODE_COLORS[s.mode] : '#8fa3c7'), right: s.on ? `${s.target}°` : 'Off' };
+      return { left: ear(s.mode, cfg.name, s.on ? MODE_COLORS[s.mode] : '#8fa3c7'), right: s.on ? `${s.target}°` : 'Desl.' };
     }
     if (lights.length === 1 && !acs.length) {
       const [cfg, s] = [lights[0], state.lights[lights[0].id]];
-      return { left: ear(cfg.capabilities.length ? cfg.type : 'plug', cfg.name, s.on ? css(lightColor(s, tmp)) : '#8fa3c7'), right: lightLabel(cfg, s) };
+      return { left: ear(lampIcon(cfg), cfg.name, s.on ? css(lightColor(s, tmp)) : '#8fa3c7'), right: lightLabel(cfg, s) };
     }
     if (lights.length + acs.length > 1) {
       const on = Object.values(state.lights).filter((l) => l.on).length;
-      return { left: ear('home', config.name, on ? '#ffb46b' : '#8fa3c7'), right: on ? `${on} on` : 'All off' };
+      return { left: ear('home', config.name, on ? '#ffb46b' : '#8fa3c7'), right: on ? `${on} acesa${on > 1 ? 's' : ''}` : 'Tudo apagado' };
     }
     return null;
   }

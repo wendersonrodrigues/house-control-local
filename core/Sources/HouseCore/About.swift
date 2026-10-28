@@ -9,4 +9,6 @@ public enum About {
     public static let x = URL(string: "https://x.com/0xProbabillity")!
     public static let github = URL(string: "https://github.com/0xProbabillity")!
     public static let source = URL(string: "https://github.com/0xProbabillity/house-control")!
+    /// HomeOs Bar, the fork this build comes from.
+    public static let forkSource = URL(string: "https://github.com/wendersonrodrigues/house-control-local")!
 }

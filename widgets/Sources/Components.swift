@@ -29,7 +29,7 @@ struct SceneTile: View {
                 .strokeBorder(active ? Color.white.opacity(0.28) : Palette.line))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(scene.name) scene\(active ? ", active" : "")")
+        .accessibilityLabel("Cena \(scene.name)\(active ? ", ativa" : "")")
     }
 
     private var background: AnyShapeStyle {
@@ -60,7 +60,7 @@ struct AllLightsButton: View {
                 .widgetAccentable(anyOn)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(anyOn ? "Turn every light off" : "Turn every light on")
+        .accessibilityLabel(anyOn ? "Apagar todas as luzes" : "Acender todas as luzes")
     }
 }
 
@@ -99,7 +99,7 @@ struct LightTile: View {
                 .strokeBorder(light.on ? light.glow.opacity(0.35) : Palette.line))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(light.name), \(light.on ? "on" : "off")")
+        .accessibilityLabel("\(light.name), \(light.on ? "acesa" : "apagada")")
     }
 
     private var tileBackground: AnyShapeStyle {
@@ -159,7 +159,7 @@ struct ClimateButtons: View {
                     .widgetAccentable(ac.on)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(ac.on ? "Turn \(ac.name) off" : "Turn \(ac.name) on")
+            .accessibilityLabel(ac.on ? "Desligar \(ac.name)" : "Ligar \(ac.name)")
             step(1, "plus")
         }
     }
@@ -227,11 +227,11 @@ struct ClimateLine: View {
                     .font(.system(size: size * 0.9, weight: .bold))
                     .foregroundStyle(ac.tint)
                     .widgetAccentable()
-                Text(ac.on ? "\(ac.modeName) \(ac.targetText)" : "AC off")
+                Text(ac.on ? "\(ac.modeName) \(ac.targetText)" : "Ar desligado")
                     .font(.system(size: size, weight: .semibold))
                     .foregroundStyle(Palette.text)
                 if let room = ac.roomText {
-                    Text("· \(room) inside")
+                    Text("· \(room) dentro")
                         .font(.system(size: size, weight: .medium))
                         .foregroundStyle(Palette.faint)
                 }

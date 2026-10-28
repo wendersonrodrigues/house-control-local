@@ -98,7 +98,7 @@ export function openMenu(host, anchor, items, { onClose } = {}) {
   };
   const onKey = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } };
 
-  for (const item of items) {
+  for (const item of items.filter(Boolean)) {
     if (item === '-') { menu.append(h('hr')); continue; }
     menu.append(h(`button${item.selected ? '.selected' : ''}`, {
       onclick: () => { close(); item.action(); },

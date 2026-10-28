@@ -30,17 +30,24 @@ export const SERVICES = {
 };
 export const FLOOR_KINDS = ['oak', 'walnut', 'tile', 'stone'];
 
+// HomeOs Bar shows Home Assistant only; the rest of House Control stays in the code
+// (see core/Sources/HouseCore/Edition.swift, which the Mac passes in the boot payload).
+export const EDITION = {
+  name: 'HomeOs Bar', platforms: ['homeassistant'], aiAccess: false, phones: false,
+  ...(typeof window !== 'undefined' ? window.__HOUSE_BOOT__?.edition : null),
+};
+
 // The plan exactly as written on disk (the editor works on this form).
 export async function loadRawConfig() {
   const boot = window.__HOUSE_BOOT__;
   if (boot?.config) return boot.config;
-  const plan = (boot?.plan !== 'custom' && boot?.plan) || new URLSearchParams(location.search).get('plan') || 'home';
+  const plan = (boot?.plan !== 'custom' && boot?.plan) || new URLSearchParams(location.search).get('plan') || 'homeos';
   const res = await fetch(`./plans/${plan}.json`);
-  if (!res.ok) throw new ConfigError(`Plan "${plan}" not found (HTTP ${res.status})`);
+  if (!res.ok) throw new ConfigError(`Planta "${plan}" não encontrada (HTTP ${res.status})`);
   try {
     return await res.json();
   } catch (e) {
-    throw new ConfigError(`Plan "${plan}" is not valid JSON: ${e.message}`);
+    throw new ConfigError(`A planta "${plan}" não é um JSON válido: ${e.message}`);
   }
 }
 
@@ -55,37 +62,37 @@ function need(cond, msg) {
 const isPoint = (p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
 
 export function normalize(raw) {
-  need(raw && typeof raw === 'object', 'Plan must be a JSON object');
-  need(Array.isArray(raw.rooms) && raw.rooms.length > 0, 'Plan needs at least one room in "rooms"');
+  need(raw && typeof raw === 'object', 'A planta precisa ser um objeto JSON');
+  need(Array.isArray(raw.rooms) && raw.rooms.length > 0, 'A planta precisa de pelo menos um cômodo em "rooms"');
 
   const ids = new Set();
   const unique = (id, what) => {
-    need(typeof id === 'string' && id, `${what} is missing an "id"`);
-    need(!ids.has(id), `Duplicate id "${id}"`);
+    need(typeof id === 'string' && id, `${what} está sem "id"`);
+    need(!ids.has(id), `id repetido "${id}"`);
     ids.add(id);
   };
 
   const rooms = raw.rooms.map((r) => {
-    unique(r.id, 'A room');
+    unique(r.id, 'Um cômodo');
     need(Array.isArray(r.rect) && r.rect.length === 4 && r.rect.every(Number.isFinite),
-      `Room "${r.id}" needs "rect": [x, z, width, depth]`);
+      `O cômodo "${r.id}" precisa de "rect": [x, z, largura, profundidade]`);
     const [x, z, w, d] = r.rect;
-    need(w > 0 && d > 0, `Room "${r.id}" has an empty rect`);
+    need(w > 0 && d > 0, `O cômodo "${r.id}" tem "rect" vazio`);
     return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak' };
   });
   const roomIds = new Set(rooms.map((r) => r.id));
 
   const openings = (raw.openings || []).map((o, i) => {
-    need(isPoint(o.from) && isPoint(o.to), `Opening #${i + 1} needs "from" and "to" points`);
-    need(o.from[0] === o.to[0] || o.from[1] === o.to[1], `Opening #${i + 1} must be axis-aligned`);
+    need(isPoint(o.from) && isPoint(o.to), `A abertura nº ${i + 1} precisa dos pontos "from" e "to"`);
+    need(o.from[0] === o.to[0] || o.from[1] === o.to[1], `A abertura nº ${i + 1} precisa ficar alinhada a um eixo`);
     return { type: o.type || 'door', from: o.from, to: o.to, sill: o.sill ?? 0.85, head: o.head ?? 2.1 };
   });
 
   const lights = (raw.lights || []).map((l) => {
-    unique(l.id, 'A light');
-    need(roomIds.has(l.room), `Light "${l.id}" refers to unknown room "${l.room}"`);
-    need(LIGHT_TYPES.includes(l.type), `Light "${l.id}" has unknown type "${l.type}" (use ${LIGHT_TYPES.join(', ')})`);
-    need(isPoint(l.pos), `Light "${l.id}" needs "pos": [x, z]`);
+    unique(l.id, 'Uma luz');
+    need(roomIds.has(l.room), `A luz "${l.id}" aponta para o cômodo desconhecido "${l.room}"`);
+    need(LIGHT_TYPES.includes(l.type), `A luz "${l.id}" tem o tipo desconhecido "${l.type}" (use ${LIGHT_TYPES.join(', ')})`);
+    need(isPoint(l.pos), `A luz "${l.id}" precisa de "pos": [x, z]`);
     return {
       ...l,
       name: l.name || l.id,
@@ -95,17 +102,27 @@ export function normalize(raw) {
   });
 
   const acs = (raw.acs || []).map((a) => {
-    unique(a.id, 'An AC');
-    need(roomIds.has(a.room), `AC "${a.id}" refers to unknown room "${a.room}"`);
-    need(isPoint(a.pos), `AC "${a.id}" needs "pos": [x, z]`);
-    need(WALLS.includes(a.wall), `AC "${a.id}" needs "wall": one of ${WALLS.join(', ')}`);
+    unique(a.id, 'Um ar-condicionado');
+    need(roomIds.has(a.room), `O ar "${a.id}" aponta para o cômodo desconhecido "${a.room}"`);
+    need(isPoint(a.pos), `O ar "${a.id}" precisa de "pos": [x, z]`);
+    need(WALLS.includes(a.wall), `O ar "${a.id}" precisa de "wall": um de ${WALLS.join(', ')}`);
     return { ...a, name: a.name || a.id, y: a.y ?? 2.2, min: a.min ?? 16, max: a.max ?? 30 };
   });
 
   const scenes = (raw.scenes || []).map((s) => {
-    need(typeof s.id === 'string' && s.id, 'A scene is missing an "id"');
+    need(typeof s.id === 'string' && s.id, 'Uma cena está sem "id"');
     return { id: s.id, name: s.name || s.id, icon: s.icon || 'sun', lights: s.lights || {}, acs: s.acs || {} };
   });
+
+  // Not on the plan: the gate, the shortcuts (scripts) and the switches of automations,
+  // each linked to its Home Assistant entity.
+  const extra = (key, what, fill) => (raw[key] || []).map((x) => {
+    unique(x.id, what);
+    return { ...x, name: x.name || x.id, ...fill(x) };
+  });
+  const gates = extra('gates', 'Um portão', () => ({}));
+  const shortcuts = extra('shortcuts', 'Um atalho', (x) => ({ icon: x.icon || 'sparkles' }));
+  const toggles = extra('toggles', 'Uma chave', (x) => ({ icon: x.icon || 'sparkles' }));
 
   const minX = Math.min(...rooms.map((r) => r.x));
   const minZ = Math.min(...rooms.map((r) => r.z));
@@ -124,6 +141,9 @@ export function normalize(raw) {
     lights,
     acs,
     scenes,
+    gates,
+    shortcuts,
+    toggles,
     bounds: { minX, minZ, maxX, maxZ },
   };
 }

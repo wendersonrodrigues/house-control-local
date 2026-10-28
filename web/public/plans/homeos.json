@@ -1,0 +1,572 @@
+{
+  "version": 1,
+  "name": "Casa",
+  "wallHeight": 2.6,
+  "interiorWallHeight": 1.25,
+  "camera": {
+    "azimuth": 34,
+    "elevation": 50
+  },
+  "outdoorTemp": 28,
+  "_nota": "Planta provisória: os tamanhos dos cômodos são aproximados. As entidades já estão vinculadas ao Home Assistant.",
+  "rooms": [
+    {
+      "id": "garagem",
+      "name": "Garagem",
+      "rect": [
+        0,
+        0,
+        3.5,
+        6
+      ],
+      "floor": "stone"
+    },
+    {
+      "id": "sala",
+      "name": "Sala de estar",
+      "rect": [
+        3.5,
+        0,
+        5,
+        4.5
+      ],
+      "floor": "oak"
+    },
+    {
+      "id": "cozinha",
+      "name": "Cozinha",
+      "rect": [
+        8.5,
+        0,
+        3.5,
+        4.5
+      ],
+      "floor": "tile"
+    },
+    {
+      "id": "corredor",
+      "name": "Corredor",
+      "rect": [
+        3.5,
+        4.5,
+        8.5,
+        1.2
+      ],
+      "floor": "oak"
+    },
+    {
+      "id": "quarto",
+      "name": "Quarto",
+      "rect": [
+        3.5,
+        5.7,
+        4,
+        3.5
+      ],
+      "floor": "walnut"
+    },
+    {
+      "id": "office",
+      "name": "Home Office",
+      "rect": [
+        7.5,
+        5.7,
+        4.5,
+        3.5
+      ],
+      "floor": "oak"
+    },
+    {
+      "id": "quintal",
+      "name": "Quintal",
+      "rect": [
+        0,
+        6,
+        3.5,
+        3.2
+      ],
+      "floor": "stone"
+    }
+  ],
+  "openings": [
+    {
+      "type": "door",
+      "from": [
+        3.5,
+        2.0
+      ],
+      "to": [
+        3.5,
+        2.9
+      ]
+    },
+    {
+      "type": "open",
+      "from": [
+        8.5,
+        1.0
+      ],
+      "to": [
+        8.5,
+        3.8
+      ]
+    },
+    {
+      "type": "open",
+      "from": [
+        4.0,
+        4.5
+      ],
+      "to": [
+        5.4,
+        4.5
+      ]
+    },
+    {
+      "type": "door",
+      "from": [
+        10.0,
+        4.5
+      ],
+      "to": [
+        10.9,
+        4.5
+      ]
+    },
+    {
+      "type": "door",
+      "from": [
+        5.0,
+        5.7
+      ],
+      "to": [
+        5.9,
+        5.7
+      ]
+    },
+    {
+      "type": "door",
+      "from": [
+        8.4,
+        5.7
+      ],
+      "to": [
+        9.3,
+        5.7
+      ]
+    },
+    {
+      "type": "door",
+      "from": [
+        1.2,
+        6.0
+      ],
+      "to": [
+        2.1,
+        6.0
+      ]
+    },
+    {
+      "type": "window",
+      "from": [
+        12,
+        1.0
+      ],
+      "to": [
+        12,
+        2.4
+      ]
+    },
+    {
+      "type": "window",
+      "from": [
+        12,
+        6.6
+      ],
+      "to": [
+        12,
+        8.2
+      ]
+    }
+  ],
+  "furniture": [
+    {
+      "type": "sofa",
+      "pos": [
+        6.0,
+        3.9
+      ],
+      "rot": 180,
+      "width": 2.4
+    },
+    {
+      "type": "tv",
+      "pos": [
+        6.0,
+        0.3
+      ],
+      "width": 1.6
+    },
+    {
+      "type": "rug",
+      "pos": [
+        6.0,
+        2.3
+      ],
+      "size": [
+        2.4,
+        1.8
+      ]
+    },
+    {
+      "type": "kitchen",
+      "pos": [
+        10.25,
+        0.31
+      ],
+      "width": 3.0,
+      "upper": true
+    },
+    {
+      "type": "diningSet",
+      "pos": [
+        10.2,
+        3.1
+      ],
+      "width": 1.6,
+      "chairs": 4
+    },
+    {
+      "type": "bed",
+      "pos": [
+        5.5,
+        7.8
+      ],
+      "rot": 180
+    },
+    {
+      "type": "desk",
+      "pos": [
+        9.8,
+        8.7
+      ],
+      "rot": 180
+    },
+    {
+      "type": "plant",
+      "pos": [
+        0.6,
+        8.6
+      ],
+      "height": 1.3
+    }
+  ],
+  "lights": [
+    {
+      "id": "sala.principal",
+      "name": "Principal",
+      "room": "sala",
+      "type": "ceiling",
+      "pos": [
+        6.0,
+        2.2
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.sala_principal"
+      }
+    },
+    {
+      "id": "sala.cortina",
+      "name": "Cortina",
+      "room": "sala",
+      "type": "strip",
+      "pos": [
+        6.0,
+        0.35
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.sala_cortina"
+      },
+      "length": 1.4
+    },
+    {
+      "id": "sala.central1",
+      "name": "Central 1",
+      "room": "sala",
+      "type": "ceiling",
+      "pos": [
+        5.0,
+        1.4
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.sala_central_1"
+      }
+    },
+    {
+      "id": "sala.central2",
+      "name": "Central 2",
+      "room": "sala",
+      "type": "ceiling",
+      "pos": [
+        7.0,
+        1.4
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.sala_central_2"
+      }
+    },
+    {
+      "id": "sala.spots",
+      "name": "Spots",
+      "room": "sala",
+      "type": "spots",
+      "pos": [
+        5.0,
+        3.6
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.sala_spots"
+      }
+    },
+    {
+      "id": "sala.movel",
+      "name": "Móvel",
+      "room": "sala",
+      "type": "strip",
+      "pos": [
+        7.2,
+        3.9
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.sala_movel"
+      },
+      "length": 1.4
+    },
+    {
+      "id": "cozinha.mesa",
+      "name": "Mesa",
+      "room": "cozinha",
+      "type": "pendant",
+      "pos": [
+        10.2,
+        3.0
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.cozinha_mesa"
+      }
+    },
+    {
+      "id": "cozinha.bancada",
+      "name": "Bancada",
+      "room": "cozinha",
+      "type": "strip",
+      "pos": [
+        10.2,
+        0.5
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.cozinha_bancada"
+      },
+      "length": 1.4
+    },
+    {
+      "id": "cozinha.spots",
+      "name": "Spots",
+      "room": "cozinha",
+      "type": "spots",
+      "pos": [
+        10.2,
+        1.8
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.cozinha_spots"
+      }
+    },
+    {
+      "id": "garagem.luz",
+      "name": "Garagem",
+      "room": "garagem",
+      "type": "ceiling",
+      "pos": [
+        1.75,
+        3.0
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.garagem"
+      }
+    },
+    {
+      "id": "corredor.luz",
+      "name": "Corredor",
+      "room": "corredor",
+      "type": "ceiling",
+      "pos": [
+        7.7,
+        5.1
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.corredor"
+      }
+    },
+    {
+      "id": "quintal.luz",
+      "name": "Quintal",
+      "room": "quintal",
+      "type": "spots",
+      "pos": [
+        1.75,
+        7.6
+      ],
+      "capabilities": [],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.quintal"
+      }
+    }
+  ],
+  "acs": [
+    {
+      "id": "sala.ar",
+      "name": "Ar da Sala",
+      "room": "sala",
+      "wall": "north",
+      "pos": [
+        4.6,
+        0
+      ],
+      "y": 2.2,
+      "min": 16,
+      "max": 32,
+      "link": {
+        "service": "homeassistant",
+        "id": "climate.central_sala"
+      }
+    },
+    {
+      "id": "quarto.ar",
+      "name": "Ar do Quarto",
+      "room": "quarto",
+      "wall": "south",
+      "pos": [
+        5.5,
+        9.2
+      ],
+      "y": 2.2,
+      "min": 16,
+      "max": 32,
+      "link": {
+        "service": "homeassistant",
+        "id": "climate.central_quarto"
+      }
+    }
+  ],
+  "scenes": [],
+  "gates": [
+    {
+      "id": "portao",
+      "name": "Portão",
+      "link": {
+        "service": "homeassistant",
+        "id": "cover.portao_garagem"
+      }
+    }
+  ],
+  "shortcuts": [
+    {
+      "id": "apagar_todas",
+      "name": "Apagar todas",
+      "icon": "lightsOff",
+      "link": {
+        "service": "homeassistant",
+        "id": "script.apagar_todas_as_luzes"
+      }
+    },
+    {
+      "id": "ligar_todas",
+      "name": "Ligar todas",
+      "icon": "bulb",
+      "link": {
+        "service": "homeassistant",
+        "id": "script.ligar_todas_as_luzes"
+      }
+    },
+    {
+      "id": "externas_on",
+      "name": "Externas",
+      "icon": "outside",
+      "link": {
+        "service": "homeassistant",
+        "id": "script.ligar_luzes_externas"
+      }
+    },
+    {
+      "id": "externas_off",
+      "name": "Apagar externas",
+      "icon": "moon",
+      "link": {
+        "service": "homeassistant",
+        "id": "script.apagar_luzes_externas"
+      }
+    }
+  ],
+  "toggles": [
+    {
+      "id": "presenca",
+      "name": "Luzes por presença",
+      "icon": "presence",
+      "link": {
+        "service": "homeassistant",
+        "id": "input_boolean.luzes_por_presenca"
+      }
+    },
+    {
+      "id": "portao_auto",
+      "name": "Automações do portão",
+      "icon": "gate",
+      "link": {
+        "service": "homeassistant",
+        "id": "input_boolean.automacoes_do_portao"
+      }
+    },
+    {
+      "id": "vigilancia",
+      "name": "Vigilância da sala",
+      "icon": "eye",
+      "link": {
+        "service": "homeassistant",
+        "id": "input_boolean.vigilancia_da_sala"
+      }
+    },
+    {
+      "id": "cameras",
+      "name": "Aviso de pessoa nas câmeras",
+      "icon": "automation",
+      "link": {
+        "service": "homeassistant",
+        "id": "automation.cameras_pessoa_detectada_notificar_com_foto"
+      }
+    }
+  ]
+}

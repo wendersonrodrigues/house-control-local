@@ -38,6 +38,12 @@ public extension DeviceService {
 
 public enum DeviceKind: String {
     case light, ac, sensor
+    /// A garage door or gate (`cover`): open / close, and its state as it moves.
+    case gate
+    /// Something to run once (a Home Assistant script or scene): no state of its own.
+    case shortcut
+    /// An on/off setting that is not a lamp (an `input_boolean`, an automation being enabled).
+    case toggle
 
     /// A lamp the panel shows as on, given a new brightness or colour, is switched on as well:
     /// the real one may be off (switched off elsewhere since the last read), and some
@@ -87,14 +93,20 @@ public struct DeviceReading {
     public var features: [String: Any]?
     /// A temperature sensor's reading in °C.
     public var temperature: Double?
+    /// A gate's state: "open", "closed", "opening" or "closing".
+    public var gate: String?
+    /// A toggle's state.
+    public var toggle: Bool?
     public var online = true
 
     public init(light: [String: Any]? = nil, ac: [String: Any]? = nil, features: [String: Any]? = nil,
-                temperature: Double? = nil, online: Bool = true) {
+                temperature: Double? = nil, gate: String? = nil, toggle: Bool? = nil, online: Bool = true) {
         self.light = light
         self.ac = ac
         self.features = features
         self.temperature = temperature
+        self.gate = gate
+        self.toggle = toggle
         self.online = online
     }
 }
@@ -185,14 +197,16 @@ public enum ColorMath {
 
 // MARK: - Air conditioner vocabulary
 
-/// Maps whatever a platform calls its fan speeds onto the panel's five.
+/// Maps whatever a platform calls its fan speeds onto the panel's six.
 enum FanNames {
     static func panel(_ name: String) -> String? {
         let n = name.lowercased()
-        if ["turbo", "max", "strong", "highest", "powerful", "boost", "very high"].contains(where: n.contains) { return "turbo" }
+        if ["turbo", "max", "strong", "highest", "powerful", "boost", "very high", "full"].contains(where: n.contains) { return "turbo" }
         if n.contains("high") { return "high" }
         if n.contains("med") || n.contains("mid") { return "medium" }
-        if n.contains("low") || n.contains("quiet") || n.contains("silent") { return "low" }
+        // Midea and others have both "Silent" and "low": a step of its own below low.
+        if n.contains("silent") || n.contains("quiet") { return "silent" }
+        if n.contains("low") { return "low" }
         if n.contains("auto") { return "auto" }
         return nil
     }
@@ -206,7 +220,7 @@ enum FanNames {
         return out
     }
 
-    static let order = ["auto", "low", "medium", "high", "turbo"]
+    static let order = ["auto", "silent", "low", "medium", "high", "turbo"]
 }
 
 extension Dictionary where Key == String, Value == Any {

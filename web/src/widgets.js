@@ -49,7 +49,7 @@ export function widgetSnapshot(config, store, plan) {
 
 /** Posts the snapshot after every change (and now and then while a room's temperature drifts). */
 export function publishWidgets(config, store) {
-  const plan = window.__HOUSE_BOOT__?.plan || new URLSearchParams(location.search).get('plan') || 'home';
+  const plan = window.__HOUSE_BOOT__?.plan || new URLSearchParams(location.search).get('plan') || 'homeos';
   let timer = 0;
   let lastTick = 0;
   const send = () => { timer = 0; post('widgets', { snapshot: widgetSnapshot(config, store, plan) }); };

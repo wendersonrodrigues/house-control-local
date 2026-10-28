@@ -71,7 +71,7 @@ html.mode-editor, html.mode-editor body { user-select: none; }
 }
 .row:hover { background: var(--glass); color: var(--text); }
 .row.active { background: rgba(70, 130, 255, 0.24); color: #fff; }
-.row-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 550; text-transform: capitalize; }
+.row-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
 .row-sub { flex: none; max-width: 46%; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row.active .row-sub { color: rgba(255, 255, 255, 0.6); }
 .row .linked { color: #6ee7a0; display: grid; }
@@ -139,7 +139,7 @@ html.mode-editor, html.mode-editor body { user-select: none; }
 .chip:hover { color: var(--text); }
 
 .inspector { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 24px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.14) transparent; user-select: text; -webkit-user-select: text; }
-.insp-head h2 { margin: 0; font-size: 16px; font-weight: 650; text-transform: capitalize; }
+.insp-head h2 { margin: 0; font-size: 16px; font-weight: 650; }
 .insp-head span { display: block; margin-top: 2px; font-size: 11.5px; color: var(--faint); }
 .block { margin-top: 18px; }
 .block h3, .devices-list h3 { margin: 0 0 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--faint); }

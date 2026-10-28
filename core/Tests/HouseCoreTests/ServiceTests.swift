@@ -130,6 +130,66 @@ final class ServiceTests: XCTestCase {
             .first?.data["hvac_mode"] as? String, "off")
     }
 
+    func testHomeAssistantMideaClimate() {
+        // midea_dehumidifier_lan: six fan speeds and swing by direction, no "on".
+        let attributes: [String: Any] = [
+            "hvac_modes": ["off", "auto", "cool", "heat", "dry", "fan_only"], "temperature": 23,
+            "fan_modes": ["Silent", "low", "medium", "high", "Full", "auto"], "fan_mode": "Silent",
+            "swing_modes": ["off", "horizontal", "vertical", "both"], "swing_mode": "vertical",
+            "preset_modes": ["none", "eco", "boost", "sleep", "away", "comfort"], "preset_mode": "none",
+        ]
+        let reading = HomeAssistantService.reading(from: ["entity_id": "climate.central_sala", "state": "cool", "attributes": attributes])
+        XCTAssertEqual(reading.ac?["fan"] as? String, "silent")
+        XCTAssertEqual(reading.ac?["swing"] as? String, "vertical")
+        XCTAssertEqual(reading.features?["fans"] as? [String], ["auto", "silent", "low", "medium", "high", "turbo"])
+        XCTAssertEqual(reading.features?["swings"] as? [String], ["swing", "horizontal", "vertical", "off"])
+
+        let fans = FanNames.table(attributes["fan_modes"] as! [String])
+        XCTAssertEqual(fans["turbo"], "Full")
+        XCTAssertEqual(fans["silent"], "Silent")
+        XCTAssertEqual(fans["low"], "low")
+        let swings = attributes["swing_modes"] as! [String]
+        func swing(_ value: String) -> String? {
+            HomeAssistantService.calls(for: "climate.central_sala", patch: ["swing": value], state: [:], fans: fans, modes: [:], swings: swings)
+                .first?.data["swing_mode"] as? String
+        }
+        XCTAssertEqual(swing("swing"), "both")
+        XCTAssertEqual(swing("horizontal"), "horizontal")
+        XCTAssertEqual(swing("off"), "off")
+        XCTAssertEqual(HomeAssistantService.calls(for: "climate.central_sala", patch: ["fan": "turbo"], state: [:], fans: fans, modes: [:])
+            .first?.data["fan_mode"] as? String, "Full")
+    }
+
+    func testHomeAssistantGateShortcutsAndToggles() {
+        let gate = HomeAssistantService.device(from: ["entity_id": "cover.portao_garagem", "state": "closed",
+                                                      "attributes": ["device_class": "garage", "friendly_name": "Portão"]])
+        XCTAssertEqual(gate?.kind, .gate)
+        XCTAssertEqual(HomeAssistantService.device(from: ["entity_id": "script.apagar_todas_as_luzes", "state": "off", "attributes": [:]])?.kind, .shortcut)
+        XCTAssertEqual(HomeAssistantService.device(from: ["entity_id": "input_boolean.luzes_por_presenca", "state": "on", "attributes": [:]])?.kind, .toggle)
+        XCTAssertEqual(HomeAssistantService.device(from: ["entity_id": "automation.x", "state": "on", "attributes": [:]])?.kind, .toggle)
+
+        XCTAssertEqual(HomeAssistantService.reading(from: ["entity_id": "cover.portao_garagem", "state": "opening", "attributes": [:]]).gate, "opening")
+        XCTAssertEqual(HomeAssistantService.reading(from: ["entity_id": "automation.x", "state": "off", "attributes": [:]]).toggle, false)
+
+        func services(_ id: String, _ patch: [String: Any]) -> [String] {
+            HomeAssistantService.calls(for: id, patch: patch, state: [:], fans: [:], modes: [:]).map { "\($0.domain).\($0.service)" }
+        }
+        XCTAssertEqual(services("cover.portao_garagem", ["action": "open"]), ["cover.open_cover"])
+        XCTAssertEqual(services("cover.portao_garagem", ["action": "close"]), ["cover.close_cover"])
+        XCTAssertEqual(services("script.apagar_todas_as_luzes", ["run": true]), ["script.turn_on"])
+        XCTAssertEqual(services("input_boolean.vigilancia_da_sala", ["on": false]), ["input_boolean.turn_off"])
+        XCTAssertEqual(services("automation.x", ["on": true]), ["automation.turn_on"])
+    }
+
+    func testHomeAssistantFallsBackToTheExternalAddress() {
+        let config = HomeAssistantService.Config(url: "http://192.168.0.11:8123", token: "t", external: "https://ha.example.com")
+        XCTAssertEqual(HomeAssistantService.addresses(config, active: nil, localDue: false), ["http://192.168.0.11:8123", "https://ha.example.com"])
+        // Away from home the external one goes first, and the local one is tried again now and then.
+        XCTAssertEqual(HomeAssistantService.addresses(config, active: "https://ha.example.com", localDue: false).first, "https://ha.example.com")
+        XCTAssertEqual(HomeAssistantService.addresses(config, active: "https://ha.example.com", localDue: true).first, "http://192.168.0.11:8123")
+        XCTAssertEqual(HomeAssistantService.addresses(.init(url: "http://h:8123", token: "t"), active: nil, localDue: false), ["http://h:8123"])
+    }
+
     func testHomeAssistantAddressIsNormalized() throws {
         XCTAssertEqual(try HomeAssistantService.normalize("homeassistant.local"), "http://homeassistant.local:8123")
         XCTAssertEqual(try HomeAssistantService.normalize(" http://10.0.0.5:8123/ "), "http://10.0.0.5:8123")
@@ -260,6 +320,42 @@ final class ServiceTests: XCTestCase {
     }
 
     // MARK: - A real Home Assistant (opt-in)
+
+    /// The HomeOs Bar entities the lab mirrors (tools/lab/homeassistant/configuration.yaml).
+    func testLiveHomeOsEntities() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let url = env["HOUSE_TEST_HA_URL"], let token = env["HOUSE_TEST_HA_TOKEN"] else {
+            throw XCTSkip("Set HOUSE_TEST_HA_URL and HOUSE_TEST_HA_TOKEN (tools/lab/homeassistant.sh prints them)")
+        }
+        let service = HomeAssistantService(vault: MemorySecretStore())
+        // A local address that does not answer: the external one takes over.
+        try await service.connect(url: "http://127.0.0.1:1", token: token, external: url)
+        XCTAssertEqual(service.info["away"] as? Bool, true)
+
+        let devices = try await service.devices()
+        XCTAssertEqual(devices.first { $0.id == "cover.portao_garagem" }?.kind, .gate)
+        XCTAssertEqual(devices.first { $0.id == "script.apagar_luzes_externas" }?.kind, .shortcut)
+        XCTAssertEqual(devices.first { $0.id == "input_boolean.vigilancia_da_sala" }?.kind, .toggle)
+
+        let gate = "cover.portao_garagem", toggle = "input_boolean.vigilancia_da_sala", lamp = "light.quintal"
+        try await service.send(kind: .gate, id: gate, patch: ["action": "open"], state: [:])
+        try await service.send(kind: .toggle, id: toggle, patch: ["on": true], state: [:])
+        try await service.send(kind: .shortcut, id: "script.ligar_luzes_externas", patch: ["run": true], state: [:])
+        try await Task.sleep(nanoseconds: 500_000_000)
+        var now = try await service.read([gate, toggle, lamp])
+        XCTAssertEqual(now[gate]?.gate, "open")
+        XCTAssertEqual(now[toggle]?.toggle, true)
+        XCTAssertEqual(now[lamp]?.light?["on"] as? Bool, true)
+
+        try await service.send(kind: .gate, id: gate, patch: ["action": "close"], state: [:])
+        try await service.send(kind: .toggle, id: toggle, patch: ["on": false], state: [:])
+        try await service.send(kind: .shortcut, id: "script.apagar_luzes_externas", patch: ["run": true], state: [:])
+        try await Task.sleep(nanoseconds: 500_000_000)
+        now = try await service.read([gate, toggle, lamp])
+        XCTAssertEqual(now[gate]?.gate, "closed")
+        XCTAssertEqual(now[toggle]?.toggle, false)
+        XCTAssertEqual(now[lamp]?.light?["on"] as? Bool, false)
+    }
 
     func testLiveHomeAssistant() async throws {
         let env = ProcessInfo.processInfo.environment

@@ -1,4 +1,4 @@
-import { loadRawConfig, normalize, isLinked } from './config.js';
+import { loadRawConfig, normalize, isLinked, EDITION } from './config.js';
 import { createStore } from './store.js';
 import { createWorld } from './three/world.js';
 import { createPanel } from './ui/panel.js';
@@ -10,8 +10,9 @@ import { isNative, isPhone, post, incoming, haptic } from './bridge.js';
 import { publishWidgets, runWidgetAction } from './widgets.js';
 
 const DEMO_PLANS = [
-  { id: 'home', name: 'Demo · Apartment' },
-  { id: 'studio', name: 'Demo · Studio' },
+  { id: 'homeos', name: 'Casa (planta provisória)' },
+  { id: 'home', name: 'Demonstração · Apartamento' },
+  { id: 'studio', name: 'Demonstração · Estúdio' },
 ];
 const STAGE_INSETS = [62, 50]; // header above, panel overlap below
 
@@ -36,7 +37,7 @@ function safeAreaTop() {
 function fatal(title, error) {
   console.error(error);
   app.replaceChildren(h('div.fatal', h('h1', title),
-    'The floor plan could not be loaded. Fix the file and reload, or pick another plan from the menu bar icon.',
+    'Não foi possível carregar a planta. Corrija o arquivo e recarregue, ou escolha outra planta pelo ícone da barra de menu.',
     h('code', String(error?.message || error))));
   post('ready', { error: String(error?.message || error) });
 }
@@ -48,7 +49,7 @@ async function boot() {
     raw = await loadRawConfig();
     config = normalize(structuredClone(raw));
   } catch (error) {
-    fatal('Could not open this home', error);
+    fatal('Não foi possível abrir esta casa', error);
     return;
   }
 
@@ -199,7 +200,7 @@ async function boot() {
   for (const type of ['focus', 'pageshow', 'pointermove', 'pointerdown']) window.addEventListener(type, resume, { passive: true });
 
   function planMenu(anchor) {
-    const current = window.__HOUSE_BOOT__?.plan ?? (new URLSearchParams(location.search).get('plan') || 'home');
+    const current = window.__HOUSE_BOOT__?.plan ?? (new URLSearchParams(location.search).get('plan') || 'homeos');
     const items = DEMO_PLANS.map((p) => ({
       label: p.name,
       selected: p.id === current,
@@ -211,7 +212,7 @@ async function boot() {
     }));
     if (window.__HOUSE_BOOT__?.hasCustomPlan) {
       items.unshift({
-        label: 'My home',
+        label: 'Minha casa',
         selected: current === 'custom',
         icon: current === 'custom' ? icon('check', 16, 2.4) : null,
         action: () => post('selectPlan', { plan: 'custom' }),
@@ -219,18 +220,18 @@ async function boot() {
     }
     if (isNative) {
       items.push('-',
-        { label: 'Edit home…', action: () => post('openEditor') },
-        { label: 'AI access…', action: () => post('openAgent') },
-        { label: 'Load floor plan…', action: () => post('loadPlan') },
-        { label: 'Reveal plan file', action: () => post('revealPlan') },
+        { label: 'Editar casa…', action: () => post('openEditor') },
+        EDITION.aiAccess ? { label: 'Acesso por IA…', action: () => post('openAgent') } : null,
+        { label: 'Carregar planta…', action: () => post('loadPlan') },
+        { label: 'Mostrar arquivo da planta', action: () => post('revealPlan') },
         '-',
         {
-          label: openAtLogin === 'needsApproval' ? 'Open at login — allow in Settings…' : 'Open at login',
+          label: openAtLogin === 'needsApproval' ? 'Abrir ao iniciar sessão — permitir nos Ajustes…' : 'Abrir ao iniciar sessão',
           icon: openAtLogin === 'on' ? icon('check', 16, 2.4) : null,
           action: () => post('setOpenAtLogin', { on: openAtLogin !== 'on' }),
         },
-        { label: 'Settings…', action: () => post('openSettings') },
-        { label: 'Quit House Control', action: () => post('quit') });
+        { label: 'Ajustes…', action: () => post('openSettings') },
+        { label: `Sair do ${EDITION.name}`, action: () => post('quit') });
     }
     openMenu(panel.anchorMenu, anchor, items);
   }
@@ -274,7 +275,7 @@ async function renderShot(config, store, room) {
 const mode = window.__HOUSE_BOOT__?.mode || new URLSearchParams(location.search).get('mode') || 'panel';
 if (mode === 'editor') {
   document.documentElement.classList.add('mode-editor');
-  import('./editor/editor.js').then((m) => m.bootEditor(app)).catch((e) => fatal('Editor failed to start', e));
+  import('./editor/editor.js').then((m) => m.bootEditor(app)).catch((e) => fatal('O editor não conseguiu abrir', e));
 } else if (mode === 'agent') {
   import('./agent/console.js').then((m) => m.bootConsole(app)).catch((e) => fatal('AI Access failed to start', e));
 } else if (mode === 'island') {

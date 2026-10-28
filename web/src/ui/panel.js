@@ -2,15 +2,15 @@
 // device tiles and the detail sheets for a light or an AC.
 import * as THREE from 'three';
 import { h, clamp, createSlider, createColorPad, openMenu } from './dom.js';
-import { icon } from './icons.js';
+import { icon, lampIcon } from './icons.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { AC_SWINGS } from '../store.js';
 import { haptic, isPhone } from '../bridge.js';
 
-const MODE_LABEL = { cool: 'Cool', heat: 'Heat', dry: 'Dry', fan: 'Fan', auto: 'Auto' };
-const FAN_LABEL = { auto: 'Auto', low: 'Low', medium: 'Medium', high: 'High', turbo: 'Turbo' };
-const SWING_LABEL = { swing: 'Swing', l1: 'L1', l2: 'L2', l3: 'L3', l4: 'L4', l5: 'L5', off: 'Off' };
+const MODE_LABEL = { cool: 'Gelar', heat: 'Aquecer', dry: 'Desumidificar', fan: 'Ventilar', auto: 'Automático' };
+const FAN_LABEL = { auto: 'Automático', silent: 'Silencioso', low: 'Baixo', medium: 'Médio', high: 'Alto', turbo: 'Máximo' };
+const SWING_LABEL = { swing: 'Oscilar', horizontal: 'Horizontal', vertical: 'Vertical', l1: 'L1', l2: 'L2', l3: 'L3', l4: 'L4', l5: 'L5', off: 'Parado' };
 const SWATCHES = ['#ff5a4f', '#ff9a3c', '#ffd84a', '#5fe08a', '#42d6e8', '#4f8dff', '#8b5cff', '#ff5fc4'];
 
 const TEMP_GRADIENT = 'linear-gradient(90deg, #2f7df6 0%, #58b4f5 34%, #f3e2c0 62%, #f6a54a 82%, #f0762c 100%)';
@@ -22,8 +22,8 @@ const tmp = new THREE.Color();
 const css = (c) => `#${c.getHexString()}`;
 
 function lightStatus(cfg, s) {
-  if (!s.on) return 'Off';
-  return cfg.capabilities.includes('brightness') ? `${Math.round(s.brightness * 100)}%` : 'On';
+  if (!s.on) return 'Apagada';
+  return cfg.capabilities.includes('brightness') ? `${Math.round(s.brightness * 100)}%` : 'Acesa';
 }
 
 function acTemperatureColor(target, cfg) {
@@ -42,10 +42,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   const canvas = h('canvas', { tabindex: -1 });
   const tooltip = h('div.tooltip');
   const homeSub = h('div.home-sub');
-  const power = h('button.round.power', { title: 'Everything on / off', 'aria-label': 'Toggle everything', onclick: toggleEverything }, icon('power', 21, 2.2));
-  const gear = h('button.round', { title: 'Settings and floor plans', 'aria-label': 'Settings and floor plans', onclick: () => onMenu(gear) }, icon('settings', 17));
+  const power = h('button.round.power', { title: 'Ligar / desligar tudo', 'aria-label': 'Ligar ou desligar tudo', onclick: toggleEverything }, icon('power', 21, 2.2));
+  const gear = h('button.round', { title: 'Ajustes e plantas', 'aria-label': 'Ajustes e plantas', onclick: () => onMenu(gear) }, icon('settings', 17));
   // Shown while an AI assistant has a link to this home (AI Access on the Mac).
-  const aiBadge = h('button.ai-badge', { hidden: true, title: 'An AI assistant has access — click to manage', 'aria-label': 'AI access',
+  const aiBadge = h('button.ai-badge', { hidden: true, title: 'Um assistente de IA tem acesso — clique para gerenciar', 'aria-label': 'Acesso por IA',
     onclick: () => onMenu(aiBadge, 'agent') }, icon('sparkles', 13, 2.2), h('span', 'AI'));
 
   const scenes = h('div.scenes');
@@ -55,8 +55,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   const panel = h('section.panel',
     scenes, rooms,
     h('div.list-head', listTitle,
-      h('button.pill', { onclick: () => bulk(true) }, 'All on'),
-      h('button.pill', { onclick: () => bulk(false) }, 'All off')),
+      h('button.pill', { onclick: () => bulk(true) }, 'Acender todas'),
+      h('button.pill', { onclick: () => bulk(false) }, 'Apagar todas')),
     h('div.devices', grid));
   const sheet = h('section.sheet.hidden');
   sheet.inert = true;
@@ -81,12 +81,26 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     sceneButtons.set(s.id, b);
     scenes.append(b);
   }
-  if (!config.scenes.length) scenes.style.display = 'none';
+  // Shortcuts (Home Assistant scripts) sit with the scenes: one press runs them.
+  for (const sc of config.shortcuts) {
+    const b = h('button.scene.shortcut', { title: sc.name, onclick: async () => {
+      if (b.classList.contains('running')) return;
+      haptic('medium');
+      b.classList.add('running');
+      const ok = await store.runShortcut(sc.id);
+      b.classList.remove('running');
+      if (!ok) return;
+      b.classList.add('active');
+      setTimeout(() => b.classList.remove('active'), 1200);
+    } }, icon(sc.icon, 19), sc.name);
+    scenes.append(b);
+  }
+  if (!config.scenes.length && !config.shortcuts.length) scenes.style.display = 'none';
 
   /* ---------- rooms ---------- */
 
   const roomButtons = new Map();
-  for (const r of [{ id: 'all', name: 'All' }, ...config.rooms]) {
+  for (const r of [{ id: 'all', name: 'Todos' }, ...config.rooms]) {
     const count = h('span.count.zero', '0');
     const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
     roomButtons.set(r.id, { b, count });
@@ -133,10 +147,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const sub = h('div.tile-sub');
     // A phone has no room for the button: touching and holding the tile opens the sheet there.
     const more = hasSheet && !isPhone
-      ? h('button.tile-more', { 'aria-label': `${cfg.name} settings`, onclick: (e) => { e.stopPropagation(); openSheet({ kind: 'light', id: cfg.id }); } }, icon('sliders', 15))
+      ? h('button.tile-more', { 'aria-label': `Ajustes de ${cfg.name}`, onclick: (e) => { e.stopPropagation(); openSheet({ kind: 'light', id: cfg.id }); } }, icon('sliders', 15))
       : null;
     const el = h(`div.tile${dimmable ? '.dimmable' : ''}`, { role: 'button', tabindex: 0, 'aria-label': cfg.name },
-      h('div.bubble', icon(cfg.capabilities.length ? cfg.type : 'plug', 19)),
+      h('div.bubble', icon(lampIcon(cfg), 19)),
       h('div.tile-text', h('div.tile-name', cfg.name), sub),
       more,
       h('div.tile-level'));
@@ -216,10 +230,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       bubble,
       h('div.tile-text', h('div.tile-name', cfg.name), sub),
       h('div.stepper',
-        h('button', { 'aria-label': 'Cooler', onclick: step(-1) }, icon('minus', 15, 2.2)),
+        h('button', { 'aria-label': 'Mais frio', onclick: step(-1) }, icon('minus', 15, 2.2)),
         value,
-        h('button', { 'aria-label': 'Warmer', onclick: step(1) }, icon('plus', 15, 2.2))),
-      h('button.mini-power', { 'aria-label': `${cfg.name} power`, onclick: (e) => { e.stopPropagation(); haptic('medium'); store.setAC(cfg.id, { on: !state.acs[cfg.id].on }); } }, icon('power', 16, 2.2)));
+        h('button', { 'aria-label': 'Mais quente', onclick: step(1) }, icon('plus', 15, 2.2))),
+      h('button.mini-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: (e) => { e.stopPropagation(); haptic('medium'); store.setAC(cfg.id, { on: !state.acs[cfg.id].on }); } }, icon('power', 16, 2.2)));
     el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') openSheet({ kind: 'ac', id: cfg.id }); });
     let shownMode = null;
     return {
@@ -231,13 +245,72 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         el.style.setProperty('--c', MODE_COLORS[s.mode]);
         if (shownMode !== s.mode) { bubble.replaceChildren(icon(s.mode, 19)); shownMode = s.mode; }
         value.textContent = `${s.target}°`;
-        sub.textContent = `${!s.on ? 'Off' : s.idle ? 'Idle' : MODE_LABEL[s.mode]} · Room ${s.roomTemp.toFixed(isPhone ? 0 : 1)}°`;
+        sub.textContent = `${!s.on ? 'Desligado' : s.idle ? 'Em espera' : MODE_LABEL[s.mode]} · Ambiente ${s.roomTemp.toFixed(isPhone ? 0 : 1)}°`;
+      },
+    };
+  }
+
+  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…' };
+  const GATE_COLOR = { open: '#ffb340', opening: '#ffd84a', closing: '#ffd84a' };
+
+  // The gate opens and closes on a second press within a few seconds, never on the first:
+  // a stray click in the menu bar must not open the house.
+  function gateTile(cfg) {
+    const sub = h('div.tile-sub');
+    const label = h('span');
+    let armed = 0;
+    const disarm = () => { clearTimeout(armed); armed = 0; action.classList.remove('armed'); update(); };
+    const action = h('button.gate-action', { onclick: (e) => {
+      e.stopPropagation();
+      const g = state.gates[cfg.id];
+      const verb = g.state === 'open' || g.state === 'opening' ? 'close' : 'open';
+      if (!armed) {
+        haptic('light');
+        action.classList.add('armed');
+        label.textContent = verb === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar';
+        armed = setTimeout(disarm, 3500);
+        return;
+      }
+      disarm();
+      haptic('heavy');
+      store.gateAction(cfg.id, verb);
+    } }, label);
+    const el = h('div.tile.gate', { 'aria-label': cfg.name }, h('div.bubble', icon('gate', 19)),
+      h('div.tile-text', h('div.tile-name', cfg.name), sub), action);
+    function update() {
+      const g = state.gates[cfg.id];
+      el.classList.toggle('on', g.state !== 'closed');
+      el.classList.toggle('offline', g.online === false);
+      el.style.setProperty('--c', GATE_COLOR[g.state] || '#8b93a7');
+      sub.textContent = g.online === false ? 'Indisponível' : GATE_TEXT[g.state] || g.state;
+      if (!armed) label.textContent = g.state === 'open' || g.state === 'opening' ? 'Fechar' : 'Abrir';
+    }
+    return { el, cfg, kind: 'gate', update };
+  }
+
+  function toggleTile(cfg) {
+    const sub = h('div.tile-sub');
+    const flip = () => { haptic('light'); store.setToggle(cfg.id, !state.toggles[cfg.id].on); };
+    const el = h('div.tile.toggle', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: flip },
+      h('div.bubble', icon(cfg.icon, 19)), h('div.tile-text', h('div.tile-name', cfg.name), sub), h('span.switch'));
+    el.addEventListener('keydown', (ev) => { if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); flip(); } });
+    return {
+      el, cfg, kind: 'toggle',
+      update() {
+        const t = state.toggles[cfg.id];
+        el.classList.toggle('on', t.on);
+        el.classList.toggle('offline', t.online === false);
+        el.style.setProperty('--c', '#5fe08a');
+        sub.textContent = t.online === false ? 'Indisponível' : t.on ? 'Ligada' : 'Desligada';
       },
     };
   }
 
   for (const cfg of config.acs) tiles.set(cfg.id, acTile(cfg));
   for (const cfg of config.lights) tiles.set(cfg.id, lightTile(cfg));
+  // Not in a room: shown above (the gate) and below (automations) the rooms, on "All" only.
+  const gateTiles = config.gates.map(gateTile);
+  const toggleTiles = config.toggles.map(toggleTile);
 
   function toggleLight(id) {
     haptic('light');
@@ -249,6 +322,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const nodes = [];
     let i = 0;
     const add = (t) => { t.el.style.setProperty('--i', i++); nodes.push(t.el); };
+    if (ui.room === 'all' && gateTiles.length) {
+      nodes.push(h('div.group-label', gateTiles.length > 1 ? 'Portões' : 'Portão'));
+      gateTiles.forEach(add);
+    }
     for (const room of config.rooms) {
       if (ui.room !== 'all' && room.id !== ui.room) continue;
       const devices = [...tiles.values()].filter((t) => t.cfg.room === room.id);
@@ -257,9 +334,13 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       devices.filter((t) => t.kind === 'ac').forEach(add);
       devices.filter((t) => t.kind === 'light').forEach(add);
     }
-    if (!nodes.length) nodes.push(h('div.group-label', 'No devices in this room yet'));
+    if (ui.room === 'all' && toggleTiles.length) {
+      nodes.push(h('div.group-label', 'Automações'));
+      toggleTiles.forEach(add);
+    }
+    if (!nodes.length) nodes.push(h('div.group-label', 'Nenhum dispositivo neste cômodo ainda'));
     else if (isPhone && config.lights.some((l) => l.capabilities.length && inScope(l))) {
-      nodes.push(h('div.grid-hint', 'Touch and hold a light for brightness and colour'));
+      nodes.push(h('div.grid-hint', 'Toque e segure uma luz para brilho e cor'));
     }
     grid.replaceChildren(...nodes);
     grid.parentElement.scrollTop = 0;
@@ -299,7 +380,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function sheetHead(name, sub, powerBtn) {
     return h('div.sheet-head',
-      h('button.round', { 'aria-label': 'Back', onclick: closeSheet }, icon('back', 19, 2.2)),
+      h('button.round', { 'aria-label': 'Voltar', onclick: closeSheet }, icon('back', 19, 2.2)),
       h('div.sheet-title', h('div.sheet-name', name), sub),
       powerBtn);
   }
@@ -329,9 +410,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const s = () => state.acs[id];
     const set = (patch) => store.setAC(id, patch);
     const sub = h('div.sheet-sub');
-    const powerBtn = h('button.round.power', { 'aria-label': 'Power', onclick: () => { haptic('medium'); set({ on: !s().on }); } }, icon('power', 21, 2.2));
+    const powerBtn = h('button.round.power', { 'aria-label': 'Ligar ou desligar', onclick: () => { haptic('medium'); set({ on: !s().on }); } }, icon('power', 21, 2.2));
     const big = bigNumber('°C');
-    const eco = h('button.toggle-chip', { onclick: () => { haptic('light'); set({ eco: !s().eco }); } }, icon('leaf', 17), 'Eco Mode', h('span.switch'));
+    const eco = h('button.toggle-chip', { onclick: () => { haptic('light'); set({ eco: !s().eco }); } }, icon('leaf', 17), 'Modo econômico', h('span.switch'));
     const slider = createSlider({
       min: cfg.min, max: cfg.max, value: s().target, gradient: TEMP_GRADIENT,
       labels: [`${cfg.min}°`, `${cfg.max}°`],
@@ -365,12 +446,12 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       };
     };
 
-    const mode = option('mode', 'Mode', MODE_LABEL, () => features().modes, null);
-    const fan = option('fan', isPhone ? 'Fan' : 'Fan speed', FAN_LABEL, () => features().fans, 'fan');
-    const swing = option('swing', 'Airflow', SWING_LABEL, () => AC_SWINGS, 'wind');
+    const mode = option('mode', 'Modo', MODE_LABEL, () => features().modes, null);
+    const fan = option('fan', 'Ventilação', FAN_LABEL, () => features().fans, 'fan');
+    const swing = option('swing', 'Direção do ar', SWING_LABEL, () => features().swings || AC_SWINGS, 'wind');
     const sleepValue = h('div.option-value');
     const sleep = h('button.option', { onclick: () => { haptic('light'); set({ sleep: !s().sleep }); } },
-      icon('moon', 24, 1.6), h('span.corner.dot'), h('div.option-label', 'Sleep'), sleepValue);
+      icon('moon', 24, 1.6), h('span.corner.dot'), h('div.option-label', 'Dormir'), sleepValue);
     const options = h('div.options', mode.el, fan.el, sleep, swing.el);
 
     return {
@@ -378,9 +459,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         sheetHead(cfg.name, sub, powerBtn),
         h('div.readout', big.el, eco),
         h('div.slider-row',
-          h('button.round', { 'aria-label': 'Cooler', onclick: () => { haptic('tick'); set({ on: true, target: s().target - 1 }); } }, icon('minus', 18, 2.2)),
+          h('button.round', { 'aria-label': 'Mais frio', onclick: () => { haptic('tick'); set({ on: true, target: s().target - 1 }); } }, icon('minus', 18, 2.2)),
           slider.el,
-          h('button.round', { 'aria-label': 'Warmer', onclick: () => { haptic('tick'); set({ on: true, target: s().target + 1 }); } }, icon('plus', 18, 2.2))),
+          h('button.round', { 'aria-label': 'Mais quente', onclick: () => { haptic('tick'); set({ on: true, target: s().target + 1 }); } }, icon('plus', 18, 2.2))),
         options,
       ],
       update() {
@@ -392,14 +473,14 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         eco.hidden = !f.eco;
         options.style.gridTemplateColumns = `repeat(${shown.filter(([, on]) => on).length || 1}, 1fr)`;
         powerBtn.classList.toggle('on', a.on);
-        sub.replaceChildren(icon('thermo', 14), 'Room ', h('b', `${a.roomTemp.toFixed(1)}°C`),
+        sub.replaceChildren(icon('thermo', 14), 'Ambiente ', h('b', `${a.roomTemp.toFixed(1)}°C`),
           h('span.live', { style: { background: a.on ? MODE_COLORS[a.mode] : 'rgba(255,255,255,.25)', boxShadow: a.on && !a.idle ? `0 0 8px ${MODE_COLORS[a.mode]}` : 'none' } }));
         big.set(a.target, !a.on);
         slider.set(a.target);
         eco.classList.toggle('on', a.eco);
         mode.update(); fan.update(); swing.update();
         sleep.classList.toggle('active', a.sleep);
-        sleepValue.textContent = a.sleep ? 'On' : 'Off';
+        sleepValue.textContent = a.sleep ? 'Ligado' : 'Desligado';
       },
     };
   }
@@ -410,7 +491,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const set = (patch) => store.setLight(id, patch);
     const caps = cfg.capabilities;
     const sub = h('div.sheet-sub');
-    const powerBtn = h('button.round.power', { 'aria-label': 'Power', onclick: () => toggleLight(id) }, icon('power', 21, 2.2));
+    const powerBtn = h('button.round.power', { 'aria-label': 'Ligar ou desligar', onclick: () => toggleLight(id) }, icon('power', 21, 2.2));
     const big = bigNumber('%');
     const nodes = [sheetHead(cfg.name, sub, powerBtn), h('div.readout', big.el)];
     const sliders = {};
@@ -421,9 +502,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         onInput: (v) => set({ on: true, brightness: v / 100 }),
       });
       nodes.push(h('div.slider-row',
-        h('button.round', { 'aria-label': 'Dimmer', onclick: () => { haptic('tick'); set({ on: true, brightness: s().brightness - 0.1 }); } }, icon('dim', 18)),
+        h('button.round', { 'aria-label': 'Menos brilho', onclick: () => { haptic('tick'); set({ on: true, brightness: s().brightness - 0.1 }); } }, icon('dim', 18)),
         sliders.brightness.el,
-        h('button.round', { 'aria-label': 'Brighter', onclick: () => { haptic('tick'); set({ on: true, brightness: s().brightness + 0.1 }); } }, icon('bright', 18))));
+        h('button.round', { 'aria-label': 'Mais brilho', onclick: () => { haptic('tick'); set({ on: true, brightness: s().brightness + 0.1 }); } }, icon('bright', 18))));
     }
     let kelvinLabel = null;
     if (caps.includes('temp')) {
@@ -432,7 +513,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         min: 2200, max: 6500, step: 100, value: s().temp, gradient: KELVIN_GRADIENT, compact: true, detent: 500,
         onInput: (v) => set({ on: true, temp: v }),
       });
-      nodes.push(h('div.field-label', h('span', 'Colour temperature'), kelvinLabel), h('div.slider-row', sliders.temp.el));
+      nodes.push(h('div.field-label', h('span', 'Temperatura de cor'), kelvinLabel), h('div.slider-row', sliders.temp.el));
     }
     let swatches = [];
     let pad = null;
@@ -440,11 +521,11 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     if (caps.includes('color')) {
       colorLabel = h('span');
       pad = createColorPad({ value: s().color, onInput: (c) => set({ on: true, color: c }) });
-      swatches = SWATCHES.map((c) => h('button.swatch', { 'aria-label': `Colour ${c}`, vars: { '--sw': c }, onclick: () => { haptic('light'); set({ on: true, color: c }); } }));
-      nodes.push(h('div.field-label', h('span', 'Colour'), colorLabel), pad.el, h('div.swatches', swatches));
+      swatches = SWATCHES.map((c) => h('button.swatch', { 'aria-label': `Cor ${c}`, vars: { '--sw': c }, onclick: () => { haptic('light'); set({ on: true, color: c }); } }));
+      nodes.push(h('div.field-label', h('span', 'Cor'), colorLabel), pad.el, h('div.swatches', swatches));
     } else {
       nodes.push(h('div.sheet-note', icon(cfg.type, 20),
-        `${roomName.get(cfg.room)} · drag across a light tile to dim it, or ${isPhone ? 'tap' : 'click'} the lamp in the 3D view to toggle.`));
+        `${roomName.get(cfg.room)} · arraste sobre o botão da luz para ajustar o brilho, ou ${isPhone ? 'toque' : 'clique'} na lâmpada da maquete 3D para acender ou apagar.`));
     }
 
     return {
@@ -452,14 +533,14 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       update() {
         const l = s();
         powerBtn.classList.toggle('on', l.on);
-        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', l.on ? 'On' : 'Off'));
+        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', l.on ? 'Acesa' : 'Apagada'));
         big.set(caps.includes('brightness') ? Math.round(l.brightness * 100) : l.on ? 100 : 0, !l.on);
         sliders.brightness?.set(Math.round(l.brightness * 100));
         sliders.temp?.set(l.temp);
         if (kelvinLabel) kelvinLabel.textContent = l.color ? '—' : `${l.temp} K`;
         swatches.forEach((el, i) => el.classList.toggle('selected', l.color?.toLowerCase() === SWATCHES[i]));
         pad?.set(l.color);
-        if (colorLabel) colorLabel.textContent = l.color ? l.color.toUpperCase() : 'White';
+        if (colorLabel) colorLabel.textContent = l.color ? l.color.toUpperCase() : 'Branca';
       },
     };
   }
@@ -481,7 +562,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     } else {
       const cfg = store.acCfg.get(hit.id);
       const s = state.acs[hit.id];
-      name = cfg.name; status = s.on ? `${s.idle ? 'Idle' : MODE_LABEL[s.mode]} ${s.target}°` : 'Off'; on = s.on && !s.idle; color = MODE_COLORS[s.mode];
+      name = cfg.name; status = s.on ? `${s.idle ? 'Em espera' : MODE_LABEL[s.mode]} ${s.target}°` : 'Desligado'; on = s.on && !s.idle; color = MODE_COLORS[s.mode];
     }
     tooltip.replaceChildren(h('i.dot'), name, h('span', status));
     tooltip.classList.toggle('on', on);
@@ -523,8 +604,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
     homeSub.replaceChildren(
       h('span.live', { style: anyOn ? {} : { background: 'rgba(255,255,255,.25)', boxShadow: 'none' } }),
-      h('b', onCount ? `${onCount} of ${lights.length}` : 'No'), ' lights on',
-      acsOn.length ? ` · AC ${acsOn[0].target}°` : '');
+      h('b', onCount ? `${onCount} de ${lights.length}` : 'Nenhuma'), onCount === 1 ? ' luz acesa' : ' luzes acesas',
+      acsOn.length ? ` · Ar ${acsOn[0].target}°` : '');
     power.classList.toggle('on', anyOn);
 
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);
@@ -538,9 +619,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
     const scoped = config.lights.filter(inScope);
     const scopedOn = scoped.filter((l) => state.lights[l.id].on).length;
-    listTitle.replaceChildren(h('b', ui.room === 'all' ? 'Whole home' : roomName.get(ui.room)), ` · ${scopedOn} of ${scoped.length} on`);
+    listTitle.replaceChildren(h('b', ui.room === 'all' ? 'Casa toda' : roomName.get(ui.room)), ` · ${scopedOn} de ${scoped.length} acesas`);
 
     for (const t of tiles.values()) t.update();
+    for (const t of [...gateTiles, ...toggleTiles]) t.update();
     sheetView?.update();
     const m = css(mood());
     card.style.setProperty('--mood', m);
