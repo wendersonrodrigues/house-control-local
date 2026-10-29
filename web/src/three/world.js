@@ -54,6 +54,17 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     lights.set(cfg.id, unit);
     scene.add(unit.group);
   }
+  // Pieces of a light drawn elsewhere (config.lightParts): they follow it, and a click on one
+  // is a click on it.
+  const parts = new Map(); // main light id -> its pieces
+  for (const cfg of config.lightParts || []) {
+    const unit = new LightUnit({ ...cfg, capabilities: config.lights.find((l) => l.id === cfg.with)?.capabilities ?? cfg.capabilities }, H);
+    unit.hit.userData = { kind: 'light', id: cfg.with };
+    if (!parts.has(cfg.with)) parts.set(cfg.with, []);
+    parts.get(cfg.with).push(unit);
+    scene.add(unit.group);
+  }
+  const allLights = () => [...lights.values(), ...[...parts.values()].flat()];
 
   // Every shadow-casting lamp costs the shader a texture sampler, and WebGL caps how many
   // one program may use (16 on Apple GPUs — and the moonlight takes one of them too). Past
@@ -64,7 +75,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   const SHADOW_PRIORITY = { ceiling: 0, flood: 0, pendant: 1, floor: 2, spots: 3, table: 4, strip: 9 };
   const canShadow = (unit) => unit.lights.some((l) => l.userData.canShadow);
   const shadowCap = Math.max(1, Math.min(8, renderer.capabilities.maxTextures - 6));
-  const ranked = [...lights.values()].sort((a, b) =>
+  const ranked = allLights().sort((a, b) =>
     (SHADOW_PRIORITY[a.cfg.type] ?? 9) - (SHADOW_PRIORITY[b.cfg.type] ?? 9));
   // One lamp per room first, so every room keeps some depth, then fill up to the cap.
   const shadowOrder = [];
@@ -77,7 +88,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     if (shadowOrder.length >= shadowCap) break;
     if (canShadow(unit) && !shadowOrder.includes(unit)) shadowOrder.push(unit);
   }
-  for (const unit of lights.values()) {
+  for (const unit of allLights()) {
     const keep = shadowOrder.includes(unit);
     for (const l of unit.lights) if (l.userData.canShadow) l.castShadow = keep;
   }
@@ -101,7 +112,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     gates.set(cfg.id, unit);
     scene.add(unit.group);
   }
-  const hitTargets = [...[...lights.values()].map((u) => u.hit), ...[...acs.values()].map((u) => u.hit),
+  const hitTargets = [...allLights().map((u) => u.hit), ...[...acs.values()].map((u) => u.hit),
     ...[...tvs.values()].map((u) => u.hit), ...[...gates.values()].map((u) => u.hit), ...house.floors];
 
   // Night-time ambience: enough to read the model with every lamp off. By day (setDaylight)
@@ -184,6 +195,11 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     // Where the view was dragged to, on the floor, from the framed centre.
     pan: new THREE.Vector3(),
   };
+  // The plan's starting view: distance and where it looks, besides azimuth and elevation.
+  const baseZoom = clamp(config.camera.zoom ?? 1, ZOOM_MIN, ZOOM_MAX);
+  const basePan = new THREE.Vector3(config.camera.pan?.[0] ?? 0, 0, config.camera.pan?.[1] ?? 0);
+  rig.zoom = baseZoom;
+  rig.pan.copy(basePan);
   let width = 1;
   let height = 1;
   let topInset = 0;    // pixels at the top covered by the header
@@ -313,6 +329,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     let i = 0;
     for (const [id, unit] of lights) {
       unit.apply(store.state.lights[id], { ...opts, delay: opts.stagger ? 0.25 + i++ * 0.06 : 0 });
+      for (const p of parts.get(id) || []) p.apply(store.state.lights[id], opts);
     }
     for (const [id, unit] of acs) unit.apply(store.state.acs[id], opts);
     for (const [id, unit] of tvs) unit.apply(store.state.tvs?.[id], opts);
@@ -323,7 +340,10 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
   const unsubscribe = store.on((change) => {
     if (change.type === 'tick') return;
-    if (change.type === 'light') lights.get(change.id).apply(store.state.lights[change.id]);
+    if (change.type === 'light') {
+      lights.get(change.id)?.apply(store.state.lights[change.id]);
+      for (const p of parts.get(change.id) || []) p.apply(store.state.lights[change.id]);
+    }
     else if (change.type === 'ac') acs.get(change.id).apply(store.state.acs[change.id]);
     else if (change.type === 'tv') tvs.get(change.id)?.apply(store.state.tvs[change.id]);
     else if (change.type === 'gate') gates.get(change.id)?.apply(store.state.gates[change.id]);
@@ -452,8 +472,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
   // Double-click: the whole home again.
   canvas.addEventListener('dblclick', () => {
-    rig.zoom = 1;
-    rig.pan.set(0, 0, 0);
+    rig.zoom = rig.focus ? 1 : baseZoom;
+    if (rig.focus) rig.pan.set(0, 0, 0); else rig.pan.copy(basePan);
     frameGoal();
     wake();
   });
@@ -477,7 +497,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     let active = updateRig(dt);
-    for (const unit of lights.values()) active = unit.update(dt) || active;
+    for (const unit of allLights()) active = unit.update(dt) || active;
     for (const unit of acs.values()) active = unit.update(dt) || active;
     for (const unit of tvs.values()) active = unit.update(dt) || active;
     for (const unit of gates.values()) active = unit.update(dt) || active;
@@ -512,6 +532,12 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     lights,
     acs,
 
+    /** The view as it is now, for a plan's starting camera (the editor's "Usar a vista da prévia"). */
+    view() {
+      const r = (v, k = 100) => Math.round(v * k) / k;
+      return { azimuth: r(rig.goal.az, 1), elevation: r(rig.goal.el, 1), zoom: r(rig.zoom), pan: [r(rig.pan.x), r(rig.pan.z)] };
+    },
+
     /** 0 night … 1 day: sky, sun and background follow. */
     setDaylight,
 
@@ -520,8 +546,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
     focus(next) {
       rig.focus = next;
-      rig.zoom = 1;
-      rig.pan.set(0, 0, 0);
+      rig.zoom = next ? 1 : baseZoom;
+      if (next) rig.pan.set(0, 0, 0); else rig.pan.copy(basePan);
       // A TV or a gate is looked at from the side it faces, as far as the orbit allows.
       const facing = (dir) => clamp(THREE.MathUtils.radToDeg(Math.atan2(dir.x, dir.z)), baseAz - ORBIT_AZ, baseAz + ORBIT_AZ);
       if (next?.kind === 'tv' && tvs.get(next.id)) {
@@ -541,7 +567,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     // Camera sweep + staggered light-up, played whenever the panel appears.
     intro() {
       syncAll({ instant: true });
-      for (const unit of lights.values()) { unit.level = 0; unit.write(); }
+      for (const unit of allLights()) { unit.level = 0; unit.write(); }
       for (const unit of acs.values()) unit.power = 0;
       syncAll({ stagger: true });
       frameGoal();
@@ -574,7 +600,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     settle(seconds = 6) {
       for (let t = 0; t < seconds; t += 0.05) {
         updateRig(0.05);
-        for (const unit of lights.values()) unit.update(0.05);
+        for (const unit of allLights()) unit.update(0.05);
         for (const unit of acs.values()) unit.update(0.05);
       }
       renderer.shadowMap.needsUpdate = true;

@@ -153,8 +153,8 @@ Botão direito na casinha → **Editar casa…**
 - Fita de LED em L: preencha **Segundo lado do L** e escolha para que lado ela vira.
 - Em **Aparência na maquete**: a intensidade com que cada luz aparece na maquete (só visual), luz de teto redonda ou
   quadrada, quantos spots (1 a 4) e a distância entre eles, e o **Holofote** de LED, na parede, que ilumina um quadrado
-  largo (abertura de até 175°, 170° por padrão) para onde aponta, com a inclinação para baixo ajustável. Para spots em lugares diferentes ligados ao mesmo interruptor, adicione outra luz com a
-  mesma entidade.
+  largo (abertura de até 175°, 170° por padrão) para onde aponta, com a inclinação para baixo ajustável. Para uma luz desenhada em dois lugares (spots que fazem um L), crie o segundo pedaço e
+  marque **Faz parte de** a luz principal: no painel fica um botão só, e os dois acendem juntos.
 - **Salvar e aplicar** grava a planta e recarrega o painel.
 
 O app já vem com **Casa**: a planta real desta casa (13 cômodos, com garagem, quintal e corredor externo), portas,
@@ -176,7 +176,7 @@ em [docs/floor-plan.md](docs/floor-plan.md) (em inglês).
 | Clique num atalho | Rodar o script |
 | Clique numa chave | Ligar ou desligar a automação |
 | Clique num cômodo | Aproximar e listar só os dispositivos dele |
-| **Organizar o painel** (no fim da lista ou no botão de ajustes) | Mudar a ordem e esconder ou mostrar atalhos, cômodos, portão, dispositivos e chaves (só neste Mac; a planta não muda) |
+| **Organizar o painel** (no fim da lista ou no botão de ajustes) | Mudar a ordem e esconder ou mostrar atalhos, cômodos, portão, dispositivos e chaves e escolher se a fileira de cômodos mostra nome, ícone ou os dois (só neste Mac; a planta não muda). O ícone de cada cômodo se escolhe no editor da casa |
 | Ícone da casa, no topo | Voltar ao início de qualquer tela |
 | Arraste a maquete | Girar |
 | Role ou faça pinça sobre a maquete | Aproximar ou afastar no ponto sob o ponteiro |

@@ -78,7 +78,7 @@ export function normalize(raw) {
       `O cômodo "${r.id}" precisa de "rect": [x, z, largura, profundidade]`);
     const [x, z, w, d] = r.rect;
     need(w > 0 && d > 0, `O cômodo "${r.id}" tem "rect" vazio`);
-    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak', outdoor: Boolean(r.outdoor) };
+    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak', outdoor: Boolean(r.outdoor), icon: r.icon };
   });
   const roomIds = new Set(rooms.map((r) => r.id));
 
@@ -100,6 +100,12 @@ export function normalize(raw) {
       capabilities: l.capabilities || [], // plain smart plugs: on/off only
     };
   });
+
+  // A light drawn in more than one place (spots that turn a corner): the extra pieces say
+  // `with: <id>` and are only drawn, switched with that light. The panel lists the one light.
+  const mainIds = new Set(lights.filter((l) => !l.with).map((l) => l.id));
+  const lightParts = lights.filter((l) => l.with && mainIds.has(l.with) && l.with !== l.id);
+  const mainLights = lights.filter((l) => !lightParts.includes(l));
 
   const acs = (raw.acs || []).map((a) => {
     unique(a.id, 'Um ar-condicionado');
@@ -132,6 +138,21 @@ export function normalize(raw) {
     g.height = g.height ?? 2.2;
     g.travel = g.travel ?? 14;
     g.travelMode = g.travelMode === 'manual' ? 'manual' : 'auto';
+    // The room it belongs to (the garage): the one just inside its opening, unless the plan says.
+    if (!g.room) {
+      const [mx, mz] = [(g.from[0] + g.to[0]) / 2, (g.from[1] + g.to[1]) / 2];
+      const along = g.from[1] === g.to[1];
+      const probe = (d) => rooms.find((r) => {
+        const [px, pz] = along ? [mx, mz + d] : [mx + d, mz];
+        return px > r.x && px < r.x + r.w && pz > r.z && pz < r.z + r.d && !r.outdoor;
+      });
+      g.room = (probe(0.3) || probe(-0.3))?.id;
+    }
+  }
+  // A gate not placed on a wall, and not given a room, belongs to the garage if there is one.
+  for (const g of gates) {
+    if (g.room && !roomIds.has(g.room)) g.room = undefined;
+    if (!g.room) g.room = rooms.find((r) => /garag/i.test(`${r.id} ${r.name}`))?.id;
   }
   // TVs stand in a room like a lamp, as the furniture piece "tv" with a screen that lights up.
   const tvs = (raw.tvs || []).map((t) => {
@@ -150,12 +171,18 @@ export function normalize(raw) {
     name: raw.name || 'Home',
     wallHeight: raw.wallHeight ?? 2.6,
     interiorWallHeight: raw.interiorWallHeight ?? 1.25,
-    camera: { azimuth: raw.camera?.azimuth ?? 34, elevation: raw.camera?.elevation ?? 47 },
+    // zoom: the distance, 1 framing the whole home (smaller is closer); pan: [x, z] the view
+    // is slid by from the home's centre.
+    camera: {
+      azimuth: raw.camera?.azimuth ?? 34, elevation: raw.camera?.elevation ?? 47,
+      zoom: raw.camera?.zoom ?? 1, pan: Array.isArray(raw.camera?.pan) ? raw.camera.pan : [0, 0],
+    },
     outdoorTemp: raw.outdoorTemp ?? 27,
     rooms,
     openings,
     furniture: raw.furniture || [],
-    lights,
+    lights: mainLights,
+    lightParts,
     acs,
     scenes,
     gates,

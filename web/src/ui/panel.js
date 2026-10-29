@@ -2,7 +2,7 @@
 // device tiles and the detail sheets for a light or an AC.
 import * as THREE from 'three';
 import { h, clamp, createSlider, createColorPad, openMenu } from './dom.js';
-import { icon, lampIcon } from './icons.js';
+import { icon, lampIcon, roomIcon } from './icons.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { AC_SWINGS } from '../store.js';
@@ -114,13 +114,15 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   const roomButtons = new Map();
   // Rooms without a device stay in the model but not in the chips (a bathroom, a passage).
-  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs, ...config.tvs].some((d) => d.room === r.id));
+  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs, ...config.tvs, ...config.gates].some((d) => d.room === r.id));
   for (const r of [{ id: 'all', name: 'Todos' }, ...withDevices]) {
     const count = h('span.count.zero', '0');
-    const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
+    const b = h('button.room', { title: r.name, 'aria-label': r.name, onclick: () => { haptic('tick'); selectRoom(r.id); } },
+      h('span.room-icon', icon(r.id === 'all' ? 'home' : roomIcon(r), 17)), h('span.room-name', r.name), count);
     roomButtons.set(r.id, { b, count });
   }
   function renderRooms() {
+    rooms.dataset.style = arr.chips;
     rooms.replaceChildren(roomButtons.get('all').b, ...visible(withDevices, arr, 'rooms').map((r) => roomButtons.get(r.id).b));
   }
   renderRooms();
@@ -369,8 +371,13 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const group = (title, key, items, label = (x) => x.name, sub = () => null) => (items.length
       ? [h('div.org-title', title), ...ordered(items, arr, key).map((x) => rowFor(key, items, x, label(x), sub(x)))] : []);
     const KIND_NAME = { ac: 'Ar-condicionado', tv: 'TV', light: 'Luz' };
+    // How the room chips read: names, icons, or both.
+    const chipStyle = h('div.org-seg', [['name', 'Nome'], ['icon', 'Ícone'], ['both', 'Ícone e nome']].map(([v, label]) =>
+      h(`button${arr.chips === v ? '.on' : ''}`, { onclick: () => { arr.chips = v; haptic('light'); changed(); } }, label)));
     function draw() {
+      chipStyle.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', ['name', 'icon', 'both'][i] === arr.chips));
       body.replaceChildren(
+        h('div.org-title', 'Fileira de cômodos'), chipStyle,
         ...group('Atalhos', 'shortcuts', config.shortcuts),
         ...group('Cômodos', 'rooms', withDevices),
         ...group(config.gates.length > 1 ? 'Portões' : 'Portão', 'gates', config.gates),
@@ -387,7 +394,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         sheetHead('Organizar o painel', h('div.sheet-sub', 'Ordem e o que aparece, só neste Mac'), null),
         body,
         h('div.org-foot',
-          h('button.pill.org-btn', { onclick: () => { arr = { order: {}, hidden: new Set() }; changed(); } }, icon('rotate', 13), 'Restaurar o padrão'),
+          h('button.pill.org-btn', { onclick: () => { arr = { order: {}, hidden: new Set(), chips: 'name' }; changed(); } }, icon('rotate', 13), 'Restaurar o padrão'),
           h('button.pill.org-btn.org-done', { onclick: closeSheet }, icon('check', 13, 2.4), 'Pronto')),
       ],
       update() {},
@@ -595,13 +602,17 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     let i = 0;
     const add = (t) => { t.el.style.setProperty('--i', i++); nodes.push(t.el); };
     const shownGates = visibleTiles(gateTiles, 'gates');
-    if (ui.room === 'all' && shownGates.length) {
-      nodes.push(h('div.group-label', shownGates.length > 1 ? 'Portões' : 'Portão'));
-      shownGates.forEach(add);
+    // A gate is part of its room (the garage) and comes first there; one without a room on
+    // the plan keeps a group of its own at the top.
+    const loose = shownGates.filter((t) => !roomName.has(t.cfg.room));
+    if (ui.room === 'all' && loose.length) {
+      nodes.push(h('div.group-label', loose.length > 1 ? 'Portões' : 'Portão'));
+      loose.forEach(add);
     }
     const roomList = ui.room === 'all' ? visible(config.rooms, arr, 'rooms') : config.rooms.filter((r) => r.id === ui.room);
     for (const room of roomList) {
-      const devices = roomDevices(room.id).filter((t) => !arr.hidden.has(t.cfg.id));
+      const devices = [...shownGates.filter((t) => t.cfg.room === room.id),
+        ...roomDevices(room.id).filter((t) => !arr.hidden.has(t.cfg.id))];
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
       devices.forEach(add);
@@ -888,9 +899,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const acsOn = Object.values(state.acs).filter((a) => a.on);
     const anyOn = onCount > 0 || acsOn.length > 0;
 
+    // Every light off: a plain 0 and a green leaf, rather than a "Nenhuma" that reads as missing.
     homeSub.replaceChildren(
-      h('span.live', { style: anyOn ? {} : { background: 'rgba(255,255,255,.25)', boxShadow: 'none' } }),
-      h('b', onCount ? `${onCount} de ${lights.length}` : 'Nenhuma'), onCount === 1 ? ' luz acesa' : ' luzes acesas',
+      onCount ? h('span.live') : h('span.eco-leaf', { title: 'Todas as luzes apagadas' }, icon('leaf', 13, 2.2)),
+      h('b', onCount ? `${onCount} de ${lights.length}` : '0'), onCount === 1 ? ' luz acesa' : ' luzes acesas',
       acsOn.length ? ` · Ar ${acsOn[0].target}°` : '');
     power.classList.toggle('on', anyOn);
 

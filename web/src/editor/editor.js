@@ -7,7 +7,7 @@ import { normalize, loadRawConfig, LIGHT_KINDS, FLOOR_KINDS, isLinked } from '..
 import { createWorld } from '../three/world.js';
 import { FURNITURE_TYPES, footprint } from '../three/furniture.js';
 import { h, clamp } from '../ui/dom.js';
-import { icon } from '../ui/icons.js';
+import { icon, ROOM_ICONS, roomIcon } from '../ui/icons.js';
 import { isNative, isPhone, call, post, haptic, incoming } from '../bridge.js';
 import { createConnections } from './connections.js';
 
@@ -317,7 +317,10 @@ export async function bootEditor(root) {
 
   function rowLabel(kind, item) {
     if (kind === 'room') return [item.name || item.id, `${fix(item.rect[2])} × ${fix(item.rect[3])} m`];
-    if (kind === 'light') return [item.name || item.id, `${roomName(item.room)} · ${NAMES[item.type] || item.type}`];
+    if (kind === 'light') {
+      const main = item.with && doc.lights.find((l) => l.id === item.with);
+      return [item.name || item.id, main ? `parte de ${main.name || main.id}` : `${roomName(item.room)} · ${NAMES[item.type] || item.type}`];
+    }
     if (kind === 'ac') return [item.name || item.id, `${roomName(item.room)} · parede ${(NAMES[item.wall] || item.wall).toLowerCase()}`];
     if (kind === 'tv') return [item.name || item.id, `${roomName(item.room)} · ${item.link?.id || 'não vinculada'}`];
     if (kind === 'furniture') return [NAMES[item.type] || item.type, roomName(roomAt(item.pos)?.id) || '—'];
@@ -752,6 +755,21 @@ export async function bootEditor(root) {
       section('Câmera inicial',
         row(bind('Azimute, °', number(1), { ...prop(doc.camera, 'azimuth', 34), parse: parseNum }),
           bind('Elevação, °', number(1), { ...prop(doc.camera, 'elevation', 47), parse: parseNum })),
+        bind('Distância, % (100 = a casa inteira; menos, mais perto)', number(5), {
+          get: () => Math.round((doc.camera.zoom ?? 1) * 100),
+          set: (v) => { if (v === 100) delete doc.camera.zoom; else doc.camera.zoom = v / 100; },
+          parse: (v) => { const n = Math.round(Number(v)); return n >= 18 && n <= 120 ? n : undefined; },
+        }),
+        h('button.btn.wide', { onclick: () => {
+          if (!world) return;
+          snapshot();
+          const v = world.view();
+          Object.assign(doc.camera, { azimuth: v.azimuth, elevation: v.elevation });
+          if (v.zoom === 1) delete doc.camera.zoom; else doc.camera.zoom = v.zoom;
+          if (!v.pan[0] && !v.pan[1]) delete doc.camera.pan; else doc.camera.pan = v.pan;
+          touch();
+          toast('Câmera inicial = a vista da prévia');
+        } }, icon('fit', 14), 'Usar a vista da prévia'),
         h('p.note', 'As paredes viradas para a câmera ficam cortadas, então o azimute decide qual lado da casa aparece aberto.')),
       section('Como funciona',
         h('p.note', isPhone
@@ -773,6 +791,10 @@ export async function bootEditor(root) {
       head(item.name || item.id, `id: ${item.id}`);
       nodes.push(section('Cômodo',
         bind('Nome', text(), prop(item, 'name', '')),
+        bind('Ícone na fileira de cômodos', choice([['', `Automático (pelo nome: ${ROOM_ICONS[roomIcon({ ...item, icon: undefined })]})`],
+          ...Object.entries(ROOM_ICONS)]), {
+          get: () => item.icon || '', set: (v) => { if (v) item.icon = v; else delete item.icon; }, event: 'change' }),
+        h('p.note', 'Aparece no painel quando a fileira de cômodos está como ícones (Organizar o painel).'),
         bind('Piso', choice(named(FLOOR_KINDS)), { ...prop(item, 'floor', 'oak'), event: 'change' }),
         h('div.checks', bind('Área externa (quintal, corredor aberto)', h('input', { type: 'checkbox' }), {
           get: () => Boolean(item.outdoor), set: (on) => { if (on) item.outdoor = true; else delete item.outdoor; }, event: 'change' }))),
@@ -825,8 +847,24 @@ export async function bootEditor(root) {
           bind('Temperatura de branco', h('input', { type: 'checkbox' }), { ...cap('temp'), event: 'change' }),
           bind('Cor', h('input', { type: 'checkbox' }), { ...cap('color'), event: 'change' })),
         h('p.note', 'Deixe as três desmarcadas para um interruptor simples: ela só liga e desliga (é o caso das luzes Tuya da casa).')),
-      testSection('light', item),
-      links.deviceSection(item, 'light', linkHooks));
+      section('Faz parte de',
+        bind('Mesma luz que', choice([['', 'Nenhuma: é uma luz própria'],
+          ...doc.lights.filter((l) => l.id !== item.id && !l.with).map((l) => [l.id, `${l.name || l.id} · ${roomName(l.room)}`])]), {
+          get: () => item.with || '',
+          set: (v) => {
+            if (!v) { delete item.with; return; }
+            item.with = v;
+            // A piece has no device of its own: it is switched with the light it belongs to.
+            delete item.link;
+            for (const l of doc.lights) if (l.with === item.id) delete l.with; // no chains
+          },
+          event: 'change',
+        }),
+        h('p.note', item.with
+          ? 'Esta luz é só um pedaço da outra na maquete (por exemplo, a segunda perna de um L de spots): não aparece no painel e acende e apaga junto com ela.'
+          : 'Para uma luz desenhada em dois lugares (spots que fazem uma curva), crie o segundo pedaço e escolha aqui a luz principal: no painel fica um botão só.')),
+      item.with ? null : testSection('light', item),
+      item.with ? null : links.deviceSection(item, 'light', linkHooks));
     } else if (kind === 'ac') {
       head(item.name || item.id, `id: ${item.id}`);
       nodes.push(section('Ar-condicionado',
@@ -905,6 +943,8 @@ export async function bootEditor(root) {
       head(item.name || item.id, what[1]);
       nodes.push(section(what[0],
         bind('Nome', text(), prop(item, 'name', '')),
+        kind === 'gate' ? bind('Cômodo (aparece dentro dele no painel)', choice([['', 'Automático (a garagem)'], ...doc.rooms.map((r) => [r.id, r.name || r.id])]), {
+          get: () => item.room || '', set: (v) => { if (v) item.room = v; else delete item.room; }, event: 'change' }) : null,
         kind === 'gate' ? null : bind('Ícone', choice(named(EXTRA_ICONS)), { ...prop(item, 'icon', kind === 'toggle' ? 'automation' : 'sparkles'), event: 'change' })),
       kind === 'gate' ? section('Na maquete',
         h('div.checks', bind('Mostrar o portão na maquete', h('input', { type: 'checkbox' }), {

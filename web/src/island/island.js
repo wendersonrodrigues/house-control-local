@@ -273,7 +273,9 @@ export async function bootIsland(root) {
     return NAVY.clone().lerp(sum, clamp(weight / 3, 0.35, 0.9));
   }
 
-  const plainEar = (iconName, text, color) => [h('span.ear-icon', { vars: { '--c': color } }, icon(iconName, 14, 2.2)), text != null ? h('span.ear-text', text) : null];
+  // Without text it is the icon alone (a null child would be written out as "null").
+  const plainEar = (iconName, text, color) => [h('span.ear-icon', { vars: { '--c': color } }, icon(iconName, 14, 2.2)),
+    ...(text != null ? [h('span.ear-text', text)] : [])];
 
   let peek = null; // { left: [...nodes], right: text } while something is being announced
 
@@ -294,8 +296,8 @@ export async function bootIsland(root) {
     }
 
     status.replaceChildren(
-      h('i.dot', { style: onCount || acOn ? {} : { background: 'rgba(255,255,255,.25)', boxShadow: 'none' } }),
-      h('b', onCount ? `${onCount} de ${lights.length}` : 'Nenhuma'), onCount === 1 ? ' luz acesa' : ' luzes acesas', acOn ? ` · ${acOn.target}°` : '');
+      onCount ? h('i.dot') : h('span.eco-leaf', icon('leaf', 12, 2.2)),
+      h('b', onCount ? `${onCount} de ${lights.length}` : '0'), onCount === 1 ? ' luz acesa' : ' luzes acesas', acOn ? ` · ${acOn.target}°` : '');
     power.classList.toggle('on', onCount > 0 || Boolean(acOn));
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);
     for (const row of rows) row();
