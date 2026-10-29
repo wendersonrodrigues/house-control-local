@@ -151,7 +151,10 @@ em [docs/floor-plan.md](docs/floor-plan.md) (em inglês).
 | Clique num atalho | Rodar o script |
 | Clique numa chave | Ligar ou desligar a automação |
 | Clique num cômodo | Aproximar e listar só os dispositivos dele |
-| Arraste a maquete / role sobre ela | Girar / aproximar |
+| Arraste a maquete | Girar |
+| Role ou faça pinça sobre a maquete | Aproximar ou afastar no ponto sob o ponteiro |
+| Arraste com o botão direito (ou com ⇧ ou ⌥ apertado) | Deslocar a vista |
+| Duplo clique na maquete | Voltar à casa inteira |
 | `Esc` | Voltar e depois fechar |
 
 ## Testar sem a casa: o HA simulado
