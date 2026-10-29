@@ -977,14 +977,18 @@
   "tvs": [
     {
       "id": "sala.tv",
-      "name": "TV da Sala",
+      "name": "TV LG",
       "room": "sala",
       "pos": [
         12.32,
         2.2
       ],
       "rot": -90,
-      "width": 1.7
+      "width": 1.7,
+      "link": {
+        "service": "homeassistant",
+        "id": "media_player.tv_lg"
+      }
     }
   ]
 }
