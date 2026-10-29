@@ -184,6 +184,11 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     // Where the view was dragged to, on the floor, from the framed centre.
     pan: new THREE.Vector3(),
   };
+  // The plan's starting view: distance and where it looks, besides azimuth and elevation.
+  const baseZoom = clamp(config.camera.zoom ?? 1, ZOOM_MIN, ZOOM_MAX);
+  const basePan = new THREE.Vector3(config.camera.pan?.[0] ?? 0, 0, config.camera.pan?.[1] ?? 0);
+  rig.zoom = baseZoom;
+  rig.pan.copy(basePan);
   let width = 1;
   let height = 1;
   let topInset = 0;    // pixels at the top covered by the header
@@ -452,8 +457,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
   // Double-click: the whole home again.
   canvas.addEventListener('dblclick', () => {
-    rig.zoom = 1;
-    rig.pan.set(0, 0, 0);
+    rig.zoom = rig.focus ? 1 : baseZoom;
+    if (rig.focus) rig.pan.set(0, 0, 0); else rig.pan.copy(basePan);
     frameGoal();
     wake();
   });
@@ -512,6 +517,12 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     lights,
     acs,
 
+    /** The view as it is now, for a plan's starting camera (the editor's "Usar a vista da prévia"). */
+    view() {
+      const r = (v, k = 100) => Math.round(v * k) / k;
+      return { azimuth: r(rig.goal.az, 1), elevation: r(rig.goal.el, 1), zoom: r(rig.zoom), pan: [r(rig.pan.x), r(rig.pan.z)] };
+    },
+
     /** 0 night … 1 day: sky, sun and background follow. */
     setDaylight,
 
@@ -520,8 +531,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
     focus(next) {
       rig.focus = next;
-      rig.zoom = 1;
-      rig.pan.set(0, 0, 0);
+      rig.zoom = next ? 1 : baseZoom;
+      if (next) rig.pan.set(0, 0, 0); else rig.pan.copy(basePan);
       // A TV or a gate is looked at from the side it faces, as far as the orbit allows.
       const facing = (dir) => clamp(THREE.MathUtils.radToDeg(Math.atan2(dir.x, dir.z)), baseAz - ORBIT_AZ, baseAz + ORBIT_AZ);
       if (next?.kind === 'tv' && tvs.get(next.id)) {

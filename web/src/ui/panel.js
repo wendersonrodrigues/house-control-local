@@ -114,7 +114,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   const roomButtons = new Map();
   // Rooms without a device stay in the model but not in the chips (a bathroom, a passage).
-  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs, ...config.tvs].some((d) => d.room === r.id));
+  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs, ...config.tvs, ...config.gates].some((d) => d.room === r.id));
   for (const r of [{ id: 'all', name: 'Todos' }, ...withDevices]) {
     const count = h('span.count.zero', '0');
     const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
@@ -595,13 +595,17 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     let i = 0;
     const add = (t) => { t.el.style.setProperty('--i', i++); nodes.push(t.el); };
     const shownGates = visibleTiles(gateTiles, 'gates');
-    if (ui.room === 'all' && shownGates.length) {
-      nodes.push(h('div.group-label', shownGates.length > 1 ? 'Portões' : 'Portão'));
-      shownGates.forEach(add);
+    // A gate is part of its room (the garage) and comes first there; one without a room on
+    // the plan keeps a group of its own at the top.
+    const loose = shownGates.filter((t) => !roomName.has(t.cfg.room));
+    if (ui.room === 'all' && loose.length) {
+      nodes.push(h('div.group-label', loose.length > 1 ? 'Portões' : 'Portão'));
+      loose.forEach(add);
     }
     const roomList = ui.room === 'all' ? visible(config.rooms, arr, 'rooms') : config.rooms.filter((r) => r.id === ui.room);
     for (const room of roomList) {
-      const devices = roomDevices(room.id).filter((t) => !arr.hidden.has(t.cfg.id));
+      const devices = [...shownGates.filter((t) => t.cfg.room === room.id),
+        ...roomDevices(room.id).filter((t) => !arr.hidden.has(t.cfg.id))];
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
       devices.forEach(add);

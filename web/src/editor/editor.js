@@ -752,6 +752,21 @@ export async function bootEditor(root) {
       section('Câmera inicial',
         row(bind('Azimute, °', number(1), { ...prop(doc.camera, 'azimuth', 34), parse: parseNum }),
           bind('Elevação, °', number(1), { ...prop(doc.camera, 'elevation', 47), parse: parseNum })),
+        bind('Distância, % (100 = a casa inteira; menos, mais perto)', number(5), {
+          get: () => Math.round((doc.camera.zoom ?? 1) * 100),
+          set: (v) => { if (v === 100) delete doc.camera.zoom; else doc.camera.zoom = v / 100; },
+          parse: (v) => { const n = Math.round(Number(v)); return n >= 18 && n <= 120 ? n : undefined; },
+        }),
+        h('button.btn.wide', { onclick: () => {
+          if (!world) return;
+          snapshot();
+          const v = world.view();
+          Object.assign(doc.camera, { azimuth: v.azimuth, elevation: v.elevation });
+          if (v.zoom === 1) delete doc.camera.zoom; else doc.camera.zoom = v.zoom;
+          if (!v.pan[0] && !v.pan[1]) delete doc.camera.pan; else doc.camera.pan = v.pan;
+          touch();
+          toast('Câmera inicial = a vista da prévia');
+        } }, icon('fit', 14), 'Usar a vista da prévia'),
         h('p.note', 'As paredes viradas para a câmera ficam cortadas, então o azimute decide qual lado da casa aparece aberto.')),
       section('Como funciona',
         h('p.note', isPhone

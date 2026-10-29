@@ -132,6 +132,16 @@ export function normalize(raw) {
     g.height = g.height ?? 2.2;
     g.travel = g.travel ?? 14;
     g.travelMode = g.travelMode === 'manual' ? 'manual' : 'auto';
+    // The room it belongs to (the garage): the one just inside its opening, unless the plan says.
+    if (!g.room) {
+      const [mx, mz] = [(g.from[0] + g.to[0]) / 2, (g.from[1] + g.to[1]) / 2];
+      const along = g.from[1] === g.to[1];
+      const probe = (d) => rooms.find((r) => {
+        const [px, pz] = along ? [mx, mz + d] : [mx + d, mz];
+        return px > r.x && px < r.x + r.w && pz > r.z && pz < r.z + r.d && !r.outdoor;
+      });
+      g.room = (probe(0.3) || probe(-0.3))?.id;
+    }
   }
   // TVs stand in a room like a lamp, as the furniture piece "tv" with a screen that lights up.
   const tvs = (raw.tvs || []).map((t) => {
@@ -150,7 +160,12 @@ export function normalize(raw) {
     name: raw.name || 'Home',
     wallHeight: raw.wallHeight ?? 2.6,
     interiorWallHeight: raw.interiorWallHeight ?? 1.25,
-    camera: { azimuth: raw.camera?.azimuth ?? 34, elevation: raw.camera?.elevation ?? 47 },
+    // zoom: the distance, 1 framing the whole home (smaller is closer); pan: [x, z] the view
+    // is slid by from the home's centre.
+    camera: {
+      azimuth: raw.camera?.azimuth ?? 34, elevation: raw.camera?.elevation ?? 47,
+      zoom: raw.camera?.zoom ?? 1, pan: Array.isArray(raw.camera?.pan) ? raw.camera.pan : [0, 0],
+    },
     outdoorTemp: raw.outdoorTemp ?? 27,
     rooms,
     openings,

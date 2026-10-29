@@ -273,7 +273,9 @@ export async function bootIsland(root) {
     return NAVY.clone().lerp(sum, clamp(weight / 3, 0.35, 0.9));
   }
 
-  const plainEar = (iconName, text, color) => [h('span.ear-icon', { vars: { '--c': color } }, icon(iconName, 14, 2.2)), text != null ? h('span.ear-text', text) : null];
+  // Without text it is the icon alone (a null child would be written out as "null").
+  const plainEar = (iconName, text, color) => [h('span.ear-icon', { vars: { '--c': color } }, icon(iconName, 14, 2.2)),
+    ...(text != null ? [h('span.ear-text', text)] : [])];
 
   let peek = null; // { left: [...nodes], right: text } while something is being announced
 
