@@ -176,6 +176,7 @@ final class ServiceTests: XCTestCase {
         }
         XCTAssertEqual(services("cover.portao_garagem", ["action": "open"]), ["cover.open_cover"])
         XCTAssertEqual(services("cover.portao_garagem", ["action": "close"]), ["cover.close_cover"])
+        XCTAssertEqual(services("cover.portao_garagem", ["action": "toggle"]), ["cover.toggle"])
         XCTAssertEqual(services("script.apagar_todas_as_luzes", ["run": true]), ["script.turn_on"])
         XCTAssertEqual(services("input_boolean.vigilancia_da_sala", ["on": false]), ["input_boolean.turn_off"])
         XCTAssertEqual(services("automation.x", ["on": true]), ["automation.turn_on"])
@@ -380,6 +381,13 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(now[lamp]?.light?["on"] as? Bool, true)
 
         try await service.send(kind: .gate, id: gate, patch: ["action": "close"], state: [:])
+        // One press of the gate's button: cover.toggle, which goes the other way.
+        try await Task.sleep(nanoseconds: 300_000_000)
+        try await service.send(kind: .gate, id: gate, patch: ["action": "toggle"], state: [:])
+        try await Task.sleep(nanoseconds: 400_000_000)
+        let toggled = try await service.read([gate])[gate]?.gate
+        XCTAssertEqual(toggled, "open")
+        try await service.send(kind: .gate, id: gate, patch: ["action": "toggle"], state: [:])
         try await service.send(kind: .toggle, id: toggle, patch: ["on": false], state: [:])
         try await service.send(kind: .shortcut, id: "script.apagar_luzes_externas", patch: ["run": true], state: [:])
         try await Task.sleep(nanoseconds: 500_000_000)

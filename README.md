@@ -26,8 +26,10 @@ A interface está em português do Brasil. A documentação original, em inglês
 - **Luzes.** Toque para acender ou apagar. As que têm brilho, temperatura de branco ou cor ganham uma tela própria.
 - **Ares-condicionados.** Liga/desliga, temperatura, modo, ventilação e direção do ar, com a temperatura do ambiente.
   Os modos do Midea (Silent, low, medium, high, Full, auto) aparecem como Silencioso, Baixo, Médio, Alto, Máximo e Automático.
-- **Portão.** Mostra se está aberto, fechado, abrindo ou fechando. Abre e fecha com **dois toques**: o primeiro arma
-  o botão e o segundo, em até 3,5 segundos, confirma. Um clique perdido na barra de menu nunca abre a casa.
+- **Portão.** Um botão só, como o do controle: em movimento, um toque para; parado no meio do caminho, o próximo
+  toque vai no sentido contrário; aberto, fecha; fechado, abre (é o `cover.toggle` do Home Assistant). O app mostra
+  onde ele parou (“Parado · 40% aberto”). Pôr o portão em movimento pede **dois toques**: o primeiro arma o botão e
+  o segundo, em até 3,5 segundos, confirma. Parar é um toque só.
   Na maquete, o portão de correr desliza pela parede da garagem, com uma luz âmbar piscando enquanto se move.
   Tocar no portão abre a tela dele: estado, desde quando, quanto está aberto e a câmera aproximada na garagem.
 - **TV.** Liga/desliga, volume, mudo, entrada (HDMI, apps) e reprodução, conforme o que a TV aceita no Home

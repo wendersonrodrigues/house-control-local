@@ -254,31 +254,50 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
-  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…' };
-  const GATE_COLOR = { open: '#ffb340', opening: '#ffd84a', closing: '#ffd84a' };
+  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…', stopped: 'Parado' };
+  const GATE_COLOR = { open: '#ffb340', opening: '#ffd84a', closing: '#ffd84a', stopped: '#ff8f5a' };
+  const GATE_VERB = { open: 'Abrir', close: 'Fechar', stop: 'Parar' };
+  const pct = (p) => `${Math.round(p * 100)}%`;
+  /** "Aberto", "Abrindo… 40%", "Parado · 40% aberto". */
+  const gateText = (id) => {
+    const g = state.gates[id];
+    if (g.online === false) return 'Indisponível';
+    const p = store.gatePosition(id);
+    if (g.motion) return `${GATE_TEXT[g.state]} ${pct(p)}`;
+    return g.state === 'stopped' ? `Parado · ${pct(p)} aberto` : GATE_TEXT[g.state] || g.state;
+  };
+  // One press, like the gate's own button. Starting it takes a second press within a few
+  // seconds (a stray click must not open the house); stopping it never waits.
+  function gateButton(id, render) {
+    let armed = 0;
+    const disarm = () => { clearTimeout(armed); armed = 0; render(); };
+    return {
+      get armed() { return Boolean(armed); },
+      press() {
+        const next = store.gateNext(id);
+        if (next !== 'stop' && !armed) { haptic('light'); armed = setTimeout(disarm, 3500); render(); return; }
+        clearTimeout(armed); armed = 0;
+        haptic(next === 'stop' ? 'medium' : 'heavy');
+        store.gatePress(id);
+        render();
+      },
+      label(short) {
+        const next = store.gateNext(id);
+        if (armed) return next === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar';
+        return short ? GATE_VERB[next] : `${GATE_VERB[next]} o portão`;
+      },
+    };
+  }
+  // While a gate moves, its percentage and the bar follow it.
+  setInterval(() => { if (Object.values(state.gates).some((g) => g.motion)) { for (const t of gateTiles) t.update(); sheetView?.update(); } }, 250);
 
   // The gate opens and closes on a second press within a few seconds, never on the first:
   // a stray click in the menu bar must not open the house.
   function gateTile(cfg) {
     const sub = h('div.tile-sub');
     const label = h('span');
-    let armed = 0;
-    const disarm = () => { clearTimeout(armed); armed = 0; action.classList.remove('armed'); update(); };
-    const action = h('button.gate-action', { onclick: (e) => {
-      e.stopPropagation();
-      const g = state.gates[cfg.id];
-      const verb = g.state === 'open' || g.state === 'opening' ? 'close' : 'open';
-      if (!armed) {
-        haptic('light');
-        action.classList.add('armed');
-        label.textContent = verb === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar';
-        armed = setTimeout(disarm, 3500);
-        return;
-      }
-      disarm();
-      haptic('heavy');
-      store.gateAction(cfg.id, verb);
-    } }, label);
+    const button = gateButton(cfg.id, () => update());
+    const action = h('button.gate-action', { onclick: (e) => { e.stopPropagation(); button.press(); } }, label);
     const bubble = h('div.bubble', icon('gate', 19));
     let shownIcon = 'gate';
     const el = h('div.tile.gate', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'gate', id: cfg.id }) },
@@ -291,8 +310,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       el.classList.toggle('on', g.state !== 'closed');
       el.classList.toggle('offline', g.online === false);
       el.style.setProperty('--c', GATE_COLOR[g.state] || '#8b93a7');
-      sub.textContent = g.online === false ? 'Indisponível' : GATE_TEXT[g.state] || g.state;
-      if (!armed) label.textContent = g.state === 'open' || g.state === 'opening' ? 'Fechar' : 'Abrir';
+      sub.textContent = gateText(cfg.id);
+      action.classList.toggle('armed', button.armed);
+      action.classList.toggle('stop', store.gateNext(cfg.id) === 'stop');
+      label.textContent = button.label(true);
     }
     return { el, cfg, kind: 'gate', update };
   }
@@ -309,22 +330,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const since = h('div.gate-since');
     const bar = h('div.gate-bar', h('i'));
     const label = h('span');
-    let armed = 0;
-    const disarm = () => { clearTimeout(armed); armed = 0; main.classList.remove('armed'); update(); };
-    const verb = () => (g().state === 'open' || g().state === 'opening' ? 'close' : 'open');
-    const main = h('button.gate-main', { onclick: () => {
-      if (!armed) {
-        haptic('light');
-        main.classList.add('armed');
-        armed = setTimeout(disarm, 3500);
-        update();
-        return;
-      }
-      disarm();
-      haptic('heavy');
-      store.gateAction(id, verb());
-    } }, label);
-    const stop = h('button.btn.gate-stop', { onclick: () => { haptic('medium'); store.gateAction(id, 'stop'); } }, icon('stop', 14, 2.2), 'Parar');
+    const button = gateButton(id, () => update());
+    const main = h('button.gate-main', { onclick: () => button.press() }, label);
     let shownIcon = null;
     function update() {
       const s = g();
@@ -333,25 +340,26 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       badge.style.setProperty('--c', GATE_COLOR[s.state] || '#8b93a7');
       badge.classList.toggle('on', s.state !== 'closed');
       status.textContent = s.online === false ? 'Indisponível' : GATE_TEXT[s.state] || s.state;
-      const moving = s.state === 'opening' || s.state === 'closing';
+      const pos = store.gatePosition(id);
+      const next = store.gateNext(id);
       since.textContent = s.online === false ? 'O Home Assistant não está recebendo o estado do portão.'
-        : moving ? 'Em movimento' : s.since ? `${s.state === 'open' ? 'Aberto' : 'Fechado'} desde ${clock(s.since)}` : '';
-      const pos = typeof s.position === 'number' ? s.position : s.state === 'open' ? 1 : s.state === 'closed' ? 0 : null;
-      bar.hidden = pos === null;
-      bar.firstChild.style.width = `${Math.round((pos ?? 0) * 100)}%`;
-      bar.dataset.label = pos === null ? '' : `${Math.round(pos * 100)}% aberto`;
-      stop.hidden = !moving;
-      label.textContent = armed ? (verb() === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar')
-        : verb() === 'open' ? 'Abrir o portão' : 'Fechar o portão';
-      sub.replaceChildren('Portão de correr · ', h('b', status.textContent));
+        : s.motion ? 'Em movimento · um toque para parar'
+          : s.state === 'stopped' ? `Parou no meio do caminho · o próximo toque ${next === 'open' ? 'abre' : 'fecha'}`
+            : s.since ? `${GATE_TEXT[s.state]} desde ${clock(s.since)}` : '';
+      bar.firstChild.style.width = pct(pos);
+      bar.dataset.label = `${pct(pos)} aberto`;
+      main.classList.toggle('armed', button.armed);
+      main.classList.toggle('stop', next === 'stop');
+      label.textContent = button.label(false);
+      sub.replaceChildren('Portão de correr · ', h('b', gateText(id)));
     }
     return {
       nodes: [
         sheetHead(cfg.name, sub, null),
         h('div.gate-card', badge, h('div', status, since)),
         bar,
-        h('div.gate-actions', main, stop),
-        h('p.sheet-note', icon('shield', 18), 'Por segurança, o portão só se move com dois toques: o primeiro arma o botão e o segundo, em até 3,5 segundos, confirma.'),
+        h('div.gate-actions', main),
+        h('p.sheet-note', icon('shield', 18), 'Um botão, como o do controle: em movimento, um toque para; parado no meio, o próximo toque vai no sentido contrário. Para pôr o portão em movimento são dois toques: o primeiro arma o botão e o segundo, em até 3,5 segundos, confirma.'),
       ],
       update,
     };
@@ -741,7 +749,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     } else if (hit.kind === 'gate') {
       const cfg = store.gateCfg.get(hit.id);
       const g = state.gates[hit.id];
-      name = cfg.name; status = GATE_TEXT[g.state] || g.state; on = g.state !== 'closed'; color = GATE_COLOR[g.state] || '#8b93a7';
+      name = cfg.name; status = gateText(hit.id); on = g.state !== 'closed'; color = GATE_COLOR[g.state] || '#8b93a7';
     } else {
       const cfg = store.acCfg.get(hit.id);
       const s = state.acs[hit.id];

@@ -374,6 +374,9 @@ public final class HomeAssistantService: DeviceService {
             case "open": return [call("open_cover")]
             case "close": return [call("close_cover")]
             case "stop": return [call("stop_cover")]
+            // One press of a one-button gate: stops it while moving, otherwise goes the other
+            // way from its last move (Home Assistant's own rule for covers).
+            case "toggle": return [call("toggle")]
             default: return []
             }
         }

@@ -84,22 +84,23 @@ export async function bootIsland(root) {
 
   const rows = [];
 
-  // The gate, as in the panel: a second press within a few seconds opens or closes it.
-  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…' };
+  // The gate, as in the panel: one button that stops it while it moves and otherwise goes
+  // the other way; starting it takes a second click within a few seconds.
+  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…', stopped: 'Parado' };
+  const gateRows = [];
   for (const cfg of config.gates) {
     const sub = h('div.chip-sub');
     let armed = 0;
-    const verb = () => (['open', 'opening'].includes(state.gates[cfg.id].state) ? 'close' : 'open');
-    const action = h('button.chip-power.gate', { 'aria-label': `${cfg.name}: abrir ou fechar`, onclick: (e) => {
+    const action = h('button.chip-power.gate', { 'aria-label': `${cfg.name}: acionar`, onclick: (e) => {
       e.stopPropagation();
-      if (!armed) {
-        action.classList.add('armed');
-        armed = setTimeout(() => { armed = 0; action.classList.remove('armed'); update(); }, 3500);
+      if (store.gateNext(cfg.id) !== 'stop' && !armed) {
+        armed = setTimeout(() => { armed = 0; update(); }, 3500);
         update();
         return;
       }
-      clearTimeout(armed); armed = 0; action.classList.remove('armed');
-      store.gateAction(cfg.id, verb());
+      clearTimeout(armed); armed = 0;
+      store.gatePress(cfg.id);
+      update();
     } }, icon('gate', 13, 2.4));
     const bubble = h('span.chip-bubble', icon('gate', 15));
     let shownIcon = 'gate';
@@ -107,15 +108,23 @@ export async function bootIsland(root) {
     list.append(el);
     const update = () => {
       const g = state.gates[cfg.id];
+      const next = store.gateNext(cfg.id);
       const want = g.state === 'closed' ? 'gate' : 'gateOpen';
       if (want !== shownIcon) { bubble.replaceChildren(icon(want, 15)); shownIcon = want; }
       el.classList.toggle('on', g.state !== 'closed');
-      el.style.setProperty('--c', g.state === 'open' ? '#ffb340' : '#ffd84a');
-      sub.textContent = armed ? (verb() === 'open' ? 'Clique de novo para abrir' : 'Clique de novo para fechar')
-        : g.online === false ? 'Indisponível' : GATE_TEXT[g.state] || g.state;
+      el.style.setProperty('--c', g.state === 'open' ? '#ffb340' : g.state === 'stopped' ? '#ff8f5a' : '#ffd84a');
+      action.classList.toggle('armed', Boolean(armed));
+      action.classList.toggle('stop', next === 'stop');
+      const p = Math.round(store.gatePosition(cfg.id) * 100);
+      sub.textContent = armed ? (next === 'open' ? 'Clique de novo para abrir' : 'Clique de novo para fechar')
+        : g.online === false ? 'Indisponível'
+          : next === 'stop' ? `${GATE_TEXT[g.state]} ${p}% · clique para parar`
+            : g.state === 'stopped' ? `Parado · ${p}% aberto` : GATE_TEXT[g.state] || g.state;
     };
     rows.push(update);
+    gateRows.push(update);
   }
+  setInterval(() => { if (Object.values(state.gates).some((g) => g.motion)) gateRows.forEach((u) => u()); }, 250);
 
   for (const cfg of config.acs) {
     const sub = h('div.chip-sub');

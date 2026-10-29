@@ -121,11 +121,22 @@ export class GateUnit {
     return out.set(this.leaf.position.x, this.cfg.height + 0.2, 0).applyMatrix4(this.group.matrixWorld);
   }
 
+  // Moving, it heads for the end at the gate's own pace; stopped, it stays where the app
+  // worked out it stopped (store.js: one press stops it part way).
   apply(state, { instant = false } = {}) {
-    const s = state?.state || 'closed';
-    this.goal = typeof state?.position === 'number' ? state.position : s === 'open' || s === 'opening' ? 1 : 0;
-    this.moving = s === 'opening' || s === 'closing';
-    if (instant && !this.moving) this.open = this.goal;
+    const m = state?.motion;
+    if (m) {
+      const t = (Date.now() - m.start) / (Math.max(1, this.cfg.travel) * 1000);
+      const now = Math.min(1, Math.max(0, m.from + (m.dir === 'open' ? t : -t)));
+      if (instant || Math.abs(now - this.open) > 0.08) this.open = now;
+      this.goal = m.dir === 'open' ? 1 : 0;
+      this.moving = true;
+    } else {
+      const s = state?.state || 'closed';
+      this.goal = typeof state?.position === 'number' ? state.position : s === 'open' ? 1 : 0;
+      this.moving = false;
+      if (instant) this.open = this.goal;
+    }
   }
 
   update(dt) {

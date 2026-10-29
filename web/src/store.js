@@ -6,8 +6,6 @@ const STORAGE_KEY = 'house-control:state:v1';
 export const AC_MODES = ['cool', 'heat', 'dry', 'fan', 'auto'];
 export const AC_FANS = ['auto', 'silent', 'low', 'medium', 'high', 'turbo'];
 export const AC_SWINGS = ['swing', 'l1', 'l2', 'l3', 'l4', 'l5', 'off'];
-// How long a simulated gate takes to open or close.
-const GATE_TRAVEL = 4000;
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -32,7 +30,7 @@ export function createStore(config) {
   const state = { lights: {}, acs: {}, gates: {}, toggles: {}, tvs: {}, scene: null };
   for (const l of config.lights) state.lights[l.id] = defaultLight(l);
   for (const a of config.acs) state.acs[a.id] = defaultAC(a, config.outdoorTemp);
-  for (const g of config.gates) state.gates[g.id] = { state: 'closed', online: true };
+  for (const g of config.gates) state.gates[g.id] = { state: 'closed', position: 0, dir: 'close', motion: null, online: true };
   for (const t of config.toggles) state.toggles[t.id] = { on: false, online: true };
   for (const t of config.tvs) {
     state.tvs[t.id] = { on: false, online: true, state: 'off', volume: 0.2, muted: false, source: null, sources: [], title: null };
@@ -50,7 +48,13 @@ export function createStore(config) {
       for (const [id, s] of Object.entries(saved.lights || {})) if (state.lights[id]) Object.assign(state.lights[id], s);
       for (const [id, s] of Object.entries(saved.acs || {})) if (state.acs[id]) Object.assign(state.acs[id], s);
       for (const [id, f] of Object.entries(saved.features || {})) if (state.acs[id]) features[id] = f;
-      for (const [id, g] of Object.entries(saved.gates || {})) if (state.gates[id]) Object.assign(state.gates[id], g);
+      for (const [id, g] of Object.entries(saved.gates || {})) {
+        if (!state.gates[id]) continue;
+        // A gate that was moving when the app closed is shown where it was last seen.
+        const { motion, timer, ...rest } = g;
+        Object.assign(state.gates[id], rest);
+        if (motion) Object.assign(state.gates[id], settle(rest.position ?? 0));
+      }
       for (const [id, t] of Object.entries(saved.toggles || {})) if (state.toggles[id]) Object.assign(state.toggles[id], t);
       for (const [id, t] of Object.entries(saved.tvs || {})) if (state.tvs[id]) Object.assign(state.tvs[id], t);
       state.scene = saved.scene || null;
@@ -149,7 +153,74 @@ export function createStore(config) {
     return changed;
   }
 
-  function adoptExtras(update) {
+  // ---- the gate's one-button model ----
+  const travelMs = (cfg) => Math.max(1, cfg?.travel ?? 14) * 1000;
+  function gatePos(cur, cfg) {
+    if (!cur) return 0;
+    if (!cur.motion) return cur.position ?? 0;
+    const t = (Date.now() - cur.motion.start) / travelMs(cfg);
+    return clamp(cur.motion.from + (cur.motion.dir === 'open' ? t : -t), 0, 1);
+  }
+  function gateNext(cur) {
+    if (!cur) return 'open';
+    if (cur.motion) return 'stop';
+    const p = cur.position ?? 0;
+    if (p >= 0.99) return 'close';
+    if (p <= 0.01) return 'open';
+    return cur.dir === 'open' ? 'close' : 'open';
+  }
+  /** The state shown for a gate standing at `p`. */
+  function settle(p) {
+    return { position: p, motion: null, state: p >= 0.99 ? 'open' : p <= 0.01 ? 'closed' : 'stopped' };
+  }
+  function moveGate(id, dir, from) {
+    const cur = state.gates[id];
+    const cfg = gateCfg.get(id);
+    const p = from ?? gatePos(cur, cfg);
+    clearTimeout(cur.timer);
+    writeGate(id, { state: dir === 'open' ? 'opening' : 'closing', dir, position: p, motion: { dir, from: p, start: Date.now() } });
+    emit({ type: 'gate', id });
+    const left = (dir === 'open' ? 1 - p : p) * travelMs(cfg);
+    cur.timer = setTimeout(() => { writeGate(id, settle(dir === 'open' ? 1 : 0)); emit({ type: 'gate', id }); }, left);
+  }
+  function stopGate(id) {
+    const cur = state.gates[id];
+    clearTimeout(cur.timer);
+    writeGate(id, settle(gatePos(cur, gateCfg.get(id))));
+    emit({ type: 'gate', id });
+  }
+
+  // What Home Assistant says corrects the estimate. A reed switch that reports "closed" is
+  // the truth; "open" only says it is not shut, so it starts an opening only when this app
+  // thinks the gate is closed and has not just been closed (someone used the remote).
+  function reconcileGate(id, g) {
+    const cur = state.gates[id];
+    const cfg = gateCfg.get(id);
+    let any = false;
+    if ('online' in g && cur.online !== g.online) { cur.online = g.online; any = true; }
+    if (g.online === false || !g.state) return any;
+    if (Date.now() - (cur.pressed || 0) < 4000) return any; // the press is still on its way
+    if (typeof g.position === 'number') {
+      if (g.state === 'opening' || g.state === 'closing') {
+        const dir = g.state === 'opening' ? 'open' : 'close';
+        if (cur.motion?.dir !== dir) { moveGate(id, dir, g.position); return true; }
+        return any;
+      }
+      if (cur.motion || Math.abs((cur.position ?? 0) - g.position) > 0.01) { writeGate(id, settle(g.position)); return true; }
+      return any;
+    }
+    const p = gatePos(cur, cfg);
+    if (g.state === 'closed' && (cur.motion || p > 0.01)) { clearTimeout(cur.timer); writeGate(id, settle(0)); return true; }
+    if (g.state === 'opening' && cur.motion?.dir !== 'open') { moveGate(id, 'open'); return true; }
+    if (g.state === 'closing' && cur.motion?.dir !== 'close') { moveGate(id, 'close'); return true; }
+    if (g.state === 'open' && !cur.motion && p <= 0.01) {
+      const justClosed = cur.dir === 'close' && Date.now() - (cur.since || 0) < travelMs(cfg) + 20000;
+      if (!justClosed) { moveGate(id, 'open'); return true; }
+    }
+    return any;
+  }
+
+  function adoptExtras(update, { fromDevices = false } = {}) {
     let any = false;
     // Where the sun is (Home Assistant's sun.sun): the model's daylight follows it.
     if (update.sun && update.sun.elevation !== state.sun?.elevation) {
@@ -158,7 +229,12 @@ export function createStore(config) {
     }
     for (const [id, g] of Object.entries(update.gates || {})) {
       if (!state.gates[id]) continue;
-      const { timer, ...clean } = g;
+      if (fromDevices) { any = reconcileGate(id, g) || any; continue; }
+      // Another view of this home (panel ⇄ island): take its model as it is.
+      const { timer, pressed, ...clean } = g;
+      const cur = state.gates[id];
+      if (JSON.stringify(cur.motion) !== JSON.stringify(clean.motion ?? null)) any = true;
+      cur.motion = clean.motion ?? null;
       any = writeGate(id, clean) || any;
     }
     for (const [id, t] of Object.entries(update.tvs || {})) {
@@ -281,22 +357,26 @@ export function createStore(config) {
       order('tv', id, { action }).catch((error) => store.onDeviceError?.(id, error.message));
     },
 
-    /** "open", "close" or "stop". The gate shows it moving until the real one reports. */
-    gateAction(id, action) {
+    /** Where the gate is now, 0 closed … 1 open, counting the travel in progress. */
+    gatePosition(id) { return gatePos(state.gates[id], gateCfg.get(id)); },
+
+    /** What one press would do now: "open", "close" or "stop". */
+    gateNext(id) { return gateNext(state.gates[id]); },
+
+    // The gate has one button, like its remote: moving, a press stops it; stopped part way,
+    // the next press goes the other way; fully open it closes, closed it opens. Home
+    // Assistant's cover.toggle does the same, so one press here is one press there.
+    gatePress(id) {
       const cur = state.gates[id];
       if (!cur) return;
-      const before = cur.state;
-      const moving = action === 'open' ? 'opening' : action === 'close' ? 'closing' : before;
-      if (writeGate(id, { state: moving })) emit({ type: 'gate', id });
-      const simulated = !isNative || !linkOf(gateCfg.get(id));
-      order('gate', id, { action }).then(() => {
-        if (!simulated || action === 'stop') return;
+      const next = gateNext(cur);
+      const before = { ...cur };
+      cur.pressed = Date.now();
+      if (next === 'stop') stopGate(id); else moveGate(id, next);
+      order('gate', id, { action: 'toggle' }).catch((error) => {
         clearTimeout(cur.timer);
-        cur.timer = setTimeout(() => {
-          if (writeGate(id, { state: action === 'open' ? 'open' : 'closed' })) emit({ type: 'gate', id });
-        }, GATE_TRAVEL);
-      }, (error) => {
-        if (writeGate(id, { state: before })) emit({ type: 'gate', id, reverted: true });
+        Object.assign(cur, before, { motion: before.motion });
+        emit({ type: 'gate', id, reverted: true });
         store.onDeviceError?.(id, error.message);
       });
     },
@@ -376,7 +456,7 @@ export function createStore(config) {
       let any = false;
       for (const [id, patch] of Object.entries(update.lights || {})) any = writeLight(id, patch, { remote: true }) || any;
       for (const [id, patch] of Object.entries(update.acs || {})) any = writeAC(id, patch, { remote: true }) || any;
-      any = adoptExtras(update) || any;
+      any = adoptExtras(update, { fromDevices: true }) || any;
       for (const [id, f] of Object.entries(update.features || {})) {
         if (!state.acs[id] || JSON.stringify(features[id]) === JSON.stringify(f)) continue;
         features[id] = f;
