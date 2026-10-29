@@ -60,6 +60,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     h('div.devices', grid));
   const sheet = h('section.sheet.hidden');
   sheet.inert = true;
+  // The stage above grows into whatever the open sheet leaves free.
+  new ResizeObserver(() => { if (ui.sheet) card.style.setProperty('--sheet-h', `${sheet.offsetHeight}px`); }).observe(sheet);
   const toastEl = h('div.panel-toast');
 
   const clip = h('div.card-clip',
@@ -277,10 +279,14 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       haptic('heavy');
       store.gateAction(cfg.id, verb);
     } }, label);
-    const el = h('div.tile.gate', { 'aria-label': cfg.name }, h('div.bubble', icon('gate', 19)),
+    const bubble = h('div.bubble', icon('gate', 19));
+    let shownIcon = 'gate';
+    const el = h('div.tile.gate', { 'aria-label': cfg.name }, bubble,
       h('div.tile-text', h('div.tile-name', cfg.name), sub), action);
     function update() {
       const g = state.gates[cfg.id];
+      const want = g.state === 'closed' ? 'gate' : 'gateOpen';
+      if (want !== shownIcon) { bubble.replaceChildren(icon(want, 19)); shownIcon = want; }
       el.classList.toggle('on', g.state !== 'closed');
       el.classList.toggle('offline', g.online === false);
       el.style.setProperty('--c', GATE_COLOR[g.state] || '#8b93a7');
@@ -310,7 +316,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   const TV_BLUE = '#6fa8ff';
   const tvStatus = (t) => (t.online === false ? 'Indisponível' : !t.on ? 'Desligada'
-    : t.title || t.source || (t.state === 'playing' ? 'Reproduzindo' : t.state === 'paused' ? 'Pausada' : 'Ligada'));
+    : t.title || t.app || t.source || (t.state === 'playing' ? 'Reproduzindo' : t.state === 'paused' ? 'Pausada' : 'Ligada'));
 
   function tvTile(cfg) {
     const sub = h('div.tile-sub');
@@ -359,6 +365,13 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const playback = { previous: control('back', 'previous', 'Anterior'), play: control('film', 'play_pause', 'Tocar/pausar'), next: control('next', 'next', 'Próxima') };
     const options = h('div.options', source, playback.previous, playback.play, playback.next);
     const readout = h('div.readout', big.el, mute);
+    // What is on: the picture Home Assistant has (an app icon or a poster), title, artist, app.
+    const art = h('img.np-art', { alt: '' });
+    art.addEventListener('error', () => { art.hidden = true; });
+    const npTitle = h('div.np-title');
+    const npSub = h('div.np-sub');
+    const npState = h('span.np-state');
+    const nowPlaying = h('div.now-playing', art, h('div.np-text', h('div.np-label', 'Reproduzindo agora', npState), npTitle, npSub));
     const volumeRow = h('div.slider-row',
       h('button.round', { 'aria-label': 'Menos volume', onclick: () => { haptic('tick'); store.tvAction(id, 'volume_down'); set({ volume: Math.max(0, t().volume - 0.01) }); } }, icon('minus', 18, 2.2)),
       slider.el,
@@ -366,6 +379,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     return {
       nodes: [
         sheetHead(cfg.name, sub, powerBtn),
+        nowPlaying,
         readout,
         volumeRow,
         options,
@@ -378,6 +392,15 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         slider.set(Math.round(tv.volume * 100));
         mute.classList.toggle('on', Boolean(tv.muted));
         sourceValue.textContent = tv.source || '—';
+        const title = tv.title || tv.app || tv.source;
+        nowPlaying.hidden = !tv.on || !title;
+        npTitle.textContent = title || '';
+        npSub.textContent = [tv.series, tv.artist, tv.title && tv.app, tv.source !== tv.app && tv.source !== title ? tv.source : null]
+          .filter(Boolean).join(' · ');
+        npSub.hidden = !npSub.textContent;
+        npState.textContent = tv.state === 'playing' ? 'tocando' : tv.state === 'paused' ? 'pausado' : '';
+        if (tv.picture && art.dataset.src !== tv.picture) { art.dataset.src = tv.picture; art.hidden = false; art.src = tv.picture; }
+        if (!tv.picture) art.hidden = true;
         // A real TV only shows the controls Home Assistant says it has.
         const has = (name) => !tv.controls || tv.controls.includes(name);
         source.hidden = !has('source') || !(tv.sources || []).length;

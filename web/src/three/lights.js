@@ -127,21 +127,31 @@ const fixtures = {
     };
   },
 
+  // A straight run along x, centred on `pos`; with `corner` (metres) it turns 90° at its east
+  // end into a second run, towards +z ("right", as seen walking along it) or -z ("left").
   strip(cfg) {
     const y = cfg.y ?? 1;
     const length = cfg.length ?? 1;
-    const n = Math.max(1, Math.round(length / 1.0));
+    const corner = Math.max(0, cfg.corner || 0);
+    const side = cfg.turn === 'left' ? -1 : 1;
+    const total = length + corner;
     const lights = [];
-    for (let i = 0; i < n; i++) {
-      const x = -length / 2 + (length / n) * (i + 0.5);
-      lights.push(point((cfg.intensity ?? 1.6) / n, y, { shadow: false, distance: 3.2, x, z: 0.05 }));
-    }
-    return {
-      parts: [],
-      glow: [at(box(length, 0.022, 0.022, glowMaterial(), { r: 0.008 }), 0, y - 0.011, 0)],
-      lights,
-      hit: [length + 0.2, 0.4, 0.4, y],
+    const spread = (from, to, n) => {
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n;
+        lights.push(point(((cfg.intensity ?? 1.6) * (length + corner) / total) / Math.max(1, Math.round(total)), y,
+          { shadow: false, distance: 3.2, x: from[0] + (to[0] - from[0]) * t, z: from[1] + (to[1] - from[1]) * t + 0.05 }));
+      }
     };
+    spread([-length / 2, 0], [length / 2, 0], Math.max(1, Math.round(length)));
+    const glow = [at(box(length, 0.022, 0.022, glowMaterial(), { r: 0.008 }), 0, y - 0.011, 0)];
+    let hit = [length + 0.2, 0.4, 0.4, y];
+    if (corner > 0) {
+      spread([length / 2, 0], [length / 2, side * corner], Math.max(1, Math.round(corner)));
+      glow.push(at(box(0.022, 0.022, corner + 0.011, glowMaterial(), { r: 0.008 }), length / 2, y - 0.011, side * corner / 2));
+      hit = [length + 0.2, 0.4, corner + 0.4, y, 0, side * corner / 2];
+    }
+    return { parts: [], glow, lights, hit };
   },
 };
 
@@ -175,9 +185,9 @@ export class LightUnit {
       if (l.target) this.group.add(l.target);
     }
 
-    const [hw, hh, hd, hy] = f.hit;
+    const [hw, hh, hd, hy, hx = 0, hz = 0] = f.hit;
     this.hit = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), new THREE.MeshBasicMaterial());
-    this.hit.position.y = hy;
+    this.hit.position.set(hx, hy, hz);
     this.hit.visible = false;
     this.hit.userData = { kind: 'light', id: cfg.id };
     this.group.add(this.hit);

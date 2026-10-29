@@ -103,7 +103,33 @@ export async function bootEditor(root) {
   const plan = sv('svg', { class: 'plan', tabindex: 0 });
   const inspector = h('div.inspector');
   const previewHost = h('div.preview');
-  const previewToggle = h('button.chip', { onclick: () => { previewLights = !previewLights; schedulePreview(0); } });
+  const previewToggle = h('button.chip', { onclick: () => { previewLights = !previewLights; tests.clear(); schedulePreview(0); if (sel.index != null) renderInspector(); } });
+
+  // The right column's width and the preview's height follow two grips, and are remembered.
+  const sizes = (() => { try { return JSON.parse(localStorage.getItem('homeos:editor-sizes') || '{}'); } catch { return {}; } })();
+  const applySizes = () => {
+    root.style.setProperty('--right-w', `${sizes.right || 340}px`);
+    root.style.setProperty('--preview-h', `${sizes.preview || 250}px`);
+  };
+  const grip = (cls, onMove) => {
+    const el = h(`div.${cls}`, { role: 'separator' });
+    el.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      el.setPointerCapture(ev.pointerId);
+      const start = { x: ev.clientX, y: ev.clientY, right: sizes.right || 340, preview: sizes.preview || 250 };
+      const move = (e) => { onMove(start, e); applySizes(); };
+      const up = () => {
+        el.removeEventListener('pointermove', move);
+        try { localStorage.setItem('homeos:editor-sizes', JSON.stringify(sizes)); } catch { /* not kept */ }
+      };
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up, { once: true });
+    });
+    return el;
+  };
+  const colGrip = grip('col-grip', (st, e) => { sizes.right = clamp(st.right - (e.clientX - st.x), 300, Math.round(window.innerWidth * 0.7)); });
+  const rowGrip = grip('row-grip', (st, e) => { sizes.preview = clamp(st.preview + (e.clientY - st.y), 160, Math.round(window.innerHeight * 0.8)); });
+  applySizes();
 
   if (isPhone) buildPhoneLayout();
   else root.replaceChildren(h('div.editor',
@@ -117,7 +143,7 @@ export async function bootEditor(root) {
         saveBtn)),
     sidebar,
     h('main.canvas', plan, hint),
-    h('aside.right', h('div.preview-wrap', previewHost, previewToggle), inspector),
+    h('aside.right', colGrip, h('div.preview-wrap', previewHost, previewToggle), rowGrip, inspector),
     h('footer.foot', status),
     toastEl));
 
@@ -186,11 +212,42 @@ export async function bootEditor(root) {
     if (isPhone) phone.refresh();
   }
 
+  // What the "Testar na prévia" buttons switched, by item id, over the lights-on/off default.
+  const tests = new Map();
+  let preview = null;
   function previewStore(cfg) {
-    const state = { lights: {}, acs: {} };
-    for (const l of cfg.lights) state.lights[l.id] = { on: previewLights, brightness: 0.85, temp: 3200, color: l.color || null };
-    for (const a of cfg.acs) state.acs[a.id] = { on: previewLights, mode: 'cool', fan: 'auto', swing: 'swing', sleep: false, target: 23 };
-    return { state, on: () => () => {} };
+    const state = { lights: {}, acs: {}, tvs: {}, gates: {} };
+    const t = (id, base) => ({ ...base, ...(tests.get(id) || {}) });
+    for (const l of cfg.lights) state.lights[l.id] = t(l.id, { on: previewLights, brightness: 0.85, temp: 3200, color: l.color || null });
+    for (const a of cfg.acs) state.acs[a.id] = t(a.id, { on: previewLights, mode: 'cool', fan: 'auto', swing: 'swing', sleep: false, target: 23 });
+    for (const v of cfg.tvs) state.tvs[v.id] = t(v.id, { on: false, state: 'off' });
+    for (const g of cfg.gates) state.gates[g.id] = t(g.id, { state: 'closed' });
+    const listeners = new Set();
+    preview = { state, on: (fn) => { listeners.add(fn); return () => listeners.delete(fn); }, emit: (c) => listeners.forEach((fn) => fn(c)) };
+    return preview;
+  }
+
+  /** Switches one item in the preview only: nothing is sent to the real device. */
+  function testItem(kind, id, patch) {
+    tests.set(id, { ...(tests.get(id) || {}), ...patch });
+    const section = { light: 'lights', ac: 'acs', tv: 'tvs', gate: 'gates' }[kind];
+    if (preview?.state[section]?.[id]) {
+      Object.assign(preview.state[section][id], patch);
+      preview.emit({ type: kind, id });
+    }
+    renderInspector();
+  }
+
+  function testSection(kind, item) {
+    const cur = { light: 'lights', ac: 'acs', tv: 'tvs', gate: 'gates' }[kind];
+    const s = preview?.state[cur]?.[item.id] || {};
+    const on = kind === 'gate' ? s.state === 'open' : Boolean(s.on);
+    const label = kind === 'gate' ? (on ? 'Fechar o portão' : 'Abrir o portão')
+      : kind === 'light' ? (on ? 'Apagar' : 'Acender') : on ? 'Desligar' : 'Ligar';
+    const press = () => testItem(kind, item.id, kind === 'gate' ? { state: on ? 'closed' : 'open' } : { on: !on, state: on ? 'off' : 'on' });
+    return section('Testar na prévia',
+      h('button.btn.wide', { onclick: press }, icon(kind === 'gate' ? (on ? 'gate' : 'gateOpen') : 'power', 14), label),
+      h('p.note', 'Só na prévia 3D ao lado, para conferir posição e efeito. Nada é enviado ao aparelho real.'));
   }
 
   let previewTimer = 0;
@@ -357,6 +414,7 @@ export async function bootEditor(root) {
     const b = bounds();
     const m = 1.4;
     if (isPhone) phone.applyView();
+    else if (deskView) plan.setAttribute('viewBox', `${deskView.x} ${deskView.y} ${deskView.w} ${deskView.h}`);
     else plan.setAttribute('viewBox', `${b.minX - m} ${b.minZ - m} ${b.maxX - b.minX + m * 2} ${b.maxZ - b.minZ + m * 2}`);
     // Fingers are bigger than a mouse pointer: on a phone small things get a wider target.
     const big = isPhone;
@@ -428,6 +486,10 @@ export async function bootEditor(root) {
       if (l.type === 'strip') {
         const len = l.length || 1;
         g.append(sv('rect', { x: -len / 2, y: -0.07, width: len, height: 0.14, rx: 0.07 }));
+        if (l.corner > 0) {
+          const side = l.turn === 'left' ? -1 : 1;
+          g.append(sv('rect', { x: len / 2 - 0.07, y: side > 0 ? -0.07 : -l.corner - 0.07, width: 0.14, height: l.corner + 0.14, rx: 0.07 }));
+        }
       } else {
         g.append(sv('circle', { r: 0.34, class: 'halo' }), sv('circle', { r: l.type === 'table' ? 0.13 : 0.19 }));
       }
@@ -440,6 +502,49 @@ export async function bootEditor(root) {
       kids.push(sv('circle', { cx: x + w, cy: z + d, r: big ? 0.24 : 0.16, class: 'p-handle', 'data-kind': 'resize', 'data-index': sel.index }));
     }
     plan.replaceChildren(...kids);
+  }
+
+  // On the Mac: the wheel or a pinch zooms where the pointer is, the right / middle button or
+  // Shift / Option + drag slides the plan, a double click on the floor shows it all again.
+  let deskView = null;
+  const currentView = () => {
+    const [x, y, w, hh] = plan.getAttribute('viewBox').split(' ').map(Number);
+    return { x, y, w, h: hh };
+  };
+  if (!isPhone) {
+    plan.addEventListener('wheel', (ev) => {
+      ev.preventDefault();
+      const v = currentView();
+      const [px, pz] = planPoint(ev);
+      const f = clamp(Math.exp(ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)), 0.5, 2);
+      const b = bounds();
+      const maxW = (b.maxX - b.minX + 2.8) * 1.5;
+      const w = clamp(v.w * f, 1.5, maxW);
+      const k = w / v.w;
+      deskView = { x: px - (px - v.x) * k, y: pz - (pz - v.y) * k, w, h: v.h * k };
+      renderPlan();
+    }, { passive: false });
+    plan.addEventListener('pointerdown', (ev) => {
+      if (!(ev.button === 1 || ev.button === 2 || ev.shiftKey || ev.altKey)) return;
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      plan.setPointerCapture(ev.pointerId);
+      const start = { x: ev.clientX, y: ev.clientY, v: currentView() };
+      const r = plan.getBoundingClientRect();
+      const scale = Math.max(start.v.w / r.width, start.v.h / r.height);
+      const move = (e) => {
+        deskView = { ...start.v, x: start.v.x - (e.clientX - start.x) * scale, y: start.v.y - (e.clientY - start.y) * scale };
+        renderPlan();
+      };
+      plan.addEventListener('pointermove', move);
+      plan.addEventListener('pointerup', () => plan.removeEventListener('pointermove', move), { once: true });
+    }, true);
+    plan.addEventListener('contextmenu', (ev) => ev.preventDefault());
+    plan.addEventListener('dblclick', (ev) => {
+      if (ev.target.closest('[data-kind]')?.dataset.kind && !['none', 'room'].includes(ev.target.closest('[data-kind]').dataset.kind)) return;
+      deskView = null;
+      renderPlan();
+    });
   }
 
   function planPoint(ev) {
@@ -649,13 +754,19 @@ export async function bootEditor(root) {
         row(bind('X', number(), { ...at(item, 'pos', 0), parse: parseNum }), bind('Z', number(), { ...at(item, 'pos', 1), parse: parseNum })),
         row(bind('Altura (automática se vazia)', number(), { ...optional(item, 'y'), parse: optNum }),
           bind('Rotação, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum })),
-        item.type === 'strip' ? bind('Comprimento da fita, m', number(0.1), { ...prop(item, 'length', 1), parse: parseNum }) : null),
+        item.type === 'strip' ? [
+          row(bind('Comprimento da fita, m', number(0.1), { ...prop(item, 'length', 1), parse: parseNum }),
+            bind('Segundo lado do L, m', number(0.1), { ...optional(item, 'corner'), parse: optNum })),
+          item.corner ? bind('O L vira para', choice([['right', 'A direita'], ['left', 'A esquerda']]), { ...prop(item, 'turn', 'right'), event: 'change' }) : null,
+          h('p.note', 'Para uma fita em L, preencha o segundo lado: ela vira 90° na ponta leste (com rotação 0°). Deixe vazio para uma fita reta.'),
+        ] : null),
       section('O que ela faz',
         h('div.checks',
           bind('Brilho ajustável', h('input', { type: 'checkbox' }), { ...cap('brightness'), event: 'change' }),
           bind('Temperatura de branco', h('input', { type: 'checkbox' }), { ...cap('temp'), event: 'change' }),
           bind('Cor', h('input', { type: 'checkbox' }), { ...cap('color'), event: 'change' })),
         h('p.note', 'Deixe as três desmarcadas para um interruptor simples: ela só liga e desliga (é o caso das luzes Tuya da casa).')),
+      testSection('light', item),
       links.deviceSection(item, 'light', linkHooks));
     } else if (kind === 'ac') {
       head(item.name || item.id, `id: ${item.id}`);
@@ -672,6 +783,7 @@ export async function bootEditor(root) {
             parse: (v) => { const m = /^(\d+)\s*-\s*(\d+)$/.exec(v.trim()); return m && +m[1] < +m[2] ? [+m[1], +m[2]] : undefined; },
           })),
         h('p.note', 'Arrastar o aparelho na planta o encaixa na parede mais próxima do cômodo.')),
+      testSection('ac', item),
       links.deviceSection(item, 'ac', linkHooks),
       links.sensorSection(item, linkHooks));
     } else if (kind === 'furniture') {
@@ -725,6 +837,7 @@ export async function bootEditor(root) {
         row(bind('Rotação, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum }),
           bind('Largura, m', number(0.1), { ...prop(item, 'width', 1.6), parse: parseNum })),
         h('p.note', 'A TV aparece na maquete com o móvel e a tela acende quando ela está ligada. Rotação 0° fica virada para o sul.')),
+      testSection('tv', item),
       links.deviceSection(item, 'tv', linkHooks));
     } else if (EXTRAS.includes(kind)) {
       const what = { gate: ['Portão', 'Abre e fecha com dois toques no painel e na ilha'],
@@ -752,6 +865,7 @@ export async function bootEditor(root) {
             bind('Tempo de abertura, s', number(1), { ...prop(item, 'travel', 14), parse: parseNum })),
           h('p.note', 'Os dois pontos ficam na parede, nas pontas da abertura do portão. Na maquete ele desliza pelo lado de fora, com uma luz âmbar piscando enquanto se move.'),
         ] : null) : null,
+      kind === 'gate' && item.from && item.to ? testSection('gate', item) : null,
       links.deviceSection(item, kind, linkHooks));
     }
     const key = `${sel.kind}:${sel.index ?? sel.service ?? ''}`;

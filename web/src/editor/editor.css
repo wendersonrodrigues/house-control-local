@@ -5,7 +5,7 @@ html.mode-editor, html.mode-editor body { user-select: none; }
 .editor {
   height: 100%;
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr) 340px;
+  grid-template-columns: 268px minmax(0, 1fr) var(--right-w, 340px);
   grid-template-rows: 54px minmax(0, 1fr) 34px;
   grid-template-areas: 'bar bar bar' 'side canvas right' 'foot foot foot';
   background:
@@ -124,8 +124,8 @@ html.mode-editor, html.mode-editor body { user-select: none; }
 
 /* ---------- right column ---------- */
 
-.right { grid-area: right; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); }
-.preview-wrap { position: relative; flex: none; height: 250px; border-bottom: 1px solid var(--line); background: #0a0e1a; }
+.right { grid-area: right; position: relative; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); }
+.preview-wrap { position: relative; flex: none; height: var(--preview-h, 250px); border-bottom: 1px solid var(--line); background: #0a0e1a; }
 .preview, .preview canvas { width: 100%; height: 100%; display: block; }
 .preview-error { padding: 16px; font-size: 12px; color: #ffb4a8; }
 .chip {
@@ -463,3 +463,8 @@ html.ios.mode-editor body { background: var(--bg); }
 /* A gate on its wall, and a TV (drawn like furniture, in blue). */
 .p-gate { stroke: #ffb340; stroke-width: 0.16; stroke-linecap: round; pointer-events: none; }
 .p-tv rect { fill: rgba(111, 168, 255, 0.28); stroke: #6fa8ff; }
+
+/* Grips: drag the right column wider, the preview taller. */
+.col-grip { position: absolute; z-index: 5; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; }
+.row-grip { flex: none; height: 8px; margin: -4px 0; position: relative; z-index: 5; cursor: row-resize; }
+.col-grip:hover, .row-grip:hover { background: rgba(111, 168, 255, 0.35); }

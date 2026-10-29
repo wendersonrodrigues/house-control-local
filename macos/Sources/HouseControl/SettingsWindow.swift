@@ -73,7 +73,7 @@ final class SettingsWindowController: NSWindowController {
         let window = NSWindow(contentViewController: tabs)
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
-        window.setFrameAutosaveName("HouseControlSettings")
+        window.setFrameAutosaveName("HomeOsBarSettings")
         super.init(window: window)
     }
 
@@ -90,8 +90,14 @@ final class SettingsWindowController: NSWindowController {
 
     func show(pane: String? = nil) {
         onShow?()
-        if let pane, let tabs = window?.contentViewController as? NSTabViewController,
-           let index = tabs.tabViewItems.firstIndex(where: { $0.identifier as? String == pane }) {
+        if let tabs = window?.contentViewController as? NSTabViewController {
+            let index = pane.flatMap { p in tabs.tabViewItems.firstIndex { $0.identifier as? String == p } }
+                ?? tabs.selectedTabViewItemIndex
+            // The first pane is laid out before the window exists and comes up pushed down, its
+            // end cut off. Selecting it afresh sizes the window to it like the others.
+            if tabs.tabViewItems.count > 1, index == tabs.selectedTabViewItemIndex {
+                tabs.selectedTabViewItemIndex = (index + 1) % tabs.tabViewItems.count
+            }
             tabs.selectedTabViewItemIndex = index
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -108,11 +114,16 @@ private struct Pane<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        Form { content }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
-            .frame(width: 500)
+        // Not a grouped Form: on recent macOS it lays its rows out well below the top of the
+        // pane (and cuts off the bottom), whatever its margins say. Cards look the same.
+        VStack(alignment: .leading, spacing: 18) { content }
+            .labeledContentStyle(RowStyle())
+            .padding(20)
+            .frame(width: 500, alignment: .topLeading)
             .fixedSize(horizontal: false, vertical: true)
+            // The tab view can hand a pane more height than it asked for (more than the window
+            // shows): keep the pane at the top of it rather than in the middle.
+            .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -121,8 +132,8 @@ private struct GeneralPane: View {
 
     var body: some View {
         Pane {
-            Section {
-                Toggle("Abrir ao iniciar sessão", isOn: Binding(get: { model.openAtLogin == .on }, set: model.setOpenAtLogin))
+            Card {
+                SwitchRow("Abrir ao iniciar sessão", isOn: Binding(get: { model.openAtLogin == .on }, set: model.setOpenAtLogin))
                 if model.openAtLogin == .needsApproval {
                     LabeledContent {
                         Button("Abrir Itens de Início…") { model.setOpenAtLogin(true) }
@@ -134,12 +145,12 @@ private struct GeneralPane: View {
             } footer: {
                 Footnote("O HomeOs Bar abre junto com o Mac e fica esperando na barra de menu.")
             }
-            Section {
-                Toggle("Mostrar a Ilha", isOn: Binding(get: { model.islandShown }, set: model.setIsland))
+            Card {
+                SwitchRow("Mostrar a Ilha", isOn: Binding(get: { model.islandShown }, set: model.setIsland))
             } footer: {
                 Footnote("Luzes acesas, ar-condicionado, portão e atalhos num relance, no meio da barra de menu. Clique para abrir.")
             }
-            Section("Como usar") {
+            Card(title: "Como usar") {
                 Tip(symbol: "cursorarrow.click", text: "Clique na casinha da barra de menu para abrir o painel.")
                 Tip(symbol: "contextualmenu.and.cursorarrow", text: "Clique com o botão direito para o menu: editor da casa, planta e registro.")
                 Tip(symbol: "command", text: "⌘, abre estes ajustes de qualquer janela do HomeOs Bar.")
@@ -153,7 +164,7 @@ private struct HomePane: View {
 
     var body: some View {
         Pane {
-            Section {
+            Card {
                 Picker("Planta", selection: Binding(get: { model.activePlan }, set: model.selectPlan)) {
                     ForEach(model.plans) { Text($0.name).tag($0.id) }
                 }
@@ -161,7 +172,7 @@ private struct HomePane: View {
             } footer: {
                 Footnote("Desenhe sua casa no editor ou carregue um arquivo de planta. As demonstrações são simuladas: nada de verdade é acionado.")
             }
-            Section {
+            Card {
                 ActionRow(symbol: "pencil.and.ruler", title: "Editar casa…", detail: "Cômodos, luzes, ares, portão, atalhos e chaves", action: model.editHome)
                 ActionRow(symbol: "square.and.arrow.down", title: "Carregar planta…", detail: "Um arquivo de planta de outro Mac ou de um backup", action: model.loadPlan)
                 ActionRow(symbol: "folder", title: "Mostrar arquivo da planta", detail: "A planta em JSON, no Finder", action: model.revealPlan)
@@ -175,7 +186,7 @@ private struct ConnectionsPane: View {
 
     var body: some View {
         Pane {
-            Section {
+            Card {
                 ForEach(model.connections) { connection in
                     LabeledContent {
                         Button(connection.connected ? "Gerenciar…" : "Conectar…") { model.openConnection(connection.id) }
@@ -205,7 +216,7 @@ private struct PhonePane: View {
 
     var body: some View {
         Pane {
-            Section {
+            Card {
                 if model.phones.isEmpty {
                     Label("Nenhum celular conectado agora", systemImage: "iphone.slash").foregroundStyle(.secondary)
                 } else {
@@ -226,7 +237,7 @@ private struct AgentPane: View {
 
     var body: some View {
         Pane {
-            Section {
+            Card {
                 LabeledContent {
                     if model.aiLive { Button("Parar", role: .destructive, action: model.stopAgent) }
                 } label: {
@@ -254,7 +265,7 @@ private struct AboutPane: View {
 
     var body: some View {
         Pane {
-            Section {
+            Card {
                 HStack(spacing: 14) {
                     Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
                     VStack(alignment: .leading, spacing: 3) {
@@ -266,12 +277,12 @@ private struct AboutPane: View {
                 }
                 .padding(.vertical, 4)
             }
-            Section {
+            Card {
                 LinkRow(symbol: "shippingbox", title: "Código deste fork", url: About.forkSource)
                 LinkRow(symbol: "globe", title: "House Control, o projeto original", url: About.source)
                 LinkRow(symbol: "at", title: "\(About.developer) no X", url: About.x)
             }
-            Section {
+            Card {
                 ActionRow(symbol: "doc.text.magnifyingglass", title: "Mostrar registro dos dispositivos", detail: "O que foi enviado aos dispositivos, para investigar problemas", action: model.revealLog)
             }
         }
@@ -279,6 +290,56 @@ private struct AboutPane: View {
 }
 
 // MARK: - Pieces
+
+/// A group of rows on a rounded card, with an optional title above and note below.
+private struct Card<Content: View, Footer: View>: View {
+    var title: String?
+    @ViewBuilder var content: Content
+    @ViewBuilder var footer: Footer
+
+    init(title: String? = nil, @ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
+        self.title = title
+        self.content = content()
+        self.footer = footer()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            if let title { Text(title).font(.headline).padding(.leading, 4) }
+            VStack(alignment: .leading, spacing: 12) { content }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.045)))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
+            footer.padding(.horizontal, 4)
+        }
+    }
+}
+
+extension Card where Footer == EmptyView {
+    init(title: String? = nil, @ViewBuilder content: () -> Content) {
+        self.init(title: title, content: content, footer: { EmptyView() })
+    }
+}
+
+/// Label at the start, control at the far end.
+private struct RowStyle: LabeledContentStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 12) { configuration.label; Spacer(minLength: 8); configuration.content }
+    }
+}
+
+/// A label with its switch at the far end, the way a settings row has it.
+private struct SwitchRow: View {
+    let title: String
+    @Binding var isOn: Bool
+    init(_ title: String, isOn: Binding<Bool>) { self.title = title; _isOn = isOn }
+
+    var body: some View {
+        HStack { Text(title); Spacer(); Toggle("", isOn: $isOn).labelsHidden().toggleStyle(.switch) }
+    }
+}
 
 private struct Footnote: View {
     let text: String

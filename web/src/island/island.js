@@ -101,10 +101,14 @@ export async function bootIsland(root) {
       clearTimeout(armed); armed = 0; action.classList.remove('armed');
       store.gateAction(cfg.id, verb());
     } }, icon('gate', 13, 2.4));
-    const el = h('div.chip.gate', h('span.chip-bubble', icon('gate', 15)), h('div.chip-text', h('div.chip-name', cfg.name), sub), action);
+    const bubble = h('span.chip-bubble', icon('gate', 15));
+    let shownIcon = 'gate';
+    const el = h('div.chip.gate', bubble, h('div.chip-text', h('div.chip-name', cfg.name), sub), action);
     list.append(el);
     const update = () => {
       const g = state.gates[cfg.id];
+      const want = g.state === 'closed' ? 'gate' : 'gateOpen';
+      if (want !== shownIcon) { bubble.replaceChildren(icon(want, 15)); shownIcon = want; }
       el.classList.toggle('on', g.state !== 'closed');
       el.style.setProperty('--c', g.state === 'open' ? '#ffb340' : '#ffd84a');
       sub.textContent = armed ? (verb() === 'open' ? 'Clique de novo para abrir' : 'Clique de novo para fechar')
@@ -147,7 +151,7 @@ export async function bootIsland(root) {
       const t = state.tvs[cfg.id];
       el.classList.toggle('on', t.on);
       el.style.setProperty('--c', '#6fa8ff');
-      sub.textContent = t.online === false ? 'Indisponível' : !t.on ? 'Desligada' : t.title || t.source || 'Ligada';
+      sub.textContent = t.online === false ? 'Indisponível' : !t.on ? 'Desligada' : t.title || t.app || t.source || 'Ligada';
     });
   }
 

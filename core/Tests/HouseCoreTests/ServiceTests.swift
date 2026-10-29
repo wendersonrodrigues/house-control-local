@@ -192,7 +192,8 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(media?["volume"] as? Double, 0.18)
         XCTAssertEqual(media?["source"] as? String, "Netflix")
         XCTAssertEqual(media?["sources"] as? [String], ["HDMI 1", "Netflix", "YouTube"])
-        XCTAssertEqual(media?["title"] as? String, "Netflix")
+        XCTAssertEqual(media?["app"] as? String, "Netflix")
+        XCTAssertTrue(media?["title"] is NSNull)
         XCTAssertEqual(HomeAssistantService.reading(from: ["entity_id": "media_player.lg_tv", "state": "off", "attributes": [:]])
             .media?["on"] as? Bool, false)
 

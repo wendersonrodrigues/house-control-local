@@ -134,6 +134,13 @@ Botão direito na casinha → **Editar casa…**
   Esses itens não aparecem na planta: ficam no painel e na ilha.
 - Escolha um item e selecione a entidade em **Dispositivo real**. Uma luz já assume o que a entidade sabe fazer, e
   um ar assume a faixa de temperatura.
+- Na planta 2D, a rodinha ou a pinça aproximam no ponteiro, o botão direito (ou ⇧/⌥ + arrastar) desloca e o duplo
+  clique mostra tudo de novo.
+- A coluna da direita fica mais larga arrastando a borda esquerda dela, e a prévia 3D fica mais alta arrastando a
+  divisória abaixo dela.
+- Em cada luz, ar, TV e portão, **Testar na prévia** acende/liga ou abre/fecha só na prévia, para conferir posição e
+  efeito sem acionar o aparelho real.
+- Fita de LED em L: preencha **Segundo lado do L** e escolha para que lado ela vira.
 - **Salvar e aplicar** grava a planta e recarrega o painel.
 
 O app já vem com **Casa**: a planta real desta casa (13 cômodos, com garagem, quintal e corredor externo), portas,

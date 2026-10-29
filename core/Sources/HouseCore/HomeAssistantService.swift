@@ -160,7 +160,11 @@ public final class HomeAssistantService: DeviceService {
                 swingNames[id] = attributes["swing_modes"] as? [String] ?? []
             }
             if id.hasPrefix("media_player."), let f = attributes["supported_features"] as? Int { mediaSupport[id] = f }
-            out[id] = Self.reading(from: state)
+            var reading = Self.reading(from: state)
+            if let path = reading.media?["picture"] as? String, path.hasPrefix("/"), let base = active ?? config?.url {
+                reading.media?["picture"] = base + path
+            }
+            out[id] = reading
         }
         return out
     }
@@ -322,9 +326,13 @@ public final class HomeAssistantService: DeviceService {
         if let m = attributes["is_volume_muted"] as? Bool { media["muted"] = m }
         media["source"] = attributes["source"] as? String ?? NSNull()
         media["sources"] = attributes["source_list"] as? [String] ?? []
-        let title = [attributes["media_title"] as? String, attributes["app_name"] as? String]
-            .compactMap { $0 }.first { !$0.isEmpty }
-        media["title"] = title ?? NSNull()
+        let text = { (key: String) -> Any in (attributes[key] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? NSNull() }
+        media["title"] = text("media_title")
+        media["artist"] = text("media_artist")
+        media["series"] = text("media_series_title")
+        media["app"] = text("app_name")
+        // A path on the server ("/api/media_player_proxy/…?token=…"): made absolute in read().
+        media["picture"] = text("entity_picture")
         media["controls"] = mediaControls(attributes["supported_features"] as? Int)
         return media
     }

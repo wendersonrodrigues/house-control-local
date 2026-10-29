@@ -109,8 +109,12 @@ export function openMenu(host, anchor, items, { onClose } = {}) {
   const hr = host.getBoundingClientRect();
   const ar = anchor.getBoundingClientRect();
   const mw = menu.offsetWidth;
+  // A long list (a TV's inputs and apps) opens towards the roomier side and scrolls.
+  const above = ar.top - hr.top - 18;
+  const under = hr.bottom - ar.bottom - 18;
+  const below = menu.offsetHeight > above && under > above;
+  menu.style.maxHeight = `${Math.max(120, below ? under : above)}px`;
   const mh = menu.offsetHeight;
-  const below = ar.top - hr.top < mh + 16;
   const left = clamp(ar.right - hr.left - mw, 10, hr.width - mw - 10);
   menu.style.left = `${left}px`;
   menu.style.top = below ? `${ar.bottom - hr.top + 8}px` : `${ar.top - hr.top - mh - 8}px`;

@@ -82,8 +82,8 @@ export class GateUnit {
     this.group.rotation.y = Math.atan2(-along.z, along.x);
     // Black horizontal slats, the way the real one is built.
     const leaf = new THREE.Group();
-    const body = mat('#3b404c', { rough: 0.5, metal: 0.25 }); // graphite: black would vanish in the night scene
-    const line = mat('#646c7d', { rough: 0.45, metal: 0.25 });
+    const body = mat('#8d939f', { rough: 0.5, metal: 0.2 }); // grey: the real black one would vanish in the night scene
+    const line = mat('#5d6472', { rough: 0.45, metal: 0.2 });
     leaf.add(at(box(this.length, h, 0.05, body, { r: 0.01 }), 0, h / 2, 0));
     for (let y = SLAT; y < h - 0.05; y += SLAT) {
       leaf.add(at(box(this.length - 0.04, 0.012, 0.056, line, { r: 0 }), 0, y, 0));

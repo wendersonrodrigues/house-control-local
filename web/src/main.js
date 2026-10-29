@@ -10,7 +10,7 @@ import { isNative, isPhone, post, incoming, haptic } from './bridge.js';
 import { publishWidgets, runWidgetAction } from './widgets.js';
 
 const DEMO_PLANS = [
-  { id: 'homeos', name: 'Casa' },
+  { id: 'homeos', name: 'Casa · planta do app' },
   { id: 'home', name: 'Demonstração · Apartamento' },
   { id: 'studio', name: 'Demonstração · Estúdio' },
 ];
@@ -213,7 +213,7 @@ async function boot() {
     }));
     if (window.__HOUSE_BOOT__?.hasCustomPlan) {
       items.unshift({
-        label: 'Minha casa',
+        label: 'Minha casa · salva no editor',
         selected: current === 'custom',
         icon: current === 'custom' ? icon('check', 16, 2.4) : null,
         action: () => post('selectPlan', { plan: 'custom' }),
