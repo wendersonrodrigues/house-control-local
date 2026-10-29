@@ -892,9 +892,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const acsOn = Object.values(state.acs).filter((a) => a.on);
     const anyOn = onCount > 0 || acsOn.length > 0;
 
+    // Every light off: a plain 0 and a green leaf, rather than a "Nenhuma" that reads as missing.
     homeSub.replaceChildren(
-      h('span.live', { style: anyOn ? {} : { background: 'rgba(255,255,255,.25)', boxShadow: 'none' } }),
-      h('b', onCount ? `${onCount} de ${lights.length}` : 'Nenhuma'), onCount === 1 ? ' luz acesa' : ' luzes acesas',
+      onCount ? h('span.live') : h('span.eco-leaf', { title: 'Todas as luzes apagadas' }, icon('leaf', 13, 2.2)),
+      h('b', onCount ? `${onCount} de ${lights.length}` : '0'), onCount === 1 ? ' luz acesa' : ' luzes acesas',
       acsOn.length ? ` · Ar ${acsOn[0].target}°` : '');
     power.classList.toggle('on', anyOn);
 

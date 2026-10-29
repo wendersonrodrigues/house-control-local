@@ -930,3 +930,6 @@ html.ios .card.relayout .panel:not(.hidden), html.ios .card.relayout .sheet:not(
 @media (hover: hover) { .organize-link:hover { color: var(--text); background: var(--glass); } }
 .org-btn { display: flex; align-items: center; gap: 6px; }
 .org-done { background: linear-gradient(180deg, #5aa2ff, #2f7bf2); color: #fff; border-color: transparent; }
+
+/* All lights off: a green leaf beside the 0. */
+.eco-leaf { display: inline-grid; place-items: center; color: #4ade80; filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.45)); }
