@@ -933,3 +933,13 @@ html.ios .card.relayout .panel:not(.hidden), html.ios .card.relayout .sheet:not(
 
 /* All lights off: a green leaf beside the 0. */
 .eco-leaf { display: inline-grid; place-items: center; color: #4ade80; filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.45)); }
+
+/* Room chips as names, icons or both (Organizar o painel). */
+.room-icon { display: none; place-items: center; }
+.rooms[data-style='icon'] .room-icon, .rooms[data-style='both'] .room-icon { display: inline-grid; }
+.rooms[data-style='icon'] .room-name { display: none; }
+.rooms[data-style='both'] .room { gap: 6px; }
+.rooms[data-style='icon'] .room { padding-left: 14px; padding-right: 14px; gap: 4px; }
+.org-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); }
+.org-seg button { height: 30px; border-radius: 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.org-seg button.on { background: rgba(70, 130, 255, 0.32); color: #fff; }

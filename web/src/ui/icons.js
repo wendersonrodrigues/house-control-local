@@ -7,7 +7,7 @@ import {
   Undo2, Activity, KeyRound, ArrowUpRight, Camera, Square,
   HouseWifi, Smartphone, Radar, CircleCheck, CircleAlert, ChevronRight, Unlink, LoaderCircle, Router,
   List, Trash2, Scan, Redo2, Map as MapIcon, DoorClosed, Armchair,
-  LightbulbOff, EyeOff, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
+  LightbulbOff, EyeOff, Car, CookingPot, Bath, ShowerHead, Shirt, Baby, BedSingle, WashingMachine, Dumbbell, Gamepad2, Flower2, Briefcase, Utensils, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
 } from 'lucide';
 
 // A sliding gate on its rail against the post it closes on, shut and slid open (drawn for
@@ -56,9 +56,33 @@ const FIXTURES = {
   pendant: [['path', { d: 'M12 2v6' }], ['path', { d: 'M5 15a7 7 0 0 1 14 0z' }], ['path', { d: 'M10 18.5a2 2 0 0 0 4 0' }]],
 };
 
+// A room's icon, for the room chips shown as icons (Organizar o painel). The editor offers
+// these by name; without a choice, one is picked from the room's name.
+export const ROOM_ICONS = {
+  home: 'Casa', car: 'Garagem', sofa: 'Sala', tv: 'Sala de TV', kitchen: 'Cozinha', dining: 'Sala de jantar',
+  bed: 'Quarto de casal', bedSingle: 'Quarto', baby: 'Quarto de criança', bath: 'Banheiro', shower: 'Chuveiro',
+  closet: 'Closet', laptop: 'Escritório', briefcase: 'Trabalho', laundry: 'Lavanderia', gym: 'Academia',
+  games: 'Jogos', outside: 'Quintal', garden: 'Jardim', presence: 'Corredor', door: 'Entrada',
+};
+const ROOM_GUESS = [
+  [/garag/i, 'car'], [/cozinha|kitchen/i, 'kitchen'], [/jantar|dining/i, 'dining'], [/sala de tv|tv\b/i, 'tv'],
+  [/sala|estar|living/i, 'sofa'], [/su[ií]te|casal|principal|master/i, 'bed'], [/beb[eê]|crian|kid/i, 'baby'],
+  [/quarto|bed/i, 'bedSingle'], [/banh|lavabo|wc|bath/i, 'bath'], [/closet|vesti/i, 'closet'],
+  [/office|escrit[oó]rio|estudo/i, 'laptop'], [/lavand|[áa]rea de servi/i, 'laundry'], [/academia|gym/i, 'gym'],
+  [/jardim|garden/i, 'garden'], [/quintal|[áa]rea externa|varanda|yard|patio|p[áa]tio/i, 'outside'],
+  [/corredor|circula|passagem|hall/i, 'presence'], [/entrada|hall/i, 'door'],
+];
+export function roomIcon(room) {
+  if (room?.icon && ROOM_ICONS[room.icon]) return room.icon;
+  const text = `${room?.name || ''} ${room?.id || ''}`;
+  return ROOM_GUESS.find(([re]) => re.test(text))?.[1] || 'home';
+}
+
 const ICONS = {
   power: Power, sun: Sun, sofa: Sofa, film: Film, moon: Moon, door: DoorOpen,
   ...FIXTURES, floor: LampFloor, table: LampDesk,
+  car: Car, kitchen: CookingPot, bath: Bath, shower: ShowerHead, closet: Shirt, baby: Baby, bedSingle: BedSingle,
+  laundry: WashingMachine, gym: Dumbbell, games: Gamepad2, garden: Flower2, briefcase: Briefcase, dining: Utensils,
   cool: Snowflake, heat: Flame, dry: Droplets, fan: Fan, auto: RefreshCw, wind: Wind, leaf: Leaf,
   down: ChevronDown, back: ChevronLeft, plus: Plus, minus: Minus, thermo: Thermometer,
   sliders: SlidersHorizontal, check: Check, home: House, settings: Settings2, ac: AirVent,

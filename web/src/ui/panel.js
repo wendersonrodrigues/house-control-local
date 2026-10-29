@@ -2,7 +2,7 @@
 // device tiles and the detail sheets for a light or an AC.
 import * as THREE from 'three';
 import { h, clamp, createSlider, createColorPad, openMenu } from './dom.js';
-import { icon, lampIcon } from './icons.js';
+import { icon, lampIcon, roomIcon } from './icons.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { AC_SWINGS } from '../store.js';
@@ -117,10 +117,12 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs, ...config.tvs, ...config.gates].some((d) => d.room === r.id));
   for (const r of [{ id: 'all', name: 'Todos' }, ...withDevices]) {
     const count = h('span.count.zero', '0');
-    const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
+    const b = h('button.room', { title: r.name, 'aria-label': r.name, onclick: () => { haptic('tick'); selectRoom(r.id); } },
+      h('span.room-icon', icon(r.id === 'all' ? 'home' : roomIcon(r), 17)), h('span.room-name', r.name), count);
     roomButtons.set(r.id, { b, count });
   }
   function renderRooms() {
+    rooms.dataset.style = arr.chips;
     rooms.replaceChildren(roomButtons.get('all').b, ...visible(withDevices, arr, 'rooms').map((r) => roomButtons.get(r.id).b));
   }
   renderRooms();
@@ -369,8 +371,13 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const group = (title, key, items, label = (x) => x.name, sub = () => null) => (items.length
       ? [h('div.org-title', title), ...ordered(items, arr, key).map((x) => rowFor(key, items, x, label(x), sub(x)))] : []);
     const KIND_NAME = { ac: 'Ar-condicionado', tv: 'TV', light: 'Luz' };
+    // How the room chips read: names, icons, or both.
+    const chipStyle = h('div.org-seg', [['name', 'Nome'], ['icon', 'Ícone'], ['both', 'Ícone e nome']].map(([v, label]) =>
+      h(`button${arr.chips === v ? '.on' : ''}`, { onclick: () => { arr.chips = v; haptic('light'); changed(); } }, label)));
     function draw() {
+      chipStyle.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', ['name', 'icon', 'both'][i] === arr.chips));
       body.replaceChildren(
+        h('div.org-title', 'Fileira de cômodos'), chipStyle,
         ...group('Atalhos', 'shortcuts', config.shortcuts),
         ...group('Cômodos', 'rooms', withDevices),
         ...group(config.gates.length > 1 ? 'Portões' : 'Portão', 'gates', config.gates),
@@ -387,7 +394,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         sheetHead('Organizar o painel', h('div.sheet-sub', 'Ordem e o que aparece, só neste Mac'), null),
         body,
         h('div.org-foot',
-          h('button.pill.org-btn', { onclick: () => { arr = { order: {}, hidden: new Set() }; changed(); } }, icon('rotate', 13), 'Restaurar o padrão'),
+          h('button.pill.org-btn', { onclick: () => { arr = { order: {}, hidden: new Set(), chips: 'name' }; changed(); } }, icon('rotate', 13), 'Restaurar o padrão'),
           h('button.pill.org-btn.org-done', { onclick: closeSheet }, icon('check', 13, 2.4), 'Pronto')),
       ],
       update() {},

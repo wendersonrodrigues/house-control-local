@@ -12,12 +12,13 @@ function readAll() {
 /** The arrangement of the home called `home`: { order: { [group]: ids }, hidden: ids }. */
 export function loadArrangement(home) {
   const a = readAll()[home] || {};
-  return { order: a.order || {}, hidden: new Set(a.hidden || []) };
+  // chips: how the room chips read: "name", "icon" or "both".
+  return { order: a.order || {}, hidden: new Set(a.hidden || []), chips: a.chips || 'name' };
 }
 
 export function saveArrangement(home, a) {
   const all = readAll();
-  all[home] = { order: a.order, hidden: [...a.hidden] };
+  all[home] = { order: a.order, hidden: [...a.hidden], chips: a.chips };
   try { localStorage.setItem(KEY, JSON.stringify(all)); } catch { /* kept for this session only */ }
 }
 

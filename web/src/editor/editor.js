@@ -7,7 +7,7 @@ import { normalize, loadRawConfig, LIGHT_KINDS, FLOOR_KINDS, isLinked } from '..
 import { createWorld } from '../three/world.js';
 import { FURNITURE_TYPES, footprint } from '../three/furniture.js';
 import { h, clamp } from '../ui/dom.js';
-import { icon } from '../ui/icons.js';
+import { icon, ROOM_ICONS, roomIcon } from '../ui/icons.js';
 import { isNative, isPhone, call, post, haptic, incoming } from '../bridge.js';
 import { createConnections } from './connections.js';
 
@@ -791,6 +791,10 @@ export async function bootEditor(root) {
       head(item.name || item.id, `id: ${item.id}`);
       nodes.push(section('Cômodo',
         bind('Nome', text(), prop(item, 'name', '')),
+        bind('Ícone na fileira de cômodos', choice([['', `Automático (pelo nome: ${ROOM_ICONS[roomIcon({ ...item, icon: undefined })]})`],
+          ...Object.entries(ROOM_ICONS)]), {
+          get: () => item.icon || '', set: (v) => { if (v) item.icon = v; else delete item.icon; }, event: 'change' }),
+        h('p.note', 'Aparece no painel quando a fileira de cômodos está como ícones (Organizar o painel).'),
         bind('Piso', choice(named(FLOOR_KINDS)), { ...prop(item, 'floor', 'oak'), event: 'change' }),
         h('div.checks', bind('Área externa (quintal, corredor aberto)', h('input', { type: 'checkbox' }), {
           get: () => Boolean(item.outdoor), set: (on) => { if (on) item.outdoor = true; else delete item.outdoor; }, event: 'change' }))),
