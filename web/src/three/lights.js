@@ -63,6 +63,33 @@ function point(intensity, y, { shadow = true, distance = 0, x = 0, z = 0 } = {})
   return light;
 }
 
+// The square, soft-edged patch a LED floodlight throws (projected through its spot light),
+// instead of a spot light's round cone.
+let squareBeam = null;
+function squareBeamTexture() {
+  if (squareBeam) return squareBeam;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d');
+  const img = g.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      // Distance to the nearest edge, in a square: full inside, falling off over the last 22%.
+      const d = Math.min(x, y, size - 1 - x, size - 1 - y) / (size / 2);
+      const a = Math.min(1, d / 0.22);
+      const v = Math.round(255 * a * a * (3 - 2 * a));
+      const i = (y * size + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  squareBeam = new THREE.CanvasTexture(canvas);
+  squareBeam.colorSpace = THREE.SRGBColorSpace;
+  return squareBeam;
+}
+
 // Each fixture: { parts: Mesh[], glow: Mesh[] (emissive when on), lights: Light[], hit: [w, h, d, y] }
 const fixtures = {
   // Round, or square (`shape: "square"`, a panel like the ones in the lighting plan).
@@ -149,17 +176,24 @@ const fixtures = {
 
   // A straight run along x, centred on `pos`; with `corner` (metres) it turns 90° at its east
   // end into a second run, towards +z ("right", as seen walking along it) or -z ("left").
-  // A floodlight on a wall, aimed along its front (+z, rotated by `rot`): a strong,
-  // narrow beam down a corridor or across a yard instead of a pool of light below it.
+  // A LED floodlight on a wall, aimed along its front (+z, rotated by `rot`) and tilted
+  // down by `tilt` degrees: a wide (`beam`, 170° by default), square patch of light down a
+  // corridor or across a yard, rather than a pool below it.
   flood(cfg) {
     const y = cfg.y ?? 2.4;
-    const beam = spot(cfg.intensity ?? 70, y);
-    beam.angle = 0.5;
-    beam.penumbra = 0.45;
+    const spread = Math.min(175, Math.max(20, cfg.beam ?? 170));
+    const tilt = THREE.MathUtils.degToRad(Math.min(80, Math.max(0, cfg.tilt ?? 35)));
+    const beam = spot(cfg.intensity ?? 34, y);
+    beam.angle = THREE.MathUtils.degToRad(spread / 2);
+    beam.penumbra = 0.15; // the square map below shapes the edge
     beam.distance = 22;
-    beam.decay = 1.4;
-    beam.target.position.set(0, 0.2, 7);
+    beam.decay = 1.5;
+    beam.map = squareBeamTexture();
     beam.position.z = 0.12;
+    beam.target.position.set(0, y - Math.tan(tilt) * 6, 0.12 + 6);
+    // The square patch is projected through the shadow camera: a floodlight is first in line
+    // for a shadow slot (SHADOW_PRIORITY in world.js), else its patch falls back to round.
+    beam.shadow.camera.far = 22;
     const head = at(box(0.26, 0.17, 0.12, mat(DARK, { rough: 0.45, metal: 0.4 }), { r: 0.02 }), 0, y, 0.11);
     const face = at(box(0.21, 0.12, 0.012, glowMaterial(), { r: 0.006 }), 0, y, 0.172);
     return {

@@ -813,7 +813,11 @@ export async function bootEditor(root) {
           bind('Quantidade', choice([['1', '1 spot'], ['2', '2 spots'], ['3', '3 spots'], ['4', '4 spots']]), {
             get: () => String(item.count ?? 3), set: (v) => { if (v === '3') delete item.count; else item.count = Number(v); }, event: 'change' }),
           bind('Distância entre eles, m', number(0.05), { ...prop(item, 'spacing', 0.32), parse: parseNum })) : null,
-        item.type === 'flood' ? h('p.note', 'O holofote aponta para a frente: com rotação 0° ele ilumina para o sul (para baixo na planta), 90° para o leste. A seta na planta mostra a direção.') : null,
+        item.type === 'flood' ? [
+          row(bind('Abertura do feixe, °', number(5), { ...prop(item, 'beam', 170), parse: (v) => { const n = Number(v); return n >= 20 && n <= 175 ? n : undefined; } }),
+            bind('Inclinação para baixo, °', number(5), { ...prop(item, 'tilt', 35), parse: (v) => { const n = Number(v); return n >= 0 && n <= 80 ? n : undefined; } })),
+          h('p.note', 'Holofote de LED: ilumina um quadrado largo (até 175°). Ele aponta para a frente: com rotação 0° ilumina para o sul (para baixo na planta), 90° para o leste. A seta na planta mostra a direção.'),
+        ] : null,
         h('p.note', 'Só muda como a luz aparece na maquete 3D: a lâmpada de verdade não é afetada.')),
       section('O que ela faz',
         h('div.checks',
