@@ -26,8 +26,17 @@ A interface está em português do Brasil. A documentação original, em inglês
 - **Luzes.** Toque para acender ou apagar. As que têm brilho, temperatura de branco ou cor ganham uma tela própria.
 - **Ares-condicionados.** Liga/desliga, temperatura, modo, ventilação e direção do ar, com a temperatura do ambiente.
   Os modos do Midea (Silent, low, medium, high, Full, auto) aparecem como Silencioso, Baixo, Médio, Alto, Máximo e Automático.
-- **Portão.** Mostra se está aberto, fechado, abrindo ou fechando. Abre e fecha com **dois toques**: o primeiro arma
-  o botão e o segundo, em até 3,5 segundos, confirma. Um clique perdido na barra de menu nunca abre a casa.
+- **Portão.** Um botão só, como o do controle: em movimento, um toque para; parado no meio do caminho, o próximo
+  toque vai no sentido contrário; aberto, fecha; fechado, abre (é o `cover.toggle` do Home Assistant). O app mostra
+  onde ele parou (“Parado · 40% aberto”). Pôr o portão em movimento pede **dois toques**: o primeiro arma o botão e
+  o segundo, em até 3,5 segundos, confirma. Parar é um toque só.
+  O tempo de abertura pode ser **detectado automaticamente** (padrão): a cada abertura ou fechamento completo feito pelo
+  app, ele mede quanto levou até o Home Assistant dizer “aberto” ou “fechado” e usa a média das últimas medições. Ou
+  pode ser **manual**, digitado no editor (Portões → Portão → Tempo de abertura).
+  Na maquete, o portão de correr desliza pela parede da garagem, com uma luz âmbar piscando enquanto se move.
+  Tocar no portão abre a tela dele: estado, desde quando, quanto está aberto e a câmera aproximada na garagem.
+- **TV.** Liga/desliga, volume, mudo, entrada (HDMI, apps) e reprodução, conforme o que a TV aceita no Home
+  Assistant (LG webOS e qualquer `media_player`). Na maquete, a tela acende e ilumina a sala quando a TV está ligada.
 - **Atalhos.** Scripts e cenas do Home Assistant num toque ("Apagar todas", "Luzes externas"…), no painel e na ilha.
 - **Chaves de automação.** Liga e desliga `input_boolean` e automações que você escolher, como "Luzes por presença".
 - **Ilha no notch.** Pare o ponteiro sobre o notch do MacBook e uma mini maquete da casa desce dele, com portão,
@@ -35,6 +44,10 @@ A interface está em português do Brasil. A documentação original, em inglês
 - **Widgets.** A casa em 3D na mesa do Mac, cenas, luzes e ares, e controles na Central de Controle.
 - **Em casa ou fora.** Usa o endereço local do Home Assistant e, se ele não responder, passa sozinho para o externo.
   Quando o local volta a responder, ele volta para o local.
+- **Dia e noite.** A maquete clareia de dia e escurece à noite conforme a altura real do sol (`sun.sun` do Home
+  Assistant); sem conexão, segue o relógio. De dia, o sol ilumina só as áreas marcadas como **Área externa** (quintal,
+  corredor aberto): os cômodos internos têm um teto invisível e ficam na penumbra de uma casa coberta, com o sol
+  entrando pelas janelas e as lâmpadas aparecendo.
 - **Funciona sem nada conectado.** Até você conectar o Home Assistant, tudo é simulado.
 
 Por dentro, é um app nativo pequeno em Swift (AppKit) em volta de uma interface web em [Three.js](https://threejs.org).
@@ -110,6 +123,7 @@ usuário (modo `600`). Ele nunca vai para o repositório. **Desconectar** apaga 
 | `sensor.*` de temperatura | O termômetro do cômodo de um ar |
 | `cover.*` | Um portão: abrir e fechar com confirmação, e o estado em movimento |
 | `script.*`, `scene.*` | Um atalho: roda com um toque |
+| `media_player.*` | Uma TV: liga/desliga, volume, mudo, entrada e reprodução (só o que ela suporta) |
 | `input_boolean.*`, `automation.*` | Uma chave de automação: liga e desliga |
 
 As áreas do Home Assistant aparecem ao lado de cada entidade. O app assina os eventos do Home Assistant pelo
@@ -130,10 +144,21 @@ Botão direito na casinha → **Editar casa…**
   Esses itens não aparecem na planta: ficam no painel e na ilha.
 - Escolha um item e selecione a entidade em **Dispositivo real**. Uma luz já assume o que a entidade sabe fazer, e
   um ar assume a faixa de temperatura.
+- Na planta 2D, a rodinha ou a pinça aproximam no ponteiro, o botão direito (ou ⇧/⌥ + arrastar) desloca e o duplo
+  clique mostra tudo de novo.
+- A coluna da direita fica mais larga arrastando a borda esquerda dela, e a prévia 3D fica mais alta arrastando a
+  divisória abaixo dela.
+- Em cada luz, ar, TV e portão, **Testar na prévia** acende/liga ou abre/fecha só na prévia, para conferir posição e
+  efeito sem acionar o aparelho real.
+- Fita de LED em L: preencha **Segundo lado do L** e escolha para que lado ela vira.
+- Em **Aparência na maquete**: a intensidade com que cada luz aparece na maquete (só visual), luz de teto redonda ou
+  quadrada, quantos spots (1 a 4) e a distância entre eles, e o **Holofote** de LED, na parede, que ilumina um quadrado
+  largo (abertura de até 175°, 170° por padrão) para onde aponta, com a inclinação para baixo ajustável. Para spots em lugares diferentes ligados ao mesmo interruptor, adicione outra luz com a
+  mesma entidade.
 - **Salvar e aplicar** grava a planta e recarrega o painel.
 
-O app já vem com **Casa (planta provisória)**: os sete cômodos e todas as entidades desta casa já vinculadas, com
-os tamanhos dos cômodos aproximados. Ela fica em [`web/public/plans/homeos.json`](web/public/plans/homeos.json).
+O app já vem com **Casa**: a planta real desta casa (13 cômodos, com garagem, quintal e corredor externo), portas,
+janelas, móveis e todas as entidades já vinculadas, nas posições do projeto luminotécnico. Ela fica em [`web/public/plans/homeos.json`](web/public/plans/homeos.json).
 A planta salva pelo editor vai para `~/Library/Application Support/HouseControl/plan.json`. Todos os campos estão
 em [docs/floor-plan.md](docs/floor-plan.md) (em inglês).
 
@@ -151,7 +176,12 @@ em [docs/floor-plan.md](docs/floor-plan.md) (em inglês).
 | Clique num atalho | Rodar o script |
 | Clique numa chave | Ligar ou desligar a automação |
 | Clique num cômodo | Aproximar e listar só os dispositivos dele |
-| Arraste a maquete / role sobre ela | Girar / aproximar |
+| **Organizar o painel** (no fim da lista ou no botão de ajustes) | Mudar a ordem e esconder ou mostrar atalhos, cômodos, portão, dispositivos e chaves (só neste Mac; a planta não muda) |
+| Ícone da casa, no topo | Voltar ao início de qualquer tela |
+| Arraste a maquete | Girar |
+| Role ou faça pinça sobre a maquete | Aproximar ou afastar no ponto sob o ponteiro |
+| Arraste com o botão direito (ou com ⇧ ou ⌥ apertado) | Deslocar a vista |
+| Duplo clique na maquete | Voltar à casa inteira |
 | `Esc` | Voltar e depois fechar |
 
 ## Testar sem a casa: o HA simulado

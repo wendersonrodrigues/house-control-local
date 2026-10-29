@@ -11,6 +11,7 @@ import { icon, lampIcon } from '../ui/icons.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { post, incoming, isNative } from '../bridge.js';
+import { loadArrangement, visible } from '../ui/arrange.js';
 
 const MODE_LABEL = { cool: 'Gelar', heat: 'Aquecer', dry: 'Desumidificar', fan: 'Ventilar', auto: 'Automático' };
 const NAVY = new THREE.Color('#17274f');
@@ -37,6 +38,9 @@ export async function bootIsland(root) {
     return;
   }
   const store = createStore(config);
+  // The panel's arrangement (Organizar): its order for the shortcuts, and what it hides.
+  const arr = loadArrangement(config.name);
+  window.addEventListener('storage', (ev) => { if (ev.key?.startsWith('homeos:arrangement')) location.reload(); });
   const { state } = store;
   const roomName = new Map(config.rooms.map((r) => [r.id, r.name]));
 
@@ -70,7 +74,7 @@ export async function bootIsland(root) {
     scenes.append(b);
   }
   // Shortcuts fill what is left of the row.
-  for (const sc of config.shortcuts.slice(0, Math.max(0, 5 - config.scenes.length))) {
+  for (const sc of visible(config.shortcuts, arr, 'shortcuts').slice(0, Math.max(0, 5 - config.scenes.length))) {
     const b = h('button.isle-scene', { onclick: async () => {
       b.disabled = true;
       if (await store.runShortcut(sc.id)) { b.classList.add('active'); setTimeout(() => b.classList.remove('active'), 1200); }
@@ -78,42 +82,56 @@ export async function bootIsland(root) {
     } }, icon(sc.icon, 17), h('span', sc.name));
     scenes.append(b);
   }
-  if (!config.scenes.length && !config.shortcuts.length) scenes.hidden = true;
+  if (!config.scenes.length && !visible(config.shortcuts, arr, 'shortcuts').length) scenes.hidden = true;
 
   /* ---------- devices ---------- */
 
   const rows = [];
 
-  // The gate, as in the panel: a second press within a few seconds opens or closes it.
-  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…' };
-  for (const cfg of config.gates) {
+  // The gate, as in the panel: one button that stops it while it moves and otherwise goes
+  // the other way; starting it takes a second click within a few seconds.
+  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…', stopped: 'Parado' };
+  const gateRows = [];
+  for (const cfg of visible(config.gates, arr, 'gates')) {
     const sub = h('div.chip-sub');
     let armed = 0;
-    const verb = () => (['open', 'opening'].includes(state.gates[cfg.id].state) ? 'close' : 'open');
-    const action = h('button.chip-power.gate', { 'aria-label': `${cfg.name}: abrir ou fechar`, onclick: (e) => {
+    const action = h('button.chip-power.gate', { 'aria-label': `${cfg.name}: acionar`, onclick: (e) => {
       e.stopPropagation();
-      if (!armed) {
-        action.classList.add('armed');
-        armed = setTimeout(() => { armed = 0; action.classList.remove('armed'); update(); }, 3500);
+      if (store.gateNext(cfg.id) !== 'stop' && !armed) {
+        armed = setTimeout(() => { armed = 0; update(); }, 3500);
         update();
         return;
       }
-      clearTimeout(armed); armed = 0; action.classList.remove('armed');
-      store.gateAction(cfg.id, verb());
+      clearTimeout(armed); armed = 0;
+      store.gatePress(cfg.id);
+      update();
     } }, icon('gate', 13, 2.4));
-    const el = h('div.chip.gate', h('span.chip-bubble', icon('gate', 15)), h('div.chip-text', h('div.chip-name', cfg.name), sub), action);
+    const bubble = h('span.chip-bubble', icon('gate', 15));
+    let shownIcon = 'gate';
+    const el = h('div.chip.gate', bubble, h('div.chip-text', h('div.chip-name', cfg.name), sub), action);
     list.append(el);
     const update = () => {
       const g = state.gates[cfg.id];
+      const next = store.gateNext(cfg.id);
+      const want = g.state === 'closed' ? 'gate' : 'gateOpen';
+      if (want !== shownIcon) { bubble.replaceChildren(icon(want, 15)); shownIcon = want; }
       el.classList.toggle('on', g.state !== 'closed');
-      el.style.setProperty('--c', g.state === 'open' ? '#ffb340' : '#ffd84a');
-      sub.textContent = armed ? (verb() === 'open' ? 'Clique de novo para abrir' : 'Clique de novo para fechar')
-        : g.online === false ? 'Indisponível' : GATE_TEXT[g.state] || g.state;
+      el.style.setProperty('--c', g.state === 'open' ? '#ffb340' : g.state === 'stopped' ? '#ff8f5a' : '#ffd84a');
+      action.classList.toggle('armed', Boolean(armed));
+      action.classList.toggle('stop', next === 'stop');
+      const p = Math.round(store.gatePosition(cfg.id) * 100);
+      sub.textContent = armed ? (next === 'open' ? 'Clique de novo para abrir' : 'Clique de novo para fechar')
+        : g.online === false ? 'Indisponível'
+          : next === 'stop' ? `${GATE_TEXT[g.state]} ${p}% · clique para parar`
+            : g.state === 'stopped' ? `Parado · ${p}% aberto` : GATE_TEXT[g.state] || g.state;
     };
     rows.push(update);
+    gateRows.push(update);
   }
+  setInterval(() => { if (Object.values(state.gates).some((g) => g.motion)) gateRows.forEach((u) => u()); }, 250);
 
   for (const cfg of config.acs) {
+    if (arr.hidden.has(cfg.id)) continue;
     const sub = h('div.chip-sub');
     const value = h('span.chip-value');
     const bubble = h('span.chip-bubble');
@@ -138,7 +156,22 @@ export async function bootIsland(root) {
     });
   }
 
+  for (const cfg of config.tvs) {
+    if (arr.hidden.has(cfg.id)) continue;
+    const sub = h('div.chip-sub');
+    const el = h('div.chip.tv', h('span.chip-bubble', icon('tv', 15)), h('div.chip-text', h('div.chip-name', cfg.name), sub),
+      h('button.chip-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: () => store.setTV(cfg.id, { on: !state.tvs[cfg.id].on }) }, icon('power', 13, 2.4)));
+    list.append(el);
+    rows.push(() => {
+      const t = state.tvs[cfg.id];
+      el.classList.toggle('on', t.on);
+      el.style.setProperty('--c', '#6fa8ff');
+      sub.textContent = t.online === false ? 'Indisponível' : !t.on ? 'Desligada' : t.title || t.app || t.source || 'Ligada';
+    });
+  }
+
   for (const cfg of config.lights) {
+    if (arr.hidden.has(cfg.id)) continue;
     const dimmable = cfg.capabilities.includes('brightness');
     const sub = h('div.chip-sub');
     const el = h(`div.chip.light${dimmable ? '.dimmable' : ''}`, { role: 'button', 'aria-label': cfg.name },
@@ -209,6 +242,7 @@ export async function bootIsland(root) {
         if (!target) return;
         if (target.kind === 'light') store.toggleLight(target.id);
         else if (target.kind === 'ac') store.setAC(target.id, { on: !state.acs[target.id].on });
+        else if (target.kind === 'tv') store.setTV(target.id, { on: !state.tvs[target.id].on });
         else if (target.kind === 'room') {
           focused = focused === target.id ? null : target.id;
           world.focus(focused ? { kind: 'room', id: focused } : null);

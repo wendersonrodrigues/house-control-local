@@ -1,7 +1,7 @@
 // Loads and normalises a floor plan ("home.json"). Everything the 3D scene and the UI
 // know about the apartment comes from this one document, so swapping the file swaps the home.
 
-const LIGHT_TYPES = ['ceiling', 'pendant', 'spots', 'floor', 'table', 'strip'];
+const LIGHT_TYPES = ['ceiling', 'pendant', 'spots', 'floor', 'table', 'strip', 'flood'];
 const WALLS = ['north', 'south', 'east', 'west'];
 
 export class ConfigError extends Error {}
@@ -78,7 +78,7 @@ export function normalize(raw) {
       `O cômodo "${r.id}" precisa de "rect": [x, z, largura, profundidade]`);
     const [x, z, w, d] = r.rect;
     need(w > 0 && d > 0, `O cômodo "${r.id}" tem "rect" vazio`);
-    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak' };
+    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak', outdoor: Boolean(r.outdoor) };
   });
   const roomIds = new Set(rooms.map((r) => r.id));
 
@@ -123,6 +123,23 @@ export function normalize(raw) {
   const gates = extra('gates', 'Um portão', () => ({}));
   const shortcuts = extra('shortcuts', 'Um atalho', (x) => ({ icon: x.icon || 'sparkles' }));
   const toggles = extra('toggles', 'Uma chave', (x) => ({ icon: x.icon || 'sparkles' }));
+  // The gate slides along its wall opening (`from` → `to`) towards `slide` ("to" or "from").
+  for (const g of gates) {
+    if (!g.from && !g.to) continue;
+    need(isPoint(g.from) && isPoint(g.to), `O portão "${g.id}" precisa de "from" e "to"`);
+    need(g.from[0] === g.to[0] || g.from[1] === g.to[1], `O portão "${g.id}" precisa ficar alinhado a uma parede`);
+    g.slide = g.slide === 'from' ? 'from' : 'to';
+    g.height = g.height ?? 2.2;
+    g.travel = g.travel ?? 14;
+    g.travelMode = g.travelMode === 'manual' ? 'manual' : 'auto';
+  }
+  // TVs stand in a room like a lamp, as the furniture piece "tv" with a screen that lights up.
+  const tvs = (raw.tvs || []).map((t) => {
+    unique(t.id, 'Uma TV');
+    need(roomIds.has(t.room), `A TV "${t.id}" aponta para o cômodo desconhecido "${t.room}"`);
+    need(isPoint(t.pos), `A TV "${t.id}" precisa de "pos": [x, z]`);
+    return { ...t, name: t.name || t.id, rot: t.rot || 0, width: t.width ?? 1.6 };
+  });
 
   const minX = Math.min(...rooms.map((r) => r.x));
   const minZ = Math.min(...rooms.map((r) => r.z));
@@ -144,6 +161,7 @@ export function normalize(raw) {
     gates,
     shortcuts,
     toggles,
+    tvs,
     bounds: { minX, minZ, maxX, maxZ },
   };
 }

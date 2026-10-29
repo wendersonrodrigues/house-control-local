@@ -187,6 +187,9 @@ html.native .card { width: auto; height: auto; box-shadow:
   border: 1px solid var(--line);
   color: #cfe0ff;
 }
+.home-badge { pointer-events: auto; cursor: pointer; transition: background 200ms, transform 260ms var(--spring); }
+@media (hover: hover) { .home-badge:hover { background: rgba(255, 255, 255, 0.18); } }
+.home-badge:active { transform: scale(0.9); }
 .home-name { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
 .home-sub { margin-top: 1px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .home-sub b { color: var(--text); font-weight: 600; }
@@ -467,6 +470,9 @@ html.native .card { width: auto; height: auto; box-shadow:
 @media (hover: hover) { .mini-power:hover { background: rgba(255, 255, 255, 0.16); color: var(--text); } }
 .mini-power:active { transform: scale(0.88); }
 .tile.ac.on .mini-power { background: var(--c); color: #06162c; box-shadow: 0 0 18px -4px var(--c); }
+.tile.tv { grid-column: 1 / -1; cursor: pointer; }
+.tile.tv.on .mini-power { background: var(--c); color: #06162c; box-shadow: 0 0 18px -4px var(--c); }
+.tile.tv.on .bubble { color: #06162c; }
 /* On but not running: outlined in the mode's colour instead of lit with it. */
 .tile.ac.on.idle { background: var(--glass); border-color: var(--line); box-shadow: none; }
 .tile.ac.on.idle .bubble, .tile.ac.on.idle .mini-power { background: transparent; color: var(--c); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 70%, transparent); }
@@ -519,6 +525,45 @@ html.native .card { width: auto; height: auto; box-shadow:
 /* ---------- sheets ---------- */
 
 .sheet { padding: 0 20px 18px; }
+/* The detail sheet is as tall as what it shows; the 3D stage takes the rest. */
+.sheet { inset: auto 0 0 0; max-height: calc(100% - 140px); overflow-y: auto; }
+.card.detail .stage { height: calc(100% - var(--sheet-h, 48%) + 34px); }
+.sheet .options { margin-top: 0; padding-top: 18px; }
+
+/* The gate's sheet. */
+.gate-card { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+.gate-badge {
+  --c: #8b93a7; width: 64px; height: 64px; flex: none; border-radius: 20px; display: grid; place-items: center;
+  color: var(--muted); background: rgba(255, 255, 255, 0.07); transition: background 260ms, color 260ms, box-shadow 360ms;
+}
+.gate-badge.on { color: #241503; background: var(--c); box-shadow: 0 0 26px -4px var(--c); }
+.gate-status { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; }
+.gate-since { margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.gate-bar { position: relative; margin-top: 16px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); }
+.gate-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: #ffb340; transition: width 600ms var(--ease); }
+.gate-bar::after { content: attr(data-label); position: absolute; right: 0; top: 12px; font-size: 11px; color: var(--muted); }
+.gate-actions { display: flex; gap: 8px; margin-top: 30px; }
+.gate-main {
+  flex: 1; height: 52px; border-radius: 18px; font-size: 15px; font-weight: 650; color: var(--text);
+  background: var(--glass-hi); border: 1px solid var(--line); transition: background 220ms, color 220ms, transform 300ms var(--spring);
+}
+@media (hover: hover) { .gate-main:hover { background: rgba(255, 255, 255, 0.16); } }
+.gate-main:active { transform: scale(0.97); }
+.gate-main.armed { background: #ff9a3c; color: #241503; border-color: transparent; animation: gate-armed 900ms ease-in-out infinite alternate; }
+.gate-main.stop, .gate-action.stop { background: #e5484d; color: #fff; border-color: transparent; }
+
+/* A TV's "now playing" card. */
+.now-playing {
+  display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 10px 12px;
+  border-radius: 18px; background: var(--glass); border: 1px solid var(--line);
+}
+.np-art { width: 52px; height: 52px; flex: none; border-radius: 12px; object-fit: cover; background: rgba(255, 255, 255, 0.06); }
+.np-text { flex: 1; min-width: 0; }
+.np-label { font-size: 10.5px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: #8fb4ff; display: flex; gap: 6px; }
+.np-state { color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.np-title { margin-top: 2px; font-size: 14.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np-sub { margin-top: 1px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet .sheet-note { margin-top: 18px; }
 
 .sheet-head { display: flex; align-items: center; gap: 10px; flex: none; }
 .sheet-title { flex: 1; min-width: 0; }
@@ -642,6 +687,8 @@ html.native .card { width: auto; height: auto; box-shadow:
 
 .menu {
   position: absolute;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: 20;
   min-width: 150px;
   padding: 6px;
@@ -865,3 +912,21 @@ html.ios .card.relayout .panel:not(.hidden), html.ios .card.relayout .sheet:not(
     animation-duration: 1ms !important; transition-duration: 1ms !important;
   }
 }
+
+/* Organizar o painel. */
+.organize { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.org-title { margin: 14px 2px 4px; font-size: 10.5px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.org-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); }
+.org-row.hidden-item .org-text { opacity: 0.45; }
+.org-text { flex: 1; min-width: 0; }
+.org-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.org-sub { font-size: 11px; color: var(--muted); }
+.org-eye, .org-move { width: 30px; height: 30px; flex: none; border-radius: 10px; display: grid; place-items: center; color: var(--muted); background: rgba(255, 255, 255, 0.06); }
+@media (hover: hover) { .org-eye:hover, .org-move:not(:disabled):hover { background: rgba(255, 255, 255, 0.14); color: var(--text); } }
+.org-move:disabled { opacity: 0.25; }
+.org-row.hidden-item .org-eye { color: #ffb340; }
+.org-foot { display: flex; gap: 8px; justify-content: space-between; margin-top: 18px; }
+.organize-link { grid-column: 1 / -1; justify-self: center; margin: 10px 0 4px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); padding: 6px 12px; border-radius: 12px; }
+@media (hover: hover) { .organize-link:hover { color: var(--text); background: var(--glass); } }
+.org-btn { display: flex; align-items: center; gap: 6px; }
+.org-done { background: linear-gradient(180deg, #5aa2ff, #2f7bf2); color: #fff; border-color: transparent; }

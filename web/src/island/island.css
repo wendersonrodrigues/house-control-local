@@ -281,3 +281,4 @@ html.mode-island #app { display: block; padding: 0; height: 100%; }
 
 /* The gate's button, armed by the first press. */
 .chip-power.gate.armed { background: #ff9a3c; color: #241503; }
+.chip-power.gate.stop { background: #e5484d; color: #fff; }

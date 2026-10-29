@@ -802,10 +802,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.openAtLogin = LoginItem.state
         model.islandShown = island?.isShown == true
         var choices = PlanStore.bundled.map { id in
-            SettingsModel.Plan(id: id, name: id == "homeos" ? "Casa (planta provisória)"
+            SettingsModel.Plan(id: id, name: id == "homeos" ? "Casa · planta que vem com o app"
                                : "Demonstração · \(id == "home" ? "Apartamento" : id == "studio" ? "Estúdio" : id.capitalized)")
         }
-        if plans.hasCustomPlan { choices.insert(.init(id: "custom", name: plans.customPlanName ?? "Minha casa"), at: 0) }
+        if plans.hasCustomPlan { choices.insert(.init(id: "custom", name: "\(plans.customPlanName ?? "Minha casa") · salva no editor"), at: 0) }
         model.plans = choices
         model.activePlan = plans.activePlan
         let info = hub.servicesInfo

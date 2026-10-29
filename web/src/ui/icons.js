@@ -7,12 +7,28 @@ import {
   Undo2, Activity, KeyRound, ArrowUpRight, Camera, Square,
   HouseWifi, Smartphone, Radar, CircleCheck, CircleAlert, ChevronRight, Unlink, LoaderCircle, Router,
   List, Trash2, Scan, Redo2, Map as MapIcon, DoorClosed, Armchair,
-  Warehouse, LightbulbOff, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
+  LightbulbOff, Flashlight, EyeOff, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
 } from 'lucide';
+
+// A sliding gate on its rail against the post it closes on, shut and slid open (drawn for
+// HomeOs Bar in Lucide's grid and stroke, so it sits with the other icons).
+const GateClosed = [
+  ['path', { d: 'M2 20.5h20' }],
+  ['path', { d: 'M20.5 3v17.5' }],
+  ['rect', { x: '2.5', y: '5.5', width: '15.5', height: '12.5', rx: '1' }],
+  ['path', { d: 'M2.5 9.75H18' }], ['path', { d: 'M2.5 13.75H18' }],
+];
+const GateOpen = [
+  ['path', { d: 'M2 20.5h20' }],
+  ['path', { d: 'M20.5 3v17.5' }],
+  ['rect', { x: '2.5', y: '5.5', width: '7', height: '12.5', rx: '1' }],
+  ['path', { d: 'M2.5 9.75h7' }], ['path', { d: 'M2.5 13.75h7' }],
+  ['path', { d: 'M17.5 11.75h-5' }], ['path', { d: 'm14.75 9.25-2.25 2.5 2.25 2.5' }],
+];
 
 const ICONS = {
   power: Power, sun: Sun, sofa: Sofa, film: Film, moon: Moon, door: DoorOpen,
-  ceiling: LampCeiling, pendant: Lamp, spots: Lightbulb, floor: LampFloor, table: LampDesk, strip: Sparkles,
+  flood: Flashlight, ceiling: LampCeiling, pendant: Lamp, spots: Lightbulb, floor: LampFloor, table: LampDesk, strip: Sparkles,
   cool: Snowflake, heat: Flame, dry: Droplets, fan: Fan, auto: RefreshCw, wind: Wind, leaf: Leaf,
   down: ChevronDown, back: ChevronLeft, plus: Plus, minus: Minus, thermo: Thermometer,
   sliders: SlidersHorizontal, check: Check, home: House, settings: Settings2, ac: AirVent,
@@ -24,8 +40,8 @@ const ICONS = {
   homeassistant: HouseWifi, phone: Smartphone, radar: Radar, ok: CircleCheck, alert: CircleAlert,
   next: ChevronRight, unlink: Unlink, spinner: LoaderCircle, bridge: Router, bulb: Lightbulb,
   list: List, trash: Trash2, fit: Scan, redo: Redo2, map: MapIcon, opening: DoorClosed, furniture: Armchair,
-  gate: Warehouse, lightsOff: LightbulbOff, outside: Trees, toggle: ToggleRight, automation: Bot,
-  presence: Footprints, eye: Eye, up: ArrowUp, downArrow: ArrowDown,
+  gate: GateClosed, gateOpen: GateOpen, lightsOff: LightbulbOff, outside: Trees, toggle: ToggleRight, automation: Bot,
+  presence: Footprints, eye: Eye, eyeOff: EyeOff, up: ArrowUp, downArrow: ArrowDown,
 };
 
 export function icon(name, size = 18, stroke = 1.8) {

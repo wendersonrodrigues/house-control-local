@@ -10,7 +10,7 @@ import { isNative, isPhone, post, incoming, haptic } from './bridge.js';
 import { publishWidgets, runWidgetAction } from './widgets.js';
 
 const DEMO_PLANS = [
-  { id: 'homeos', name: 'Casa (planta provisória)' },
+  { id: 'homeos', name: 'Casa · planta do app' },
   { id: 'home', name: 'Demonstração · Apartamento' },
   { id: 'studio', name: 'Demonstração · Estúdio' },
 ];
@@ -80,7 +80,7 @@ async function boot() {
       onPick(target) {
         if (!target) return;
         if (target.kind === 'light') { haptic('light'); store.toggleLight(target.id); }
-        else if (target.kind === 'ac') panel.openSheet(target);
+        else if (['ac', 'tv', 'gate'].includes(target.kind)) panel.openSheet(target);
         else if (target.kind === 'room') panel.selectRoom(target.id);
       },
     });
@@ -167,6 +167,7 @@ async function boot() {
   incoming.openDevice = (id) => {
     if (store.acCfg.has(id)) panel.openSheet({ kind: 'ac', id });
     else if (store.lightCfg.has(id)) panel.openSheet({ kind: 'light', id });
+    else if (store.tvCfg.has(id)) panel.openSheet({ kind: 'tv', id });
     else if (config.rooms.some((r) => r.id === id)) { panel.closeSheet(); panel.selectRoom(id); }
   };
   // AI Access: an AI assistant's requests are run here, where the state of every device lives.
@@ -212,7 +213,7 @@ async function boot() {
     }));
     if (window.__HOUSE_BOOT__?.hasCustomPlan) {
       items.unshift({
-        label: 'Minha casa',
+        label: 'Minha casa · salva no editor',
         selected: current === 'custom',
         icon: current === 'custom' ? icon('check', 16, 2.4) : null,
         action: () => post('selectPlan', { plan: 'custom' }),
@@ -220,6 +221,7 @@ async function boot() {
     }
     if (isNative) {
       items.push('-',
+        { label: 'Organizar o painel…', action: () => panel.organize() },
         { label: 'Editar casa…', action: () => post('openEditor') },
         EDITION.aiAccess ? { label: 'Acesso por IA…', action: () => post('openAgent') } : null,
         { label: 'Carregar planta…', action: () => post('loadPlan') },
@@ -246,6 +248,7 @@ async function boot() {
   const opened = window.__HOUSE_BOOT__?.openDevice || new URLSearchParams(location.search).get('device');
   if (store.acCfg.has(opened)) panel.openSheet({ kind: 'ac', id: opened });
   else if (store.lightCfg.has(opened)) panel.openSheet({ kind: 'light', id: opened });
+  else if (store.tvCfg.has(opened)) panel.openSheet({ kind: 'tv', id: opened });
 
   if (!isNative) show();
   post('ready', { summary: store.summary() });

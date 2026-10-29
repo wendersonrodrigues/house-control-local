@@ -7,6 +7,7 @@ import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { AC_SWINGS } from '../store.js';
 import { haptic, isPhone } from '../bridge.js';
+import { loadArrangement, saveArrangement, ordered, visible, move } from './arrange.js';
 
 const MODE_LABEL = { cool: 'Gelar', heat: 'Aquecer', dry: 'Desumidificar', fan: 'Ventilar', auto: 'Automático' };
 const FAN_LABEL = { auto: 'Automático', silent: 'Silencioso', low: 'Baixo', medium: 'Médio', high: 'Alto', turbo: 'Máximo' };
@@ -48,25 +49,28 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   const aiBadge = h('button.ai-badge', { hidden: true, title: 'Um assistente de IA tem acesso — clique para gerenciar', 'aria-label': 'Acesso por IA',
     onclick: () => onMenu(aiBadge, 'agent') }, icon('sparkles', 13, 2.2), h('span', 'AI'));
 
+  // In a room these switch its lights; for the whole home the shortcuts above already do.
+  const bulkOn = h('button.pill', { onclick: () => bulk(true) }, 'Acender todas');
+  const bulkOff = h('button.pill', { onclick: () => bulk(false) }, 'Apagar todas');
   const scenes = h('div.scenes');
   const rooms = h('div.rooms');
   const listTitle = h('span.title');
   const grid = h('div.grid');
   const panel = h('section.panel',
     scenes, rooms,
-    h('div.list-head', listTitle,
-      h('button.pill', { onclick: () => bulk(true) }, 'Acender todas'),
-      h('button.pill', { onclick: () => bulk(false) }, 'Apagar todas')),
+    h('div.list-head', listTitle, bulkOn, bulkOff),
     h('div.devices', grid));
   const sheet = h('section.sheet.hidden');
   sheet.inert = true;
+  // The stage above grows into whatever the open sheet leaves free.
+  new ResizeObserver(() => { if (ui.sheet) card.style.setProperty('--sheet-h', `${sheet.offsetHeight}px`); }).observe(sheet);
   const toastEl = h('div.panel-toast');
 
   const clip = h('div.card-clip',
     h('div.stage', canvas),
     h('div.tint'),
     h('header.top',
-      h('div.home', h('div.home-badge', icon('home', 17)),
+      h('div.home', h('button.home-badge', { title: 'Início', 'aria-label': 'Voltar ao início', onclick: goHome }, icon('home', 17)),
         h('div', h('div.home-name', config.name), homeSub)),
       aiBadge, gear, power),
     tooltip, panel, sheet, toastEl);
@@ -81,7 +85,11 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     sceneButtons.set(s.id, b);
     scenes.append(b);
   }
+  // How this Mac arranges the panel (Organizar): order and hidden items, never the plan.
+  let arr = loadArrangement(config.name);
+
   // Shortcuts (Home Assistant scripts) sit with the scenes: one press runs them.
+  const shortcutButtons = new Map();
   for (const sc of config.shortcuts) {
     const b = h('button.scene.shortcut', { title: sc.name, onclick: async () => {
       if (b.classList.contains('running')) return;
@@ -93,18 +101,37 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       b.classList.add('active');
       setTimeout(() => b.classList.remove('active'), 1200);
     } }, icon(sc.icon, 19), sc.name);
-    scenes.append(b);
+    shortcutButtons.set(sc.id, b);
   }
-  if (!config.scenes.length && !config.shortcuts.length) scenes.style.display = 'none';
+  function renderScenes() {
+    const shown = visible(config.shortcuts, arr, 'shortcuts').map((sc) => shortcutButtons.get(sc.id));
+    scenes.replaceChildren(...sceneButtons.values(), ...shown);
+    scenes.style.display = config.scenes.length || shown.length ? '' : 'none';
+  }
+  renderScenes();
 
   /* ---------- rooms ---------- */
 
   const roomButtons = new Map();
-  for (const r of [{ id: 'all', name: 'Todos' }, ...config.rooms]) {
+  // Rooms without a device stay in the model but not in the chips (a bathroom, a passage).
+  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs, ...config.tvs].some((d) => d.room === r.id));
+  for (const r of [{ id: 'all', name: 'Todos' }, ...withDevices]) {
     const count = h('span.count.zero', '0');
     const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
     roomButtons.set(r.id, { b, count });
-    rooms.append(b);
+  }
+  function renderRooms() {
+    rooms.replaceChildren(roomButtons.get('all').b, ...visible(withDevices, arr, 'rooms').map((r) => roomButtons.get(r.id).b));
+  }
+  renderRooms();
+
+  /** The house icon: back to the start, whatever is open. */
+  function goHome() {
+    haptic('light');
+    closeSheet();
+    if (ui.room !== 'all') selectRoom('all');
+    else onFocus(null);
+    grid.parentElement.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function selectRoom(id) {
@@ -112,7 +139,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     ui.room = id;
     layoutTiles();
     update();
-    roomButtons.get(id).b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    roomButtons.get(id)?.b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     onFocus(id === 'all' ? null : { kind: 'room', id });
   }
 
@@ -250,42 +277,172 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
-  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…' };
-  const GATE_COLOR = { open: '#ffb340', opening: '#ffd84a', closing: '#ffd84a' };
+  const GATE_TEXT = { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo…', closing: 'Fechando…', stopped: 'Parado' };
+  const GATE_COLOR = { open: '#ffb340', opening: '#ffd84a', closing: '#ffd84a', stopped: '#ff8f5a' };
+  const GATE_VERB = { open: 'Abrir', close: 'Fechar', stop: 'Parar' };
+  const pct = (p) => `${Math.round(p * 100)}%`;
+  /** "Aberto", "Abrindo… 40%", "Parado · 40% aberto". */
+  const gateText = (id) => {
+    const g = state.gates[id];
+    if (g.online === false) return 'Indisponível';
+    const p = store.gatePosition(id);
+    if (g.motion) return `${GATE_TEXT[g.state]} ${pct(p)}`;
+    return g.state === 'stopped' ? `Parado · ${pct(p)} aberto` : GATE_TEXT[g.state] || g.state;
+  };
+  // One press, like the gate's own button. Starting it takes a second press within a few
+  // seconds (a stray click must not open the house); stopping it never waits.
+  function gateButton(id, render) {
+    let armed = 0;
+    const disarm = () => { clearTimeout(armed); armed = 0; render(); };
+    return {
+      get armed() { return Boolean(armed); },
+      press() {
+        const next = store.gateNext(id);
+        if (next !== 'stop' && !armed) { haptic('light'); armed = setTimeout(disarm, 3500); render(); return; }
+        clearTimeout(armed); armed = 0;
+        haptic(next === 'stop' ? 'medium' : 'heavy');
+        store.gatePress(id);
+        render();
+      },
+      label(short) {
+        const next = store.gateNext(id);
+        if (armed) return next === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar';
+        return short ? GATE_VERB[next] : `${GATE_VERB[next]} o portão`;
+      },
+    };
+  }
+  // While a gate moves, its percentage and the bar follow it.
+  setInterval(() => { if (Object.values(state.gates).some((g) => g.motion)) { for (const t of gateTiles) t.update(); sheetView?.update(); } }, 250);
 
   // The gate opens and closes on a second press within a few seconds, never on the first:
   // a stray click in the menu bar must not open the house.
   function gateTile(cfg) {
     const sub = h('div.tile-sub');
     const label = h('span');
-    let armed = 0;
-    const disarm = () => { clearTimeout(armed); armed = 0; action.classList.remove('armed'); update(); };
-    const action = h('button.gate-action', { onclick: (e) => {
-      e.stopPropagation();
-      const g = state.gates[cfg.id];
-      const verb = g.state === 'open' || g.state === 'opening' ? 'close' : 'open';
-      if (!armed) {
-        haptic('light');
-        action.classList.add('armed');
-        label.textContent = verb === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar';
-        armed = setTimeout(disarm, 3500);
-        return;
-      }
-      disarm();
-      haptic('heavy');
-      store.gateAction(cfg.id, verb);
-    } }, label);
-    const el = h('div.tile.gate', { 'aria-label': cfg.name }, h('div.bubble', icon('gate', 19)),
-      h('div.tile-text', h('div.tile-name', cfg.name), sub), action);
+    const button = gateButton(cfg.id, () => update());
+    const action = h('button.gate-action', { onclick: (e) => { e.stopPropagation(); button.press(); } }, label);
+    const bubble = h('div.bubble', icon('gate', 19));
+    let shownIcon = 'gate';
+    const el = h('div.tile.gate', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'gate', id: cfg.id }) },
+      bubble, h('div.tile-text', h('div.tile-name', cfg.name), sub), action);
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target === el) openSheet({ kind: 'gate', id: cfg.id }); });
     function update() {
       const g = state.gates[cfg.id];
+      const want = g.state === 'closed' ? 'gate' : 'gateOpen';
+      if (want !== shownIcon) { bubble.replaceChildren(icon(want, 19)); shownIcon = want; }
       el.classList.toggle('on', g.state !== 'closed');
       el.classList.toggle('offline', g.online === false);
       el.style.setProperty('--c', GATE_COLOR[g.state] || '#8b93a7');
-      sub.textContent = g.online === false ? 'Indisponível' : GATE_TEXT[g.state] || g.state;
-      if (!armed) label.textContent = g.state === 'open' || g.state === 'opening' ? 'Fechar' : 'Abrir';
+      sub.textContent = gateText(cfg.id);
+      action.classList.toggle('armed', button.armed);
+      action.classList.toggle('stop', store.gateNext(cfg.id) === 'stop');
+      label.textContent = button.label(true);
     }
     return { el, cfg, kind: 'gate', update };
+  }
+
+  // Organizar: the order of each group, and what is shown. One step up or down at a time,
+  // an eye to hide or show; nothing is removed from the home.
+  function organizeSheet() {
+    const body = h('div.organize');
+    const changed = () => {
+      saveArrangement(config.name, arr);
+      renderScenes();
+      renderRooms();
+      layoutTiles();
+      const top = sheet.scrollTop;
+      draw();
+      sheet.scrollTop = top;
+    };
+    const rowFor = (group, items, item, label, sub) => {
+      const hidden = arr.hidden.has(item.id);
+      const list = ordered(items, arr, group);
+      const i = list.findIndex((x) => x.id === item.id);
+      return h(`div.org-row${hidden ? '.hidden-item' : ''}`,
+        h('button.org-eye', { 'aria-label': hidden ? `Mostrar ${label}` : `Esconder ${label}`, title: hidden ? 'Mostrar' : 'Esconder',
+          onclick: () => { if (hidden) arr.hidden.delete(item.id); else arr.hidden.add(item.id); haptic('light'); changed(); } },
+        icon(hidden ? 'eyeOff' : 'eye', 15)),
+        h('div.org-text', h('div.org-name', label), sub ? h('div.org-sub', sub) : null),
+        h('button.org-move', { 'aria-label': `Subir ${label}`, disabled: i === 0, onclick: () => { move(arr, group, items, item.id, -1); haptic('tick'); changed(); } }, icon('up', 14, 2.2)),
+        h('button.org-move', { 'aria-label': `Descer ${label}`, disabled: i === list.length - 1, onclick: () => { move(arr, group, items, item.id, 1); haptic('tick'); changed(); } }, icon('downArrow', 14, 2.2)));
+    };
+    const group = (title, key, items, label = (x) => x.name, sub = () => null) => (items.length
+      ? [h('div.org-title', title), ...ordered(items, arr, key).map((x) => rowFor(key, items, x, label(x), sub(x)))] : []);
+    const KIND_NAME = { ac: 'Ar-condicionado', tv: 'TV', light: 'Luz' };
+    function draw() {
+      body.replaceChildren(
+        ...group('Atalhos', 'shortcuts', config.shortcuts),
+        ...group('Cômodos', 'rooms', withDevices),
+        ...group(config.gates.length > 1 ? 'Portões' : 'Portão', 'gates', config.gates),
+        ...visible(withDevices, arr, 'rooms').flatMap((room) => {
+          const devs = roomDevices(room.id).map((t) => t.cfg);
+          const kindOf = new Map(roomDevices(room.id).map((t) => [t.cfg.id, t.kind]));
+          return group(`Dispositivos · ${room.name}`, `room:${room.id}`, devs, (x) => x.name, (x) => KIND_NAME[kindOf.get(x.id)]);
+        }),
+        ...group('Automações', 'toggles', config.toggles));
+    }
+    draw();
+    return {
+      nodes: [
+        sheetHead('Organizar o painel', h('div.sheet-sub', 'Ordem e o que aparece, só neste Mac'), null),
+        body,
+        h('div.org-foot',
+          h('button.pill.org-btn', { onclick: () => { arr = { order: {}, hidden: new Set() }; changed(); } }, icon('rotate', 13), 'Restaurar o padrão'),
+          h('button.pill.org-btn.org-done', { onclick: closeSheet }, icon('check', 13, 2.4), 'Pronto')),
+      ],
+      update() {},
+    };
+  }
+
+  const clock = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  // The gate up close: what it is doing, since when, and the same two-press button, bigger.
+  function gateSheet(id) {
+    const cfg = store.gateCfg.get(id);
+    const g = () => state.gates[id];
+    const sub = h('div.sheet-sub');
+    const badge = h('div.gate-badge');
+    const status = h('div.gate-status');
+    const since = h('div.gate-since');
+    const bar = h('div.gate-bar', h('i'));
+    const label = h('span');
+    const button = gateButton(id, () => update());
+    const main = h('button.gate-main', { onclick: () => button.press() }, label);
+    const travelNote = () => {
+      const t = store.gateTravel(id);
+      return `${g().state === 'open' ? 'fecha' : 'abre'} em ~${Math.round(t.seconds)} s${t.measured ? ' (medido)' : t.mode === 'auto' ? ' (ainda sem medição)' : ''}`;
+    };
+    let shownIcon = null;
+    function update() {
+      const s = g();
+      const want = s.state === 'closed' ? 'gate' : 'gateOpen';
+      if (want !== shownIcon) { badge.replaceChildren(icon(want, 34, 1.7)); shownIcon = want; }
+      badge.style.setProperty('--c', GATE_COLOR[s.state] || '#8b93a7');
+      badge.classList.toggle('on', s.state !== 'closed');
+      status.textContent = s.online === false ? 'Indisponível' : GATE_TEXT[s.state] || s.state;
+      const pos = store.gatePosition(id);
+      const next = store.gateNext(id);
+      since.textContent = s.online === false ? 'O Home Assistant não está recebendo o estado do portão.'
+        : s.motion ? 'Em movimento · um toque para parar'
+          : s.state === 'stopped' ? `Parou no meio do caminho · o próximo toque ${next === 'open' ? 'abre' : 'fecha'}`
+            : [s.since ? `${GATE_TEXT[s.state]} desde ${clock(s.since)}` : null, travelNote()].filter(Boolean).join(' · ');
+      bar.firstChild.style.width = pct(pos);
+      bar.dataset.label = `${pct(pos)} aberto`;
+      main.classList.toggle('armed', button.armed);
+      main.classList.toggle('stop', next === 'stop');
+      label.textContent = button.label(false);
+      sub.replaceChildren('Portão de correr · ', h('b', gateText(id)));
+    }
+    return {
+      nodes: [
+        sheetHead(cfg.name, sub, null),
+        h('div.gate-card', badge, h('div', status, since)),
+        bar,
+        h('div.gate-actions', main),
+        h('p.sheet-note', icon('shield', 18), 'Um botão, como o do controle: em movimento, um toque para; parado no meio, o próximo toque vai no sentido contrário. Para pôr o portão em movimento são dois toques: o primeiro arma o botão e o segundo, em até 3,5 segundos, confirma.'),
+      ],
+      update,
+    };
   }
 
   function toggleTile(cfg) {
@@ -306,7 +463,110 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
+  const TV_BLUE = '#6fa8ff';
+  const tvStatus = (t) => (t.online === false ? 'Indisponível' : !t.on ? 'Desligada'
+    : t.title || t.app || t.source || (t.state === 'playing' ? 'Reproduzindo' : t.state === 'paused' ? 'Pausada' : 'Ligada'));
+
+  function tvTile(cfg) {
+    const sub = h('div.tile-sub');
+    const power = h('button.mini-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: (e) => {
+      e.stopPropagation(); haptic('medium'); store.setTV(cfg.id, { on: !state.tvs[cfg.id].on });
+    } }, icon('power', 16, 2.2));
+    const el = h('div.tile.tv', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'tv', id: cfg.id }) },
+      h('div.bubble', icon('tv', 19)), h('div.tile-text', h('div.tile-name', cfg.name), sub), power);
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') openSheet({ kind: 'tv', id: cfg.id }); });
+    return {
+      el, cfg, kind: 'tv',
+      update() {
+        const t = state.tvs[cfg.id];
+        el.classList.toggle('on', t.on);
+        el.classList.toggle('offline', t.online === false);
+        el.style.setProperty('--c', TV_BLUE);
+        sub.textContent = ui.room === 'all' && !isPhone ? `${tvStatus(t)} · ${roomName.get(cfg.room)}` : tvStatus(t);
+      },
+    };
+  }
+
+  function tvSheet(id) {
+    const cfg = store.tvCfg.get(id);
+    const t = () => state.tvs[id];
+    const set = (patch) => store.setTV(id, patch);
+    const sub = h('div.sheet-sub');
+    const powerBtn = h('button.round.power', { 'aria-label': 'Ligar ou desligar', onclick: () => { haptic('medium'); set({ on: !t().on }); } }, icon('power', 21, 2.2));
+    const big = bigNumber('%');
+    const slider = createSlider({
+      min: 0, max: 100, value: Math.round(t().volume * 100), gradient: 'linear-gradient(90deg, #26365e 0%, #6fa8ff 100%)', detent: 5,
+      onInput: (v) => set({ volume: v / 100, muted: false }),
+    });
+    const mute = h('button.toggle-chip', { onclick: () => { haptic('light'); set({ muted: !t().muted }); } }, icon('dim', 17), 'Mudo', h('span.switch'));
+    const sourceValue = h('div.option-value');
+    const source = h('button.option', { onclick: () => {
+      const list = t().sources || [];
+      if (!list.length) return;
+      source.classList.add('open');
+      openMenu(clip, source, list.map((v) => ({
+        label: v, selected: t().source === v, icon: t().source === v ? icon('check', 16, 2.4) : null,
+        action: () => { haptic('light'); set({ source: v }); },
+      })), { onClose: () => source.classList.remove('open') });
+    } }, icon('list', 24, 1.6), h('span.corner', icon('down', 15, 2.2)), h('div.option-label', 'Entrada'), sourceValue);
+    const control = (name, action, label) => h('button.option', { 'aria-label': label, onclick: () => { haptic('light'); store.tvAction(id, action); } },
+      icon(name, 24, 1.6), h('div.option-label', label));
+    const playback = { previous: control('back', 'previous', 'Anterior'), play: control('film', 'play_pause', 'Tocar/pausar'), next: control('next', 'next', 'Próxima') };
+    const options = h('div.options', source, playback.previous, playback.play, playback.next);
+    const readout = h('div.readout', big.el, mute);
+    // What is on: the picture Home Assistant has (an app icon or a poster), title, artist, app.
+    const art = h('img.np-art', { alt: '' });
+    art.addEventListener('error', () => { art.hidden = true; });
+    const npTitle = h('div.np-title');
+    const npSub = h('div.np-sub');
+    const npState = h('span.np-state');
+    const nowPlaying = h('div.now-playing', art, h('div.np-text', h('div.np-label', 'Reproduzindo agora', npState), npTitle, npSub));
+    const volumeRow = h('div.slider-row',
+      h('button.round', { 'aria-label': 'Menos volume', onclick: () => { haptic('tick'); store.tvAction(id, 'volume_down'); set({ volume: Math.max(0, t().volume - 0.01) }); } }, icon('minus', 18, 2.2)),
+      slider.el,
+      h('button.round', { 'aria-label': 'Mais volume', onclick: () => { haptic('tick'); store.tvAction(id, 'volume_up'); set({ volume: Math.min(1, t().volume + 0.01) }); } }, icon('plus', 18, 2.2)));
+    return {
+      nodes: [
+        sheetHead(cfg.name, sub, powerBtn),
+        nowPlaying,
+        readout,
+        volumeRow,
+        options,
+      ],
+      update() {
+        const tv = t();
+        powerBtn.classList.toggle('on', tv.on);
+        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', tvStatus(tv)));
+        big.set(Math.round(tv.volume * 100), !tv.on || tv.muted);
+        slider.set(Math.round(tv.volume * 100));
+        mute.classList.toggle('on', Boolean(tv.muted));
+        sourceValue.textContent = tv.source || '—';
+        const title = tv.title || tv.app || tv.source;
+        nowPlaying.hidden = !tv.on || !title;
+        npTitle.textContent = title || '';
+        npSub.textContent = [tv.series, tv.artist, tv.title && tv.app, tv.source !== tv.app && tv.source !== title ? tv.source : null]
+          .filter(Boolean).join(' · ');
+        npSub.hidden = !npSub.textContent;
+        npState.textContent = tv.state === 'playing' ? 'tocando' : tv.state === 'paused' ? 'pausado' : '';
+        if (tv.picture && art.dataset.src !== tv.picture) { art.dataset.src = tv.picture; art.hidden = false; art.src = tv.picture; }
+        if (!tv.picture) art.hidden = true;
+        // A real TV only shows the controls Home Assistant says it has.
+        const has = (name) => !tv.controls || tv.controls.includes(name);
+        source.hidden = !has('source') || !(tv.sources || []).length;
+        for (const [name, el] of Object.entries(playback)) el.hidden = !has(name);
+        options.style.gridTemplateColumns = `repeat(${[source, ...Object.values(playback)].filter((el) => !el.hidden).length || 1}, 1fr)`;
+        options.hidden = [source, ...Object.values(playback)].every((el) => el.hidden);
+        volumeRow.hidden = !has('volume') && !has('step');
+        slider.el.style.visibility = has('volume') ? '' : 'hidden';
+        big.el.style.visibility = has('volume') ? '' : 'hidden';
+        mute.hidden = !has('mute');
+        readout.hidden = !has('volume') && !has('mute');
+      },
+    };
+  }
+
   for (const cfg of config.acs) tiles.set(cfg.id, acTile(cfg));
+  for (const cfg of config.tvs) tiles.set(cfg.id, tvTile(cfg));
   for (const cfg of config.lights) tiles.set(cfg.id, lightTile(cfg));
   // Not in a room: shown above (the gate) and below (automations) the rooms, on "All" only.
   const gateTiles = config.gates.map(gateTile);
@@ -318,25 +578,41 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     store.toggleLight(id);
   }
 
+  // A room's tiles: ACs, TVs, then lights, unless rearranged.
+  const KIND_ORDER = { ac: 0, tv: 1, light: 2 };
+  function roomDevices(roomId) {
+    const all = [...tiles.values()].filter((t) => t.cfg.room === roomId).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+    const byId = new Map(all.map((t) => [t.cfg.id, t]));
+    return ordered(all.map((t) => t.cfg), arr, `room:${roomId}`).map((c) => byId.get(c.id));
+  }
+  const visibleTiles = (list, group) => {
+    const byId = new Map(list.map((t) => [t.cfg.id, t]));
+    return visible(list.map((t) => t.cfg), arr, group).map((c) => byId.get(c.id));
+  };
+
   function layoutTiles() {
     const nodes = [];
     let i = 0;
     const add = (t) => { t.el.style.setProperty('--i', i++); nodes.push(t.el); };
-    if (ui.room === 'all' && gateTiles.length) {
-      nodes.push(h('div.group-label', gateTiles.length > 1 ? 'Portões' : 'Portão'));
-      gateTiles.forEach(add);
+    const shownGates = visibleTiles(gateTiles, 'gates');
+    if (ui.room === 'all' && shownGates.length) {
+      nodes.push(h('div.group-label', shownGates.length > 1 ? 'Portões' : 'Portão'));
+      shownGates.forEach(add);
     }
-    for (const room of config.rooms) {
-      if (ui.room !== 'all' && room.id !== ui.room) continue;
-      const devices = [...tiles.values()].filter((t) => t.cfg.room === room.id);
+    const roomList = ui.room === 'all' ? visible(config.rooms, arr, 'rooms') : config.rooms.filter((r) => r.id === ui.room);
+    for (const room of roomList) {
+      const devices = roomDevices(room.id).filter((t) => !arr.hidden.has(t.cfg.id));
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
-      devices.filter((t) => t.kind === 'ac').forEach(add);
-      devices.filter((t) => t.kind === 'light').forEach(add);
+      devices.forEach(add);
     }
-    if (ui.room === 'all' && toggleTiles.length) {
+    const shownToggles = visibleTiles(toggleTiles, 'toggles');
+    if (ui.room === 'all' && shownToggles.length) {
       nodes.push(h('div.group-label', 'Automações'));
-      toggleTiles.forEach(add);
+      shownToggles.forEach(add);
+    }
+    if (ui.room === 'all' && !isPhone) {
+      nodes.push(h('button.organize-link', { onclick: () => openSheet({ kind: 'organize' }) }, icon('list', 14), 'Organizar o painel'));
     }
     if (!nodes.length) nodes.push(h('div.group-label', 'Nenhum dispositivo neste cômodo ainda'));
     else if (isPhone && config.lights.some((l) => l.capabilities.length && inScope(l))) {
@@ -352,7 +628,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function openSheet(target) {
     ui.sheet = target;
-    sheetView = target.kind === 'ac' ? acSheet(target.id) : lightSheet(target.id);
+    sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'tv' ? tvSheet(target.id)
+      : target.kind === 'gate' ? gateSheet(target.id) : target.kind === 'organize' ? organizeSheet() : lightSheet(target.id);
     sheet.replaceChildren(...sheetView.nodes);
     panel.classList.add('hidden');
     sheet.classList.remove('hidden');
@@ -360,7 +637,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     sheet.inert = false;
     card.classList.add('detail');
     hideTooltip();
-    onFocus(target.kind === 'ac' ? target : { kind: 'room', id: store.lightCfg.get(target.id).room });
+    const room = target.kind === 'tv' ? store.tvCfg.get(target.id).room : target.kind === 'light' ? store.lightCfg.get(target.id).room : null;
+    onFocus(['ac', 'tv', 'gate'].includes(target.kind) ? target : target.kind === 'organize' ? null : { kind: 'room', id: room });
     update();
   }
 
@@ -559,6 +837,14 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       const cfg = store.lightCfg.get(hit.id);
       const s = state.lights[hit.id];
       name = cfg.name; status = lightStatus(cfg, s); on = s.on; color = css(lightColor(s, tmp));
+    } else if (hit.kind === 'tv') {
+      const cfg = store.tvCfg.get(hit.id);
+      const t = state.tvs[hit.id];
+      name = cfg.name; status = tvStatus(t); on = t.on; color = TV_BLUE;
+    } else if (hit.kind === 'gate') {
+      const cfg = store.gateCfg.get(hit.id);
+      const g = state.gates[hit.id];
+      name = cfg.name; status = gateText(hit.id); on = g.state !== 'closed'; color = GATE_COLOR[g.state] || '#8b93a7';
     } else {
       const cfg = store.acCfg.get(hit.id);
       const s = state.acs[hit.id];
@@ -617,6 +903,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       count.classList.toggle('zero', n === 0 || id === 'all');
     }
 
+    const redundant = ui.room === 'all' && config.shortcuts.length > 0;
+    bulkOn.hidden = redundant;
+    bulkOff.hidden = redundant;
     const scoped = config.lights.filter(inScope);
     const scopedOn = scoped.filter((l) => state.lights[l.id].on).length;
     listTitle.replaceChildren(h('b', ui.room === 'all' ? 'Casa toda' : roomName.get(ui.room)), ` · ${scopedOn} de ${scoped.length} acesas`);
@@ -643,6 +932,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     showTooltip,
     openSheet,
     closeSheet,
+    /** Organizar o painel: order and visibility of shortcuts, rooms and devices. */
+    organize() { openSheet({ kind: 'organize' }); },
     selectRoom,
     toggleLight,
     get room() { return ui.room; },

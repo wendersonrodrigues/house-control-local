@@ -33,6 +33,8 @@ public final class HomeAssistantService: DeviceService {
     private var fanNames: [String: [String: String]] = [:]
     private var modeNames: [String: [String: String]] = [:]
     private var swingNames: [String: [String]] = [:]
+    /// Each media player's `supported_features`, from the last read.
+    private var mediaSupport: [String: Int] = [:]
     /// The entities linked in the plan: only their changes are worth a read.
     private var watched: Set<String> = []
     private var changePending = false
@@ -157,14 +159,20 @@ public final class HomeAssistantService: DeviceService {
                 modeNames[id] = Self.modeTable(attributes["hvac_modes"] as? [String] ?? [])
                 swingNames[id] = attributes["swing_modes"] as? [String] ?? []
             }
-            out[id] = Self.reading(from: state)
+            if id.hasPrefix("media_player."), let f = attributes["supported_features"] as? Int { mediaSupport[id] = f }
+            var reading = Self.reading(from: state)
+            if let path = reading.media?["picture"] as? String, path.hasPrefix("/"), let base = active ?? config?.url {
+                reading.media?["picture"] = base + path
+            }
+            out[id] = reading
         }
         return out
     }
 
     public func send(kind: DeviceKind, id: String, patch: [String: Any], state: [String: Any]) async throws {
         for call in Self.calls(for: id, patch: patch, state: state,
-                               fans: fanNames[id] ?? [:], modes: modeNames[id] ?? [:], swings: swingNames[id] ?? []) {
+                               fans: fanNames[id] ?? [:], modes: modeNames[id] ?? [:], swings: swingNames[id] ?? [],
+                               media: mediaSupport[id]) {
             _ = try await request("POST", "/api/services/\(call.domain)/\(call.service)", body: call.data)
         }
     }
@@ -202,6 +210,9 @@ public final class HomeAssistantService: DeviceService {
         case "script", "scene":
             device = ServiceDevice(id: id, name: name, kind: .shortcut)
             device.detail = domain
+        case "media_player":
+            device = ServiceDevice(id: id, name: name, kind: .tv)
+            device.detail = "media_player · " + (attributes["device_class"] as? String ?? "mídia")
         case "input_boolean", "automation":
             device = ServiceDevice(id: id, name: name, kind: .toggle)
             device.detail = domain == "automation" ? "automação" : "input_boolean"
@@ -290,6 +301,11 @@ public final class HomeAssistantService: DeviceService {
             ]
         } else if id.hasPrefix("cover.") {
             reading.gate = ["open", "closed", "opening", "closing"].contains(value) ? value : "closed"
+            if let p = attributes.double("current_position") { reading.gatePosition = max(0, min(1, p / 100)) }
+        } else if id == "sun.sun" {
+            reading.sunElevation = attributes.double("elevation")
+        } else if id.hasPrefix("media_player.") {
+            reading.media = mediaState(value, attributes)
         } else if id.hasPrefix("input_boolean.") || id.hasPrefix("automation.") {
             reading.toggle = value == "on"
         } else if id.hasPrefix("sensor."), let t = Double(value) {
@@ -304,6 +320,36 @@ public final class HomeAssistantService: DeviceService {
         var data: [String: Any]
     }
 
+    /// A media player in the panel's terms. "standby" and "off" are off; LG webOS reports
+    /// "on" while showing an app and "playing" / "paused" with a player.
+    static func mediaState(_ value: String, _ attributes: [String: Any]) -> [String: Any] {
+        var media: [String: Any] = ["on": !["off", "standby"].contains(value), "state": value]
+        if let v = attributes.double("volume_level") { media["volume"] = max(0, min(1, v)) }
+        if let m = attributes["is_volume_muted"] as? Bool { media["muted"] = m }
+        media["source"] = attributes["source"] as? String ?? NSNull()
+        media["sources"] = attributes["source_list"] as? [String] ?? []
+        let text = { (key: String) -> Any in (attributes[key] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? NSNull() }
+        media["title"] = text("media_title")
+        media["artist"] = text("media_artist")
+        media["series"] = text("media_series_title")
+        media["app"] = text("app_name")
+        // A path on the server ("/api/media_player_proxy/…?token=…"): made absolute in read().
+        media["picture"] = text("entity_picture")
+        media["controls"] = mediaControls(attributes["supported_features"] as? Int)
+        return media
+    }
+
+    /// Home Assistant's media player feature bits, by the panel's control names.
+    static let mediaFeatures: [(name: String, bits: Int)] = [
+        ("power", 128 | 256), ("volume", 4), ("mute", 8), ("step", 1024), ("source", 2048),
+        ("play", 1 | 16384), ("next", 32), ("previous", 16),
+    ]
+
+    /// What a player can do; everything when it does not say.
+    static func mediaControls(_ supported: Int?) -> [String] {
+        mediaFeatures.filter { supported == nil || supported! & $0.bits != 0 }.map(\.name)
+    }
+
     /// The panel's airflow for a climate entity's `swing_mode`: "off", "horizontal", "vertical",
     /// or "swing" for anything that moves both ways ("on", "both").
     static func panelSwing(_ name: String) -> String {
@@ -311,7 +357,8 @@ public final class HomeAssistantService: DeviceService {
     }
 
     static func calls(for id: String, patch: [String: Any], state: [String: Any],
-                      fans: [String: String], modes: [String: String], swings: [String] = []) -> [Call] {
+                      fans: [String: String], modes: [String: String], swings: [String] = [],
+                      media: Int? = nil) -> [Call] {
         let domain = id.split(separator: ".").first.map(String.init) ?? ""
         let target: [String: Any] = ["entity_id": id]
         func call(_ service: String, _ data: [String: Any] = [:], domain d: String = domain) -> Call {
@@ -327,8 +374,27 @@ public final class HomeAssistantService: DeviceService {
             case "open": return [call("open_cover")]
             case "close": return [call("close_cover")]
             case "stop": return [call("stop_cover")]
+            // One press of a one-button gate: stops it while moving, otherwise goes the other
+            // way from its last move (Home Assistant's own rule for covers).
+            case "toggle": return [call("toggle")]
             default: return []
             }
+        }
+        if domain == "media_player" {
+            var out: [Call] = []
+            if let on = patch["on"] as? Bool { out.append(call(on ? "turn_on" : "turn_off")) }
+            if let v = patch["volume"] as? Double { out.append(call("volume_set", ["volume_level": (max(0, min(1, v)) * 100).rounded() / 100])) }
+            if let m = patch["muted"] as? Bool { out.append(call("volume_mute", ["is_volume_muted": m])) }
+            if let s = patch["source"] as? String { out.append(call("select_source", ["source": s])) }
+            let actions = ["play_pause": "media_play_pause", "next": "media_next_track", "previous": "media_previous_track",
+                           "volume_up": "volume_up", "volume_down": "volume_down"]
+            if let a = patch["action"] as? String, let service = actions[a] { out.append(call(service)) }
+            // Only what this player accepts: Home Assistant refuses the whole request otherwise.
+            let can = Set(mediaControls(media))
+            let needs = ["volume_set": "volume", "volume_mute": "mute", "select_source": "source",
+                         "volume_up": "step", "volume_down": "step", "media_play_pause": "play",
+                         "media_next_track": "next", "media_previous_track": "previous"]
+            return out.filter { needs[$0.service].map(can.contains) ?? true }
         }
         if domain == "script" || domain == "scene" {
             return patch["run"] as? Bool == true ? [call("turn_on")] : []

@@ -46,7 +46,7 @@ final class ServiceTests: XCTestCase {
             "entity_id": "sensor.outside", "state": "15.6", "attributes": ["unit_of_measurement": "°C"],
         ])?.kind, .sensor)
         XCTAssertNil(HomeAssistantService.device(from: ["entity_id": "sensor.power", "state": "3", "attributes": ["unit_of_measurement": "W"]]))
-        XCTAssertNil(HomeAssistantService.device(from: ["entity_id": "media_player.tv", "state": "on", "attributes": [:]]))
+        XCTAssertNil(HomeAssistantService.device(from: ["entity_id": "vacuum.robo", "state": "docked", "attributes": [:]]))
     }
 
     func testHomeAssistantReadsLightState() {
@@ -176,9 +176,38 @@ final class ServiceTests: XCTestCase {
         }
         XCTAssertEqual(services("cover.portao_garagem", ["action": "open"]), ["cover.open_cover"])
         XCTAssertEqual(services("cover.portao_garagem", ["action": "close"]), ["cover.close_cover"])
+        XCTAssertEqual(services("cover.portao_garagem", ["action": "toggle"]), ["cover.toggle"])
         XCTAssertEqual(services("script.apagar_todas_as_luzes", ["run": true]), ["script.turn_on"])
         XCTAssertEqual(services("input_boolean.vigilancia_da_sala", ["on": false]), ["input_boolean.turn_off"])
         XCTAssertEqual(services("automation.x", ["on": true]), ["automation.turn_on"])
+    }
+
+    func testHomeAssistantTV() {
+        // LG webOS: "on" while an app is open, sources are its inputs and apps.
+        let state: [String: Any] = ["entity_id": "media_player.lg_tv", "state": "on", "attributes": [
+            "device_class": "tv", "volume_level": 0.18, "is_volume_muted": false, "source": "Netflix",
+            "source_list": ["HDMI 1", "Netflix", "YouTube"], "app_name": "Netflix"]]
+        XCTAssertEqual(HomeAssistantService.device(from: state)?.kind, .tv)
+        let media = HomeAssistantService.reading(from: state).media
+        XCTAssertEqual(media?["on"] as? Bool, true)
+        XCTAssertEqual(media?["volume"] as? Double, 0.18)
+        XCTAssertEqual(media?["source"] as? String, "Netflix")
+        XCTAssertEqual(media?["sources"] as? [String], ["HDMI 1", "Netflix", "YouTube"])
+        XCTAssertEqual(media?["app"] as? String, "Netflix")
+        XCTAssertTrue(media?["title"] is NSNull)
+        XCTAssertEqual(HomeAssistantService.reading(from: ["entity_id": "media_player.lg_tv", "state": "off", "attributes": [:]])
+            .media?["on"] as? Bool, false)
+
+        func services(_ patch: [String: Any]) -> [String] {
+            HomeAssistantService.calls(for: "media_player.lg_tv", patch: patch, state: [:], fans: [:], modes: [:]).map(\.service)
+        }
+        XCTAssertEqual(services(["on": false]), ["turn_off"])
+        XCTAssertEqual(services(["volume": 0.3]), ["volume_set"])
+        XCTAssertEqual(services(["muted": true]), ["volume_mute"])
+        XCTAssertEqual(services(["source": "HDMI 1"]), ["select_source"])
+        XCTAssertEqual(services(["action": "play_pause"]), ["media_play_pause"])
+        XCTAssertEqual(HomeAssistantService.reading(from: ["entity_id": "cover.portao", "state": "opening",
+                                                           "attributes": ["current_position": 40]]).gatePosition, 0.4)
     }
 
     func testHomeAssistantFallsBackToTheExternalAddress() {
@@ -337,24 +366,70 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(devices.first { $0.id == "script.apagar_luzes_externas" }?.kind, .shortcut)
         XCTAssertEqual(devices.first { $0.id == "input_boolean.vigilancia_da_sala" }?.kind, .toggle)
 
+        // The sun, for the model's daylight.
+        let sun = try await service.read(["sun.sun"])["sun.sun"]?.sunElevation
+        XCTAssertNotNil(sun)
+
         let gate = "cover.portao_garagem", toggle = "input_boolean.vigilancia_da_sala", lamp = "light.quintal"
-        try await service.send(kind: .gate, id: gate, patch: ["action": "open"], state: [:])
+        // The lab gate takes 8 s from end to end and reports only the ends, like a real one.
+        func gateReaches(_ end: String) async throws -> Bool {
+            for _ in 0..<30 {
+                if try await service.read([gate])[gate]?.gate == end { return true }
+                try await Task.sleep(nanoseconds: 500_000_000)
+            }
+            return false
+        }
+        if try await !gateReaches("closed") { try await service.send(kind: .gate, id: gate, patch: ["action": "close"], state: [:]) }
+        var reached = try await gateReaches("closed")
+        XCTAssertTrue(reached)
+
+        // One press of the gate's button (cover.toggle) opens it, the next one closes it.
+        try await service.send(kind: .gate, id: gate, patch: ["action": "toggle"], state: [:])
         try await service.send(kind: .toggle, id: toggle, patch: ["on": true], state: [:])
         try await service.send(kind: .shortcut, id: "script.ligar_luzes_externas", patch: ["run": true], state: [:])
         try await Task.sleep(nanoseconds: 500_000_000)
         var now = try await service.read([gate, toggle, lamp])
-        XCTAssertEqual(now[gate]?.gate, "open")
+        XCTAssertEqual(now[gate]?.gate, "closed", "it reports the end it left until it reaches the other")
         XCTAssertEqual(now[toggle]?.toggle, true)
         XCTAssertEqual(now[lamp]?.light?["on"] as? Bool, true)
+        reached = try await gateReaches("open")
+        XCTAssertTrue(reached)
 
-        try await service.send(kind: .gate, id: gate, patch: ["action": "close"], state: [:])
+        try await service.send(kind: .gate, id: gate, patch: ["action": "toggle"], state: [:])
         try await service.send(kind: .toggle, id: toggle, patch: ["on": false], state: [:])
         try await service.send(kind: .shortcut, id: "script.apagar_luzes_externas", patch: ["run": true], state: [:])
         try await Task.sleep(nanoseconds: 500_000_000)
-        now = try await service.read([gate, toggle, lamp])
-        XCTAssertEqual(now[gate]?.gate, "closed")
+        now = try await service.read([toggle, lamp])
         XCTAssertEqual(now[toggle]?.toggle, false)
         XCTAssertEqual(now[lamp]?.light?["on"] as? Bool, false)
+        reached = try await gateReaches("closed")
+        XCTAssertTrue(reached)
+    }
+
+    /// A TV on the lab server: the demo's "Lounge room" is a media_player with inputs.
+    func testLiveTV() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let url = env["HOUSE_TEST_HA_URL"], let token = env["HOUSE_TEST_HA_TOKEN"] else {
+            throw XCTSkip("Set HOUSE_TEST_HA_URL and HOUSE_TEST_HA_TOKEN (tools/lab/homeassistant.sh prints them)")
+        }
+        let service = HomeAssistantService(vault: MemorySecretStore())
+        try await service.connect(url: url, token: token)
+        let tv = "media_player.lounge_room"
+        let devices = try await service.devices()
+        XCTAssertEqual(devices.first { $0.id == tv }?.kind, .tv)
+        // The demo TV has inputs and playback but no volume: those calls are left out, not refused.
+        var media = try await service.read([tv])[tv]?.media
+        XCTAssertEqual(media?["controls"] as? [String], ["power", "source", "play", "next", "previous"])
+        try await service.send(kind: .tv, id: tv, patch: ["on": true, "volume": 0.35, "muted": true, "source": "youtube"], state: [:])
+        try await Task.sleep(nanoseconds: 500_000_000)
+        media = try await service.read([tv])[tv]?.media
+        XCTAssertEqual(media?["on"] as? Bool, true)
+        XCTAssertEqual(media?["source"] as? String, "youtube")
+        try await service.send(kind: .tv, id: tv, patch: ["on": false], state: [:])
+        try await Task.sleep(nanoseconds: 500_000_000)
+        media = try await service.read([tv])[tv]?.media
+        XCTAssertEqual(media?["on"] as? Bool, false)
+        try await service.send(kind: .tv, id: tv, patch: ["on": true], state: [:])
     }
 
     func testLiveHomeAssistant() async throws {
