@@ -317,7 +317,10 @@ export async function bootEditor(root) {
 
   function rowLabel(kind, item) {
     if (kind === 'room') return [item.name || item.id, `${fix(item.rect[2])} × ${fix(item.rect[3])} m`];
-    if (kind === 'light') return [item.name || item.id, `${roomName(item.room)} · ${NAMES[item.type] || item.type}`];
+    if (kind === 'light') {
+      const main = item.with && doc.lights.find((l) => l.id === item.with);
+      return [item.name || item.id, main ? `parte de ${main.name || main.id}` : `${roomName(item.room)} · ${NAMES[item.type] || item.type}`];
+    }
     if (kind === 'ac') return [item.name || item.id, `${roomName(item.room)} · parede ${(NAMES[item.wall] || item.wall).toLowerCase()}`];
     if (kind === 'tv') return [item.name || item.id, `${roomName(item.room)} · ${item.link?.id || 'não vinculada'}`];
     if (kind === 'furniture') return [NAMES[item.type] || item.type, roomName(roomAt(item.pos)?.id) || '—'];
@@ -840,8 +843,24 @@ export async function bootEditor(root) {
           bind('Temperatura de branco', h('input', { type: 'checkbox' }), { ...cap('temp'), event: 'change' }),
           bind('Cor', h('input', { type: 'checkbox' }), { ...cap('color'), event: 'change' })),
         h('p.note', 'Deixe as três desmarcadas para um interruptor simples: ela só liga e desliga (é o caso das luzes Tuya da casa).')),
-      testSection('light', item),
-      links.deviceSection(item, 'light', linkHooks));
+      section('Faz parte de',
+        bind('Mesma luz que', choice([['', 'Nenhuma: é uma luz própria'],
+          ...doc.lights.filter((l) => l.id !== item.id && !l.with).map((l) => [l.id, `${l.name || l.id} · ${roomName(l.room)}`])]), {
+          get: () => item.with || '',
+          set: (v) => {
+            if (!v) { delete item.with; return; }
+            item.with = v;
+            // A piece has no device of its own: it is switched with the light it belongs to.
+            delete item.link;
+            for (const l of doc.lights) if (l.with === item.id) delete l.with; // no chains
+          },
+          event: 'change',
+        }),
+        h('p.note', item.with
+          ? 'Esta luz é só um pedaço da outra na maquete (por exemplo, a segunda perna de um L de spots): não aparece no painel e acende e apaga junto com ela.'
+          : 'Para uma luz desenhada em dois lugares (spots que fazem uma curva), crie o segundo pedaço e escolha aqui a luz principal: no painel fica um botão só.')),
+      item.with ? null : testSection('light', item),
+      item.with ? null : links.deviceSection(item, 'light', linkHooks));
     } else if (kind === 'ac') {
       head(item.name || item.id, `id: ${item.id}`);
       nodes.push(section('Ar-condicionado',
@@ -920,6 +939,8 @@ export async function bootEditor(root) {
       head(item.name || item.id, what[1]);
       nodes.push(section(what[0],
         bind('Nome', text(), prop(item, 'name', '')),
+        kind === 'gate' ? bind('Cômodo (aparece dentro dele no painel)', choice([['', 'Automático (a garagem)'], ...doc.rooms.map((r) => [r.id, r.name || r.id])]), {
+          get: () => item.room || '', set: (v) => { if (v) item.room = v; else delete item.room; }, event: 'change' }) : null,
         kind === 'gate' ? null : bind('Ícone', choice(named(EXTRA_ICONS)), { ...prop(item, 'icon', kind === 'toggle' ? 'automation' : 'sparkles'), event: 'change' })),
       kind === 'gate' ? section('Na maquete',
         h('div.checks', bind('Mostrar o portão na maquete', h('input', { type: 'checkbox' }), {

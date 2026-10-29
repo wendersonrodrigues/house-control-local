@@ -807,6 +807,21 @@
       "spacing": 0.6
     },
     {
+      "id": "cozinha.spots2",
+      "name": "Spots (lado)",
+      "room": "cozinha",
+      "type": "spots",
+      "pos": [
+        23.3,
+        1.55
+      ],
+      "rot": 90,
+      "count": 2,
+      "spacing": 0.95,
+      "capabilities": [],
+      "with": "cozinha.spots"
+    },
+    {
       "id": "garagem.luz",
       "name": "Garagem",
       "room": "garagem",

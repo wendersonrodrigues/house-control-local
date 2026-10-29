@@ -101,6 +101,12 @@ export function normalize(raw) {
     };
   });
 
+  // A light drawn in more than one place (spots that turn a corner): the extra pieces say
+  // `with: <id>` and are only drawn, switched with that light. The panel lists the one light.
+  const mainIds = new Set(lights.filter((l) => !l.with).map((l) => l.id));
+  const lightParts = lights.filter((l) => l.with && mainIds.has(l.with) && l.with !== l.id);
+  const mainLights = lights.filter((l) => !lightParts.includes(l));
+
   const acs = (raw.acs || []).map((a) => {
     unique(a.id, 'Um ar-condicionado');
     need(roomIds.has(a.room), `O ar "${a.id}" aponta para o cômodo desconhecido "${a.room}"`);
@@ -143,6 +149,11 @@ export function normalize(raw) {
       g.room = (probe(0.3) || probe(-0.3))?.id;
     }
   }
+  // A gate not placed on a wall, and not given a room, belongs to the garage if there is one.
+  for (const g of gates) {
+    if (g.room && !roomIds.has(g.room)) g.room = undefined;
+    if (!g.room) g.room = rooms.find((r) => /garag/i.test(`${r.id} ${r.name}`))?.id;
+  }
   // TVs stand in a room like a lamp, as the furniture piece "tv" with a screen that lights up.
   const tvs = (raw.tvs || []).map((t) => {
     unique(t.id, 'Uma TV');
@@ -170,7 +181,8 @@ export function normalize(raw) {
     rooms,
     openings,
     furniture: raw.furniture || [],
-    lights,
+    lights: mainLights,
+    lightParts,
     acs,
     scenes,
     gates,
