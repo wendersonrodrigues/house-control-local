@@ -29,6 +29,7 @@ A interface está em português do Brasil. A documentação original, em inglês
 - **Portão.** Mostra se está aberto, fechado, abrindo ou fechando. Abre e fecha com **dois toques**: o primeiro arma
   o botão e o segundo, em até 3,5 segundos, confirma. Um clique perdido na barra de menu nunca abre a casa.
   Na maquete, o portão de correr desliza pela parede da garagem, com uma luz âmbar piscando enquanto se move.
+  Tocar no portão abre a tela dele: estado, desde quando, quanto está aberto e a câmera aproximada na garagem.
 - **TV.** Liga/desliga, volume, mudo, entrada (HDMI, apps) e reprodução, conforme o que a TV aceita no Home
   Assistant (LG webOS e qualquer `media_player`). Na maquete, a tela acende e ilumina a sala quando a TV está ligada.
 - **Atalhos.** Scripts e cenas do Home Assistant num toque ("Apagar todas", "Luzes externas"…), no painel e na ilha.
@@ -38,6 +39,8 @@ A interface está em português do Brasil. A documentação original, em inglês
 - **Widgets.** A casa em 3D na mesa do Mac, cenas, luzes e ares, e controles na Central de Controle.
 - **Em casa ou fora.** Usa o endereço local do Home Assistant e, se ele não responder, passa sozinho para o externo.
   Quando o local volta a responder, ele volta para o local.
+- **Dia e noite.** A maquete clareia de dia e escurece à noite conforme a altura real do sol (`sun.sun` do Home
+  Assistant); sem conexão, segue o relógio.
 - **Funciona sem nada conectado.** Até você conectar o Home Assistant, tudo é simulado.
 
 Por dentro, é um app nativo pequeno em Swift (AppKit) em volta de uma interface web em [Three.js](https://threejs.org).

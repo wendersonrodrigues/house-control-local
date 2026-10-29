@@ -468,3 +468,6 @@ html.ios.mode-editor body { background: var(--bg); }
 .col-grip { position: absolute; z-index: 5; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; }
 .row-grip { flex: none; height: 8px; margin: -4px 0; position: relative; z-index: 5; cursor: row-resize; }
 .col-grip:hover, .row-grip:hover { background: rgba(111, 168, 255, 0.35); }
+
+/* The preview's day/night chip sits beside the lights one. */
+.preview-wrap .day-chip { right: auto; left: 10px; }

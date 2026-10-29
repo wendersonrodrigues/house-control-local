@@ -75,7 +75,7 @@ export function createStore(config) {
       post('summary', summary());
       // The native shell passes this on to its other views of the same home (the panel
       // and the island each run their own store), which adopt it without re-sending.
-      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, tvs: state.tvs, scene: state.scene, source: change.source ?? store.source ?? null });
+      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, tvs: state.tvs, sun: state.sun, scene: state.scene, source: change.source ?? store.source ?? null });
     }
   }
 
@@ -143,12 +143,19 @@ export function createStore(config) {
     const cur = state.gates[id];
     if (!cur) return false;
     const changed = Object.entries(patch).some(([k, v]) => cur[k] !== v);
+    // When it last opened or closed, for "aberto desde 14:32".
+    if ('state' in patch && patch.state !== cur.state) cur.since = Date.now();
     Object.assign(cur, patch);
     return changed;
   }
 
   function adoptExtras(update) {
     let any = false;
+    // Where the sun is (Home Assistant's sun.sun): the model's daylight follows it.
+    if (update.sun && update.sun.elevation !== state.sun?.elevation) {
+      state.sun = { elevation: update.sun.elevation };
+      for (const fn of listeners) fn({ type: 'sun' });
+    }
     for (const [id, g] of Object.entries(update.gates || {})) {
       if (!state.gates[id]) continue;
       const { timer, ...clean } = g;
@@ -350,7 +357,7 @@ export function createStore(config) {
     },
 
     /** Reports the state again, for a view that has only just started. */
-    share() { post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, tvs: state.tvs, scene: state.scene }); },
+    share() { post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, tvs: state.tvs, sun: state.sun, scene: state.scene }); },
 
     // The state of another view of this home (see emit). Nothing goes to the devices:
     // the view where the change was made has already sent it.

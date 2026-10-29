@@ -104,8 +104,10 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   const hitTargets = [...[...lights.values()].map((u) => u.hit), ...[...acs.values()].map((u) => u.hit),
     ...[...tvs.values()].map((u) => u.hit), ...[...gates.values()].map((u) => u.hit), ...house.floors];
 
-  // Night-time ambience: enough to read the model with every lamp off.
-  scene.add(new THREE.HemisphereLight(0x8ea6ff, 0x0b0e17, 0.42));
+  // Night-time ambience: enough to read the model with every lamp off. By day (setDaylight)
+  // the same two lights become sky and sun.
+  const sky = new THREE.HemisphereLight(0x8ea6ff, 0x0b0e17, 0.42);
+  scene.add(sky);
   const moon = new THREE.DirectionalLight(0xa9c0ff, 0.6);
   // Steep and coming from the viewer's side, so the faces we look at stay readable.
   moon.position.copy(center).add(new THREE.Vector3(camDir.x * 3.2 + 1.5, 10, camDir.z * 3.2 - 1.5));
@@ -121,6 +123,42 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   moon.shadow.normalBias = 0.04;
   moon.shadow.radius = 4;
   scene.add(moon, moon.target);
+
+  // 0 at night … 1 in full daylight.
+  const NIGHT = { sky: new THREE.Color(0x8ea6ff), ground: new THREE.Color(0x0b0e17), sun: new THREE.Color(0xa9c0ff), bg: new THREE.Color(background) };
+  const DAY = { sky: new THREE.Color(0xe4eeff), ground: new THREE.Color(0x8a8070), sun: new THREE.Color(0xfff0d8),
+    bg: new THREE.Color(background === STAGE_BG ? '#6f93c4' : background) };
+  let daylight = -1;
+  function setDaylight(d) {
+    d = clamp(d, 0, 1);
+    if (Math.abs(d - daylight) < 0.005) return;
+    daylight = d;
+    sky.color.copy(NIGHT.sky).lerp(DAY.sky, d);
+    sky.groundColor.copy(NIGHT.ground).lerp(DAY.ground, d);
+    sky.intensity = 0.42 + d * 1.1;
+    moon.color.copy(NIGHT.sun).lerp(DAY.sun, d);
+    moon.intensity = 0.6 + d * 2.1;
+    scene.background.copy(NIGHT.bg).lerp(DAY.bg, d);
+    renderer.toneMappingExposure = 1.05 - d * 0.1;
+    bloom.strength = 0.34 - d * 0.2; // lamps glow less in the sun
+    shadowFrames = Math.max(shadowFrames, 1);
+    wake();
+  }
+
+  // The sun's elevation from Home Assistant when known; otherwise a rough one from the
+  // clock (up at 6, highest at noon, down at 18). Full day from 8° up, night below -6°.
+  function daylightNow() {
+    const forced = store.state.daylight;
+    if (typeof forced === 'number') return forced;
+    let e = store.state.sun?.elevation;
+    if (typeof e !== 'number') {
+      const d = new Date();
+      e = 70 * Math.sin(Math.PI * (d.getHours() + d.getMinutes() / 60 - 6) / 12);
+    }
+    const t = clamp((e + 6) / 14, 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+  const daylightTimer = setInterval(() => setDaylight(daylightNow()), 60_000);
 
   /* ---------- post-processing ---------- */
 
@@ -189,6 +227,20 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       box = new THREE.Box3().setFromCenterAndSize(
         new THREE.Vector3(p.x + out.x * 1.3, 1.25, p.z + out.z * 1.3), new THREE.Vector3(3.6, 2.6, 3.6));
       fill = 0.92;
+    } else if (f?.kind === 'tv' && tvs.get(f.id)) {
+      const unit = tvs.get(f.id);
+      const p = unit.group.position;
+      const out = new THREE.Vector3(0, 0, 1).applyQuaternion(unit.group.quaternion);
+      box = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(p.x + out.x * 1.4, 1.0, p.z + out.z * 1.4), new THREE.Vector3(3.4, 2.2, 3.4));
+      fill = 0.92;
+    } else if (f?.kind === 'gate' && gates.get(f.id)) {
+      const unit = gates.get(f.id);
+      // The opening and the stretch of wall the leaf slides along.
+      const c = unit.home.clone().addScaledVector(unit.slide, unit.length / 2);
+      box = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(c.x, 1.2, c.z),
+        new THREE.Vector3(Math.abs(unit.slide.x) * unit.length * 2 + 3, 2.6, Math.abs(unit.slide.z) * unit.length * 2 + 3));
+      fill = 0.9;
     } else {
       box = new THREE.Box3(new THREE.Vector3(minX, 0, minZ), new THREE.Vector3(maxX, H * 0.8, maxZ));
     }
@@ -259,6 +311,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     for (const [id, unit] of acs) unit.apply(store.state.acs[id], opts);
     for (const [id, unit] of tvs) unit.apply(store.state.tvs?.[id], opts);
     for (const [id, unit] of gates) unit.apply(store.state.gates?.[id], opts);
+    setDaylight(daylightNow());
     wake();
   }
 
@@ -268,6 +321,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     else if (change.type === 'ac') acs.get(change.id).apply(store.state.acs[change.id]);
     else if (change.type === 'tv') tvs.get(change.id)?.apply(store.state.tvs[change.id]);
     else if (change.type === 'gate') gates.get(change.id)?.apply(store.state.gates[change.id]);
+    else if (change.type === 'sun') setDaylight(daylightNow());
     else syncAll();
     wake();
   });
@@ -452,6 +506,9 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     lights,
     acs,
 
+    /** 0 night … 1 day: sky, sun and background follow. */
+    setDaylight,
+
     setInsets(top, bottom) { topInset = top; bottomInset = bottom; resize(); },
     resize,
 
@@ -459,8 +516,18 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       rig.focus = next;
       rig.zoom = 1;
       rig.pan.set(0, 0, 0);
-      rig.goal.az = baseAz + (next?.kind === 'ac' ? (WALL_SIDE[acs.get(next.id).cfg.wall] ?? 0) : 0);
-      rig.goal.el = next?.kind === 'ac' ? 30 : config.camera.elevation;
+      // A TV or a gate is looked at from the side it faces, as far as the orbit allows.
+      const facing = (dir) => clamp(THREE.MathUtils.radToDeg(Math.atan2(dir.x, dir.z)), baseAz - ORBIT_AZ, baseAz + ORBIT_AZ);
+      if (next?.kind === 'tv' && tvs.get(next.id)) {
+        rig.goal.az = facing(new THREE.Vector3(0, 0, 1).applyQuaternion(tvs.get(next.id).group.quaternion));
+        rig.goal.el = 30;
+      } else if (next?.kind === 'gate' && gates.get(next.id)) {
+        rig.goal.az = facing(gates.get(next.id).outward);
+        rig.goal.el = 30;
+      } else {
+        rig.goal.az = baseAz + (next?.kind === 'ac' ? (WALL_SIDE[acs.get(next.id).cfg.wall] ?? 0) : 0);
+        rig.goal.el = next?.kind === 'ac' ? 30 : config.camera.elevation;
+      }
       frameGoal();
       wake();
     },
@@ -487,6 +554,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
     dispose() {
       unsubscribe();
+      clearInterval(daylightTimer);
       running = false;
       if (raf) cancelAnimationFrame(raf);
       raf = 0;

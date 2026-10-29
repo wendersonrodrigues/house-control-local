@@ -365,6 +365,10 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(devices.first { $0.id == "script.apagar_luzes_externas" }?.kind, .shortcut)
         XCTAssertEqual(devices.first { $0.id == "input_boolean.vigilancia_da_sala" }?.kind, .toggle)
 
+        // The sun, for the model's daylight.
+        let sun = try await service.read(["sun.sun"])["sun.sun"]?.sunElevation
+        XCTAssertNotNil(sun)
+
         let gate = "cover.portao_garagem", toggle = "input_boolean.vigilancia_da_sala", lamp = "light.quintal"
         try await service.send(kind: .gate, id: gate, patch: ["action": "open"], state: [:])
         try await service.send(kind: .toggle, id: toggle, patch: ["on": true], state: [:])

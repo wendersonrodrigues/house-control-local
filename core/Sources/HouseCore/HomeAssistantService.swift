@@ -302,6 +302,8 @@ public final class HomeAssistantService: DeviceService {
         } else if id.hasPrefix("cover.") {
             reading.gate = ["open", "closed", "opening", "closing"].contains(value) ? value : "closed"
             if let p = attributes.double("current_position") { reading.gatePosition = max(0, min(1, p / 100)) }
+        } else if id == "sun.sun" {
+            reading.sunElevation = attributes.double("elevation")
         } else if id.hasPrefix("media_player.") {
             reading.media = mediaState(value, attributes)
         } else if id.hasPrefix("input_boolean.") || id.hasPrefix("automation.") {

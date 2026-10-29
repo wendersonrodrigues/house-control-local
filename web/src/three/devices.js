@@ -74,6 +74,7 @@ export class GateUnit {
     const normal = new THREE.Vector3(-along.z, 0, along.x);
     const inside = (p) => rooms.some((r) => p.x > r.x && p.x < r.x + r.w && p.z > r.z && p.z < r.z + r.d);
     if (inside(mid.clone().addScaledVector(normal, 0.3))) normal.negate();
+    this.outward = normal.clone(); // towards the street
     this.home = mid.addScaledVector(normal, 0.15);
 
     const h = cfg.height;

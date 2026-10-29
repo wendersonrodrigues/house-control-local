@@ -281,8 +281,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     } }, label);
     const bubble = h('div.bubble', icon('gate', 19));
     let shownIcon = 'gate';
-    const el = h('div.tile.gate', { 'aria-label': cfg.name }, bubble,
-      h('div.tile-text', h('div.tile-name', cfg.name), sub), action);
+    const el = h('div.tile.gate', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'gate', id: cfg.id }) },
+      bubble, h('div.tile-text', h('div.tile-name', cfg.name), sub), action);
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target === el) openSheet({ kind: 'gate', id: cfg.id }); });
     function update() {
       const g = state.gates[cfg.id];
       const want = g.state === 'closed' ? 'gate' : 'gateOpen';
@@ -294,6 +295,66 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       if (!armed) label.textContent = g.state === 'open' || g.state === 'opening' ? 'Fechar' : 'Abrir';
     }
     return { el, cfg, kind: 'gate', update };
+  }
+
+  const clock = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  // The gate up close: what it is doing, since when, and the same two-press button, bigger.
+  function gateSheet(id) {
+    const cfg = store.gateCfg.get(id);
+    const g = () => state.gates[id];
+    const sub = h('div.sheet-sub');
+    const badge = h('div.gate-badge');
+    const status = h('div.gate-status');
+    const since = h('div.gate-since');
+    const bar = h('div.gate-bar', h('i'));
+    const label = h('span');
+    let armed = 0;
+    const disarm = () => { clearTimeout(armed); armed = 0; main.classList.remove('armed'); update(); };
+    const verb = () => (g().state === 'open' || g().state === 'opening' ? 'close' : 'open');
+    const main = h('button.gate-main', { onclick: () => {
+      if (!armed) {
+        haptic('light');
+        main.classList.add('armed');
+        armed = setTimeout(disarm, 3500);
+        update();
+        return;
+      }
+      disarm();
+      haptic('heavy');
+      store.gateAction(id, verb());
+    } }, label);
+    const stop = h('button.btn.gate-stop', { onclick: () => { haptic('medium'); store.gateAction(id, 'stop'); } }, icon('stop', 14, 2.2), 'Parar');
+    let shownIcon = null;
+    function update() {
+      const s = g();
+      const want = s.state === 'closed' ? 'gate' : 'gateOpen';
+      if (want !== shownIcon) { badge.replaceChildren(icon(want, 34, 1.7)); shownIcon = want; }
+      badge.style.setProperty('--c', GATE_COLOR[s.state] || '#8b93a7');
+      badge.classList.toggle('on', s.state !== 'closed');
+      status.textContent = s.online === false ? 'Indisponível' : GATE_TEXT[s.state] || s.state;
+      const moving = s.state === 'opening' || s.state === 'closing';
+      since.textContent = s.online === false ? 'O Home Assistant não está recebendo o estado do portão.'
+        : moving ? 'Em movimento' : s.since ? `${s.state === 'open' ? 'Aberto' : 'Fechado'} desde ${clock(s.since)}` : '';
+      const pos = typeof s.position === 'number' ? s.position : s.state === 'open' ? 1 : s.state === 'closed' ? 0 : null;
+      bar.hidden = pos === null;
+      bar.firstChild.style.width = `${Math.round((pos ?? 0) * 100)}%`;
+      bar.dataset.label = pos === null ? '' : `${Math.round(pos * 100)}% aberto`;
+      stop.hidden = !moving;
+      label.textContent = armed ? (verb() === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar')
+        : verb() === 'open' ? 'Abrir o portão' : 'Fechar o portão';
+      sub.replaceChildren('Portão de correr · ', h('b', status.textContent));
+    }
+    return {
+      nodes: [
+        sheetHead(cfg.name, sub, null),
+        h('div.gate-card', badge, h('div', status, since)),
+        bar,
+        h('div.gate-actions', main, stop),
+        h('p.sheet-note', icon('shield', 18), 'Por segurança, o portão só se move com dois toques: o primeiro arma o botão e o segundo, em até 3,5 segundos, confirma.'),
+      ],
+      update,
+    };
   }
 
   function toggleTile(cfg) {
@@ -464,7 +525,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function openSheet(target) {
     ui.sheet = target;
-    sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'tv' ? tvSheet(target.id) : lightSheet(target.id);
+    sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'tv' ? tvSheet(target.id)
+      : target.kind === 'gate' ? gateSheet(target.id) : lightSheet(target.id);
     sheet.replaceChildren(...sheetView.nodes);
     panel.classList.add('hidden');
     sheet.classList.remove('hidden');
@@ -473,7 +535,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     card.classList.add('detail');
     hideTooltip();
     const room = target.kind === 'tv' ? store.tvCfg.get(target.id).room : target.kind === 'light' ? store.lightCfg.get(target.id).room : null;
-    onFocus(target.kind === 'ac' ? target : { kind: 'room', id: room });
+    onFocus(['ac', 'tv', 'gate'].includes(target.kind) ? target : { kind: 'room', id: room });
     update();
   }
 

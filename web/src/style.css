@@ -527,6 +527,28 @@ html.native .card { width: auto; height: auto; box-shadow:
 .card.detail .stage { height: calc(100% - var(--sheet-h, 48%) + 34px); }
 .sheet .options { margin-top: 0; padding-top: 18px; }
 
+/* The gate's sheet. */
+.gate-card { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+.gate-badge {
+  --c: #8b93a7; width: 64px; height: 64px; flex: none; border-radius: 20px; display: grid; place-items: center;
+  color: var(--muted); background: rgba(255, 255, 255, 0.07); transition: background 260ms, color 260ms, box-shadow 360ms;
+}
+.gate-badge.on { color: #241503; background: var(--c); box-shadow: 0 0 26px -4px var(--c); }
+.gate-status { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; }
+.gate-since { margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.gate-bar { position: relative; margin-top: 16px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); }
+.gate-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: #ffb340; transition: width 600ms var(--ease); }
+.gate-bar::after { content: attr(data-label); position: absolute; right: 0; top: 12px; font-size: 11px; color: var(--muted); }
+.gate-actions { display: flex; gap: 8px; margin-top: 30px; }
+.gate-main {
+  flex: 1; height: 52px; border-radius: 18px; font-size: 15px; font-weight: 650; color: var(--text);
+  background: var(--glass-hi); border: 1px solid var(--line); transition: background 220ms, color 220ms, transform 300ms var(--spring);
+}
+@media (hover: hover) { .gate-main:hover { background: rgba(255, 255, 255, 0.16); } }
+.gate-main:active { transform: scale(0.97); }
+.gate-main.armed { background: #ff9a3c; color: #241503; border-color: transparent; animation: gate-armed 900ms ease-in-out infinite alternate; }
+.gate-stop { height: 52px; padding: 0 18px; border-radius: 18px; }
+
 /* A TV's "now playing" card. */
 .now-playing {
   display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 10px 12px;

@@ -190,6 +190,7 @@ public final class DeviceHub {
         let (fromTuya, fromServices) = await (tuyaPart, servicePart)
         guard fromTuya != nil || fromServices != nil else { return nil }
         var merged: [String: Any] = [:]
+        if let sun = fromServices?["sun"] { merged["sun"] = sun }
         for key in ["lights", "acs", "features", "gates", "toggles", "tvs"] {
             var section = fromTuya?[key] as? [String: Any] ?? [:]
             for (id, value) in fromServices?[key] as? [String: Any] ?? [:] {
@@ -213,6 +214,8 @@ public final class DeviceHub {
             if let sensor = link.sensor { wanted[sensor.service, default: []].insert(sensor.id) }
         }
         for sensor in tuyaSensors.values { wanted[sensor.service, default: []].insert(sensor.id) }
+        // Where the sun is, so the model shows day or night as it is outside.
+        if homeAssistant.isConnected { wanted[homeAssistant.id, default: []].insert("sun.sun") }
         var readings: [String: [String: DeviceReading]] = [:]
         var answered = false
         for (serviceId, ids) in wanted {
@@ -248,7 +251,9 @@ public final class DeviceHub {
         for (id, sensor) in tuyaSensors {
             if let t = readings[sensor.service]?[sensor.id]?.temperature { acs[id] = ["roomTemp": t] }
         }
-        return ["lights": lights, "acs": acs, "features": features, "gates": gates, "toggles": toggles, "tvs": tvs]
+        var out: [String: Any] = ["lights": lights, "acs": acs, "features": features, "gates": gates, "toggles": toggles, "tvs": tvs]
+        if let e = readings[homeAssistant.id]?["sun.sun"]?.sunElevation { out["sun"] = ["elevation": e] }
+        return out
     }
 
     private func pollCloud() async -> [String: Any]? {

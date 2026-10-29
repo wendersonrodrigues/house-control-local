@@ -103,6 +103,12 @@ export async function bootEditor(root) {
   const plan = sv('svg', { class: 'plan', tabindex: 0 });
   const inspector = h('div.inspector');
   const previewHost = h('div.preview');
+  // Day or night in the preview: as outside now (the clock), or forced either way.
+  let previewDay = null;
+  const dayToggle = h('button.chip.day-chip', { onclick: () => {
+    previewDay = previewDay === null ? 1 : previewDay === 1 ? 0 : null;
+    schedulePreview(0);
+  } });
   const previewToggle = h('button.chip', { onclick: () => { previewLights = !previewLights; tests.clear(); schedulePreview(0); if (sel.index != null) renderInspector(); } });
 
   // The right column's width and the preview's height follow two grips, and are remembered.
@@ -143,7 +149,7 @@ export async function bootEditor(root) {
         saveBtn)),
     sidebar,
     h('main.canvas', plan, hint),
-    h('aside.right', colGrip, h('div.preview-wrap', previewHost, previewToggle), rowGrip, inspector),
+    h('aside.right', colGrip, h('div.preview-wrap', previewHost, previewToggle, dayToggle), rowGrip, inspector),
     h('footer.foot', status),
     toastEl));
 
@@ -216,7 +222,7 @@ export async function bootEditor(root) {
   const tests = new Map();
   let preview = null;
   function previewStore(cfg) {
-    const state = { lights: {}, acs: {}, tvs: {}, gates: {} };
+    const state = { lights: {}, acs: {}, tvs: {}, gates: {}, daylight: previewDay };
     const t = (id, base) => ({ ...base, ...(tests.get(id) || {}) });
     for (const l of cfg.lights) state.lights[l.id] = t(l.id, { on: previewLights, brightness: 0.85, temp: 3200, color: l.color || null });
     for (const a of cfg.acs) state.acs[a.id] = t(a.id, { on: previewLights, mode: 'cool', fan: 'auto', swing: 'swing', sleep: false, target: 23 });
@@ -258,6 +264,7 @@ export async function bootEditor(root) {
 
   function buildPreview() {
     previewToggle.replaceChildren(icon(previewLights ? 'bright' : 'moon', 14), previewLights ? 'Luzes acesas' : 'Luzes apagadas');
+    dayToggle.replaceChildren(icon(previewDay === 0 ? 'moon' : 'sun', 14), previewDay === null ? 'Dia/noite: agora' : previewDay ? 'Dia' : 'Noite');
     if (!valid) return;
     if (isPhone && !phone.show3D) { world?.dispose(); world = null; previewHost.replaceChildren(); return; }
     world?.dispose();
