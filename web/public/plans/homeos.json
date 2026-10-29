@@ -666,7 +666,8 @@
       "link": {
         "service": "homeassistant",
         "id": "light.sala_central_1"
-      }
+      },
+      "shape": "square"
     },
     {
       "id": "sala.central2",
@@ -681,7 +682,8 @@
       "link": {
         "service": "homeassistant",
         "id": "light.sala_central_2"
-      }
+      },
+      "shape": "square"
     },
     {
       "id": "sala.spots",
@@ -690,13 +692,16 @@
       "type": "spots",
       "pos": [
         6.9,
-        1.9
+        1.95
       ],
       "capabilities": [],
       "link": {
         "service": "homeassistant",
         "id": "light.sala_spots"
-      }
+      },
+      "rot": 90,
+      "count": 3,
+      "spacing": 0.9
     },
     {
       "id": "sala.cortina",
@@ -755,16 +760,17 @@
       "id": "cozinha.mesa",
       "name": "Mesa",
       "room": "cozinha",
-      "type": "pendant",
+      "type": "ceiling",
       "pos": [
         18.7,
-        2.0
+        2.45
       ],
       "capabilities": [],
       "link": {
         "service": "homeassistant",
         "id": "light.cozinha_mesa"
-      }
+      },
+      "shape": "square"
     },
     {
       "id": "cozinha.bancada",
@@ -779,7 +785,8 @@
       "link": {
         "service": "homeassistant",
         "id": "light.cozinha_bancada"
-      }
+      },
+      "shape": "square"
     },
     {
       "id": "cozinha.spots",
@@ -787,14 +794,17 @@
       "room": "cozinha",
       "type": "spots",
       "pos": [
-        23.2,
-        1.5
+        22.45,
+        0.55
       ],
       "capabilities": [],
       "link": {
         "service": "homeassistant",
         "id": "light.cozinha_spots"
-      }
+      },
+      "rot": 0,
+      "count": 3,
+      "spacing": 0.6
     },
     {
       "id": "garagem.luz",
@@ -815,16 +825,18 @@
       "id": "corredor.luz",
       "name": "Corredor",
       "room": "corredor",
-      "type": "ceiling",
+      "type": "flood",
       "pos": [
-        15.2,
+        6.75,
         9.15
       ],
       "capabilities": [],
       "link": {
         "service": "homeassistant",
         "id": "light.corredor"
-      }
+      },
+      "rot": 90,
+      "y": 2.4
     },
     {
       "id": "quintal.luz",

@@ -7,7 +7,7 @@ import {
   Undo2, Activity, KeyRound, ArrowUpRight, Camera, Square,
   HouseWifi, Smartphone, Radar, CircleCheck, CircleAlert, ChevronRight, Unlink, LoaderCircle, Router,
   List, Trash2, Scan, Redo2, Map as MapIcon, DoorClosed, Armchair,
-  LightbulbOff, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
+  LightbulbOff, Flashlight, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
 } from 'lucide';
 
 // A sliding gate on its rail against the post it closes on, shut and slid open (drawn for
@@ -28,7 +28,7 @@ const GateOpen = [
 
 const ICONS = {
   power: Power, sun: Sun, sofa: Sofa, film: Film, moon: Moon, door: DoorOpen,
-  ceiling: LampCeiling, pendant: Lamp, spots: Lightbulb, floor: LampFloor, table: LampDesk, strip: Sparkles,
+  flood: Flashlight, ceiling: LampCeiling, pendant: Lamp, spots: Lightbulb, floor: LampFloor, table: LampDesk, strip: Sparkles,
   cool: Snowflake, heat: Flame, dry: Droplets, fan: Fan, auto: RefreshCw, wind: Wind, leaf: Leaf,
   down: ChevronDown, back: ChevronLeft, plus: Plus, minus: Minus, thermo: Thermometer,
   sliders: SlidersHorizontal, check: Check, home: House, settings: Settings2, ac: AirVent,

@@ -471,3 +471,7 @@ html.ios.mode-editor body { background: var(--bg); }
 
 /* The preview's day/night chip sits beside the lights one. */
 .preview-wrap .day-chip { right: auto; left: 10px; }
+
+/* A floodlight's aim, and the dashed line joining a row of spread-out spots. */
+.p-light .aim { fill: none; stroke: #ffb46b; stroke-width: 0.06; stroke-linecap: round; stroke-linejoin: round; }
+.p-light .link-line { fill: none; stroke: #ffb46b; stroke-width: 0.03; stroke-dasharray: 0.08 0.08; opacity: 0.6; }

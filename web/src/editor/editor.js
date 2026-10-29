@@ -32,7 +32,7 @@ const SCENE_ICONS = ['sun', 'sofa', 'film', 'moon', 'door', 'table', 'bed', 'tv'
 // What the pickers show for the plan's own words (the file keeps the English ones).
 const NAMES = {
   oak: 'Carvalho', walnut: 'Nogueira', tile: 'Cerâmica', stone: 'Pedra',
-  ceiling: 'Teto', pendant: 'Pendente', spots: 'Spots', floor: 'Coluna', table: 'Abajur', strip: 'Fita de LED',
+  ceiling: 'Teto', pendant: 'Pendente', spots: 'Spots', floor: 'Coluna', table: 'Abajur', strip: 'Fita de LED', flood: 'Holofote',
   north: 'Norte', south: 'Sul', east: 'Leste', west: 'Oeste',
   rug: 'Tapete', sofa: 'Sofá', armchair: 'Poltrona', coffeeTable: 'Mesa de centro', tv: 'TV', sideboard: 'Aparador',
   diningSet: 'Mesa de jantar', island: 'Ilha de cozinha', kitchen: 'Cozinha', fridge: 'Geladeira', bed: 'Cama',
@@ -521,6 +521,16 @@ export async function bootEditor(root) {
           const side = l.turn === 'left' ? -1 : 1;
           g.append(sv('rect', { x: len / 2 - 0.07, y: side > 0 ? -0.07 : -l.corner - 0.07, width: 0.14, height: l.corner + 0.14, rx: 0.07 }));
         }
+      } else if (l.type === 'spots' && ((l.count ?? 3) === 1 || (l.spacing ?? 0.32) > 0.45)) {
+        const n = l.count ?? 3;
+        const gap = l.spacing ?? 0.32;
+        for (let k = 0; k < n; k++) g.append(sv('circle', { cx: (k - (n - 1) / 2) * gap, r: 0.13 }));
+        if (n > 1) g.append(sv('path', { d: `M${-(n - 1) / 2 * gap} 0H${(n - 1) / 2 * gap}`, class: 'link-line' }));
+      } else if (l.type === 'flood') {
+        g.append(sv('circle', { r: 0.3, class: 'halo' }), sv('rect', { x: -0.16, y: -0.08, width: 0.32, height: 0.16, rx: 0.04 }),
+          sv('path', { d: 'M0 0.12V0.9M-0.18 0.68L0 0.9L0.18 0.68', class: 'aim' }));
+      } else if (l.type === 'ceiling' && l.shape === 'square') {
+        g.append(sv('circle', { r: 0.34, class: 'halo' }), sv('rect', { x: -0.17, y: -0.17, width: 0.34, height: 0.34, rx: 0.03 }));
       } else {
         g.append(sv('circle', { r: 0.34, class: 'halo' }), sv('circle', { r: l.type === 'table' ? 0.13 : 0.19 }));
       }
@@ -791,6 +801,20 @@ export async function bootEditor(root) {
           item.corner ? bind('O L vira para', choice([['right', 'A direita'], ['left', 'A esquerda']]), { ...prop(item, 'turn', 'right'), event: 'change' }) : null,
           h('p.note', 'Para uma fita em L, preencha o segundo lado: ela vira 90° na ponta leste (com rotação 0°). Deixe vazio para uma fita reta.'),
         ] : null),
+      section('Aparência na maquete',
+        bind('Intensidade na maquete, %', number(10), {
+          get: () => Math.round((item.power ?? 1) * 100),
+          set: (v) => { if (v === 100) delete item.power; else item.power = v / 100; },
+          parse: (v) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= 10 && n <= 400 ? n : undefined; },
+        }),
+        item.type === 'ceiling' ? bind('Formato', choice([['round', 'Redonda'], ['square', 'Quadrada']]), {
+          get: () => item.shape || 'round', set: (v) => { if (v === 'square') item.shape = 'square'; else delete item.shape; }, event: 'change' }) : null,
+        item.type === 'spots' ? row(
+          bind('Quantidade', choice([['1', '1 spot'], ['2', '2 spots'], ['3', '3 spots'], ['4', '4 spots']]), {
+            get: () => String(item.count ?? 3), set: (v) => { if (v === '3') delete item.count; else item.count = Number(v); }, event: 'change' }),
+          bind('Distância entre eles, m', number(0.05), { ...prop(item, 'spacing', 0.32), parse: parseNum })) : null,
+        item.type === 'flood' ? h('p.note', 'O holofote aponta para a frente: com rotação 0° ele ilumina para o sul (para baixo na planta), 90° para o leste. A seta na planta mostra a direção.') : null,
+        h('p.note', 'Só muda como a luz aparece na maquete 3D: a lâmpada de verdade não é afetada.')),
       section('O que ela faz',
         h('div.checks',
           bind('Brilho ajustável', h('input', { type: 'checkbox' }), { ...cap('brightness'), event: 'change' }),

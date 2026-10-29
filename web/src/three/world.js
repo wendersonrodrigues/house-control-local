@@ -61,7 +61,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   // every draw and the whole stage renders black. The bundled demo plans have 11 lamps, so
   // this only shows up on a real floor plan. Give the most important lamps the shadow slots
   // and let the rest light the room without casting.
-  const SHADOW_PRIORITY = { ceiling: 0, pendant: 1, floor: 2, spots: 3, table: 4, strip: 9 };
+  const SHADOW_PRIORITY = { ceiling: 0, flood: 0, pendant: 1, floor: 2, spots: 3, table: 4, strip: 9 };
   const canShadow = (unit) => unit.lights.some((l) => l.userData.canShadow);
   const shadowCap = Math.max(1, Math.min(8, renderer.capabilities.maxTextures - 6));
   const ranked = [...lights.values()].sort((a, b) =>

@@ -48,15 +48,16 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   const aiBadge = h('button.ai-badge', { hidden: true, title: 'Um assistente de IA tem acesso — clique para gerenciar', 'aria-label': 'Acesso por IA',
     onclick: () => onMenu(aiBadge, 'agent') }, icon('sparkles', 13, 2.2), h('span', 'AI'));
 
+  // In a room these switch its lights; for the whole home the shortcuts above already do.
+  const bulkOn = h('button.pill', { onclick: () => bulk(true) }, 'Acender todas');
+  const bulkOff = h('button.pill', { onclick: () => bulk(false) }, 'Apagar todas');
   const scenes = h('div.scenes');
   const rooms = h('div.rooms');
   const listTitle = h('span.title');
   const grid = h('div.grid');
   const panel = h('section.panel',
     scenes, rooms,
-    h('div.list-head', listTitle,
-      h('button.pill', { onclick: () => bulk(true) }, 'Acender todas'),
-      h('button.pill', { onclick: () => bulk(false) }, 'Apagar todas')),
+    h('div.list-head', listTitle, bulkOn, bulkOff),
     h('div.devices', grid));
   const sheet = h('section.sheet.hidden');
   sheet.inert = true;
@@ -68,7 +69,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     h('div.stage', canvas),
     h('div.tint'),
     h('header.top',
-      h('div.home', h('div.home-badge', icon('home', 17)),
+      h('div.home', h('button.home-badge', { title: 'Início', 'aria-label': 'Voltar ao início', onclick: goHome }, icon('home', 17)),
         h('div', h('div.home-name', config.name), homeSub)),
       aiBadge, gear, power),
     tooltip, panel, sheet, toastEl);
@@ -109,6 +110,15 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
     roomButtons.set(r.id, { b, count });
     rooms.append(b);
+  }
+
+  /** The house icon: back to the start, whatever is open. */
+  function goHome() {
+    haptic('light');
+    closeSheet();
+    if (ui.room !== 'all') selectRoom('all');
+    else onFocus(null);
+    grid.parentElement.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function selectRoom(id) {
@@ -812,6 +822,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       count.classList.toggle('zero', n === 0 || id === 'all');
     }
 
+    const redundant = ui.room === 'all' && config.shortcuts.length > 0;
+    bulkOn.hidden = redundant;
+    bulkOff.hidden = redundant;
     const scoped = config.lights.filter(inScope);
     const scopedOn = scoped.filter((l) => state.lights[l.id].on).length;
     listTitle.replaceChildren(h('b', ui.room === 'all' ? 'Casa toda' : roomName.get(ui.room)), ` · ${scopedOn} de ${scoped.length} acesas`);

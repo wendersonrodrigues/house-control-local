@@ -151,6 +151,10 @@ Botão direito na casinha → **Editar casa…**
 - Em cada luz, ar, TV e portão, **Testar na prévia** acende/liga ou abre/fecha só na prévia, para conferir posição e
   efeito sem acionar o aparelho real.
 - Fita de LED em L: preencha **Segundo lado do L** e escolha para que lado ela vira.
+- Em **Aparência na maquete**: a intensidade com que cada luz aparece na maquete (só visual), luz de teto redonda ou
+  quadrada, quantos spots (1 a 4) e a distância entre eles, e o **Holofote**, um foco na parede que aponta para uma
+  direção (pela rotação). Para spots em lugares diferentes ligados ao mesmo interruptor, adicione outra luz com a
+  mesma entidade.
 - **Salvar e aplicar** grava a planta e recarrega o painel.
 
 O app já vem com **Casa**: a planta real desta casa (13 cômodos, com garagem, quintal e corredor externo), portas,

@@ -187,6 +187,9 @@ html.native .card { width: auto; height: auto; box-shadow:
   border: 1px solid var(--line);
   color: #cfe0ff;
 }
+.home-badge { pointer-events: auto; cursor: pointer; transition: background 200ms, transform 260ms var(--spring); }
+@media (hover: hover) { .home-badge:hover { background: rgba(255, 255, 255, 0.18); } }
+.home-badge:active { transform: scale(0.9); }
 .home-name { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
 .home-sub { margin-top: 1px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .home-sub b { color: var(--text); font-weight: 600; }

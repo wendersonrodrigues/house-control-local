@@ -65,11 +65,15 @@ function point(intensity, y, { shadow = true, distance = 0, x = 0, z = 0 } = {})
 
 // Each fixture: { parts: Mesh[], glow: Mesh[] (emissive when on), lights: Light[], hit: [w, h, d, y] }
 const fixtures = {
+  // Round, or square (`shape: "square"`, a panel like the ones in the lighting plan).
   ceiling(cfg, H) {
     const y = cfg.y ?? H - 0.14;
+    const disc = cfg.shape === 'square'
+      ? box(0.5, 0.05, 0.5, glowMaterial(), { r: 0.012 })
+      : cyl(0.27, 0.27, 0.055, glowMaterial(), 40);
     return {
       parts: [at(cyl(0.012, 0.012, H - y - 0.05, mat(DARK), 8), 0, y + 0.05, 0)],
-      glow: [at(cyl(0.27, 0.27, 0.055, glowMaterial(), 40), 0, y, 0)],
+      glow: [at(disc, 0, y, 0)],
       lights: [spot(cfg.intensity ?? 20, y - 0.02)],
       hit: [0.75, 0.5, 0.75, y],
     };
@@ -90,14 +94,30 @@ const fixtures = {
     };
   },
 
+  // A row of `count` heads (1 to 4, three by default), `spacing` metres apart. Close
+  // together they hang from one rail; spread out, each is set into the ceiling on its own
+  // and lights its own patch.
   spots(cfg, H) {
     const y = cfg.y ?? H - 0.16;
-    const glow = [-0.32, 0, 0.32].map((x) => at(cyl(0.055, 0.045, 0.1, glowMaterial(), 20), x, y - 0.06, 0));
+    const n = Math.max(1, Math.min(4, Math.round(cfg.count ?? 3)));
+    const gap = Math.max(0.15, cfg.spacing ?? 0.32);
+    const xs = Array.from({ length: n }, (_, i) => (i - (n - 1) / 2) * gap);
+    const glow = xs.map((x) => at(cyl(0.055, 0.045, 0.1, glowMaterial(), 20), x, y - 0.06, 0));
+    const railed = gap <= 0.45 && n > 1;
+    const span = (n - 1) * gap;
+    const lights = railed || n === 1 ? [spot(cfg.intensity ?? 20, y - 0.08)]
+      : xs.map((x, i) => {
+        const l = spot((cfg.intensity ?? 20) / n * 1.4, y - 0.08);
+        l.position.x = x;
+        l.target.position.x = x;
+        if (i > 0) { l.castShadow = false; l.userData.canShadow = false; } // one shadow per fixture is plenty
+        return l;
+      });
     return {
-      parts: [at(box(0.95, 0.03, 0.05, mat(DARK, { rough: 0.5 }), { r: 0.01 }), 0, y + 0.05, 0)],
+      parts: railed ? [at(box(span + 0.31, 0.03, 0.05, mat(DARK, { rough: 0.5 }), { r: 0.01 }), 0, y + 0.05, 0)] : [],
       glow,
-      lights: [spot(cfg.intensity ?? 20, y - 0.08)],
-      hit: [1.1, 0.45, 0.5, y],
+      lights,
+      hit: [span + 0.5, 0.45, 0.5, y],
     };
   },
 
@@ -129,6 +149,27 @@ const fixtures = {
 
   // A straight run along x, centred on `pos`; with `corner` (metres) it turns 90° at its east
   // end into a second run, towards +z ("right", as seen walking along it) or -z ("left").
+  // A floodlight on a wall, aimed along its front (+z, rotated by `rot`): a strong,
+  // narrow beam down a corridor or across a yard instead of a pool of light below it.
+  flood(cfg) {
+    const y = cfg.y ?? 2.4;
+    const beam = spot(cfg.intensity ?? 70, y);
+    beam.angle = 0.5;
+    beam.penumbra = 0.45;
+    beam.distance = 22;
+    beam.decay = 1.4;
+    beam.target.position.set(0, 0.2, 7);
+    beam.position.z = 0.12;
+    const head = at(box(0.26, 0.17, 0.12, mat(DARK, { rough: 0.45, metal: 0.4 }), { r: 0.02 }), 0, y, 0.11);
+    const face = at(box(0.21, 0.12, 0.012, glowMaterial(), { r: 0.006 }), 0, y, 0.172);
+    return {
+      parts: [at(box(0.06, 0.06, 0.12, mat(DARK, { rough: 0.5 }), { r: 0.01 }), 0, y - 0.03, 0.02), head],
+      glow: [face],
+      lights: [beam],
+      hit: [0.5, 0.5, 0.5, y],
+    };
+  },
+
   strip(cfg) {
     const y = cfg.y ?? 1;
     const length = cfg.length ?? 1;
@@ -251,8 +292,10 @@ export class LightUnit {
 
   write() {
     const out = Math.pow(this.level, 1.5);
+    // `power`: how strong it looks on the model only (1 = as drawn); the lamp is not affected.
+    const power = Math.max(0.1, Math.min(4, this.cfg.power ?? 1));
     for (const l of this.lights) {
-      l.intensity = l.userData.max * out;
+      l.intensity = l.userData.max * out * power;
       l.color.copy(this.color);
     }
     // Lamp bodies stay faintly readable when off and hot enough to bloom when on.
