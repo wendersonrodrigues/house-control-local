@@ -40,7 +40,9 @@ A interface está em português do Brasil. A documentação original, em inglês
 - **Em casa ou fora.** Usa o endereço local do Home Assistant e, se ele não responder, passa sozinho para o externo.
   Quando o local volta a responder, ele volta para o local.
 - **Dia e noite.** A maquete clareia de dia e escurece à noite conforme a altura real do sol (`sun.sun` do Home
-  Assistant); sem conexão, segue o relógio.
+  Assistant); sem conexão, segue o relógio. De dia, o sol ilumina só as áreas marcadas como **Área externa** (quintal,
+  corredor aberto): os cômodos internos têm um teto invisível e ficam na penumbra de uma casa coberta, com o sol
+  entrando pelas janelas e as lâmpadas aparecendo.
 - **Funciona sem nada conectado.** Até você conectar o Home Assistant, tudo é simulado.
 
 Por dentro, é um app nativo pequeno em Swift (AppKit) em volta de uma interface web em [Three.js](https://threejs.org).

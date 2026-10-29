@@ -133,14 +133,20 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     d = clamp(d, 0, 1);
     if (Math.abs(d - daylight) < 0.005) return;
     daylight = d;
+    // The sky lights everything alike (no shadows), so it stays low: the daylight is the sun,
+    // which the roofs over the indoor rooms keep out (house.js).
     sky.color.copy(NIGHT.sky).lerp(DAY.sky, d);
     sky.groundColor.copy(NIGHT.ground).lerp(DAY.ground, d);
-    sky.intensity = 0.42 + d * 1.1;
+    sky.intensity = 0.42 + d * 0.22;
     moon.color.copy(NIGHT.sun).lerp(DAY.sun, d);
-    moon.intensity = 0.6 + d * 2.1;
+    moon.intensity = 0.6 + d * 3.6;
+    // Lower by day than the moon, so the sun slants in through the windows.
+    moon.position.copy(center).add(v.set(camDir.x * (3.2 + d * 4) + 1.5 + d * 1.5, 10 - d * 2, camDir.z * (3.2 + d * 4) - 1.5 - d * 1.5));
     scene.background.copy(NIGHT.bg).lerp(DAY.bg, d);
     renderer.toneMappingExposure = 1.05 - d * 0.1;
     bloom.strength = 0.34 - d * 0.2; // lamps glow less in the sun
+    // The roofs keep out the sun, not the moonlight the model is read by at night.
+    for (const roof of house.roofs) roof.castShadow = d > 0.02;
     shadowFrames = Math.max(shadowFrames, 1);
     wake();
   }

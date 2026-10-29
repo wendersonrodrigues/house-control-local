@@ -112,6 +112,20 @@ export function buildHouse(config, camDir) {
     return m;
   };
 
+  // A roof nobody sees over every indoor room: it keeps the sun out, so by day only the
+  // outdoor areas (yard, open corridor) are in daylight and the house stays as dim as a
+  // covered one, lit by its lamps and by the sun coming in through its windows.
+  const roofs = [];
+  for (const room of config.rooms) {
+    if (room.outdoor) continue;
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(room.w + INT_T, 0.05, room.d + INT_T), blocker);
+    roof.position.set(room.x + room.w / 2, H + 0.025, room.z + room.d / 2);
+    roof.castShadow = true;
+    roof.receiveShadow = false;
+    roofs.push(roof);
+    group.add(roof);
+  }
+
   for (const s of wallSegments(config)) {
     const exterior = s.kind === 'exterior';
     const t = exterior ? EXT_T : INT_T;
@@ -128,6 +142,9 @@ export function buildHouse(config, camDir) {
     const lowFacade = near && s.facade;
     if (near && !lowFacade) {
       if (type !== 'door') piece(s, a, b, 0, CURB, t);
+      // Cut away for the camera, but still a wall to the sun; a window lets it in.
+      const hide = (y0, y1) => { if (y1 > y0) piece(s, a, b, y0, y1, 0.04, blocker).receiveShadow = false; };
+      if (type === 'window') { hide(CURB, s.opening.sill); hide(s.opening.head, H); } else hide(CURB, H);
       continue;
     }
     if (type === 'door' || type === 'open') continue;
@@ -159,5 +176,5 @@ export function buildHouse(config, camDir) {
     if ((!exterior || lowFacade) && height < H) piece(s, a, b, height, H, 0.04, blocker).receiveShadow = false;
   }
 
-  return { group, floors };
+  return { group, floors, roofs };
 }
