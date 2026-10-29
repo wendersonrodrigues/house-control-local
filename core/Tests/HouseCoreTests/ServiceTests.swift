@@ -371,30 +371,39 @@ final class ServiceTests: XCTestCase {
         XCTAssertNotNil(sun)
 
         let gate = "cover.portao_garagem", toggle = "input_boolean.vigilancia_da_sala", lamp = "light.quintal"
-        try await service.send(kind: .gate, id: gate, patch: ["action": "open"], state: [:])
+        // The lab gate takes 8 s from end to end and reports only the ends, like a real one.
+        func gateReaches(_ end: String) async throws -> Bool {
+            for _ in 0..<30 {
+                if try await service.read([gate])[gate]?.gate == end { return true }
+                try await Task.sleep(nanoseconds: 500_000_000)
+            }
+            return false
+        }
+        if try await !gateReaches("closed") { try await service.send(kind: .gate, id: gate, patch: ["action": "close"], state: [:]) }
+        var reached = try await gateReaches("closed")
+        XCTAssertTrue(reached)
+
+        // One press of the gate's button (cover.toggle) opens it, the next one closes it.
+        try await service.send(kind: .gate, id: gate, patch: ["action": "toggle"], state: [:])
         try await service.send(kind: .toggle, id: toggle, patch: ["on": true], state: [:])
         try await service.send(kind: .shortcut, id: "script.ligar_luzes_externas", patch: ["run": true], state: [:])
         try await Task.sleep(nanoseconds: 500_000_000)
         var now = try await service.read([gate, toggle, lamp])
-        XCTAssertEqual(now[gate]?.gate, "open")
+        XCTAssertEqual(now[gate]?.gate, "closed", "it reports the end it left until it reaches the other")
         XCTAssertEqual(now[toggle]?.toggle, true)
         XCTAssertEqual(now[lamp]?.light?["on"] as? Bool, true)
+        reached = try await gateReaches("open")
+        XCTAssertTrue(reached)
 
-        try await service.send(kind: .gate, id: gate, patch: ["action": "close"], state: [:])
-        // One press of the gate's button: cover.toggle, which goes the other way.
-        try await Task.sleep(nanoseconds: 300_000_000)
-        try await service.send(kind: .gate, id: gate, patch: ["action": "toggle"], state: [:])
-        try await Task.sleep(nanoseconds: 400_000_000)
-        let toggled = try await service.read([gate])[gate]?.gate
-        XCTAssertEqual(toggled, "open")
         try await service.send(kind: .gate, id: gate, patch: ["action": "toggle"], state: [:])
         try await service.send(kind: .toggle, id: toggle, patch: ["on": false], state: [:])
         try await service.send(kind: .shortcut, id: "script.apagar_luzes_externas", patch: ["run": true], state: [:])
         try await Task.sleep(nanoseconds: 500_000_000)
-        now = try await service.read([gate, toggle, lamp])
-        XCTAssertEqual(now[gate]?.gate, "closed")
+        now = try await service.read([toggle, lamp])
         XCTAssertEqual(now[toggle]?.toggle, false)
         XCTAssertEqual(now[lamp]?.light?["on"] as? Bool, false)
+        reached = try await gateReaches("closed")
+        XCTAssertTrue(reached)
     }
 
     /// A TV on the lab server: the demo's "Lounge room" is a media_player with inputs.

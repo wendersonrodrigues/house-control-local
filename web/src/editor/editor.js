@@ -233,6 +233,30 @@ export async function bootEditor(root) {
     return preview;
   }
 
+  // How long the gate takes from end to end: learned by the app from full runs (Home
+  // Assistant's "open" / "closed" mark the ends), or typed in.
+  function gateTravelSection(item) {
+    let measured = null;
+    try {
+      const saved = JSON.parse(localStorage.getItem('house-control:state:v1') || 'null');
+      const g = saved?.gates?.[item.id];
+      if (g?.samples?.length) measured = { avg: g.samples.reduce((a, b) => a + b, 0) / g.samples.length, n: g.samples.length };
+    } catch { /* nothing measured here */ }
+    const auto = item.travelMode !== 'manual';
+    return section('Tempo de abertura',
+      bind('Como saber', choice([['auto', 'Detectar automaticamente'], ['manual', 'Manual']]), {
+        get: () => (auto ? 'auto' : 'manual'),
+        set: (v) => { if (v === 'manual') item.travelMode = 'manual'; else delete item.travelMode; },
+        event: 'change',
+      }),
+      bind(auto ? 'Até medir, usar (s)' : 'Segundos para abrir por completo', number(1), { ...prop(item, 'travel', 14), parse: parseNum }),
+      h('p.note', auto
+        ? (measured
+          ? `Medido: ${Math.round(measured.avg)} s, média de ${measured.n} ${measured.n === 1 ? 'abertura ou fechamento completo' : 'aberturas e fechamentos completos'}. A média segue as últimas ${6} medições.`
+          : 'Ainda sem medição. Abra ou feche o portão por completo pelo app: quando o Home Assistant disser “aberto” ou “fechado”, o app mede quanto levou. Até lá vale o valor acima.')
+        : 'O app usa esse tempo para mostrar onde o portão está e onde parou. Não precisa ser exato.'));
+  }
+
   /** Switches one item in the preview only: nothing is sent to the real device. */
   function testItem(kind, id, patch) {
     tests.set(id, { ...(tests.get(id) || {}), ...patch });
@@ -868,10 +892,10 @@ export async function bootEditor(root) {
         item.from && item.to ? [
           row(bind('De X', number(), { ...at(item, 'from', 0), parse: parseNum }), bind('De Z', number(), { ...at(item, 'from', 1), parse: parseNum })),
           row(bind('Até X', number(), { ...at(item, 'to', 0), parse: parseNum }), bind('Até Z', number(), { ...at(item, 'to', 1), parse: parseNum })),
-          row(bind('Desliza para', choice([['to', 'O lado do “Até”'], ['from', 'O lado do “De”']]), { ...prop(item, 'slide', 'to'), event: 'change' }),
-            bind('Tempo de abertura, s', number(1), { ...prop(item, 'travel', 14), parse: parseNum })),
+          bind('Desliza para', choice([['to', 'O lado do “Até”'], ['from', 'O lado do “De”']]), { ...prop(item, 'slide', 'to'), event: 'change' }),
           h('p.note', 'Os dois pontos ficam na parede, nas pontas da abertura do portão. Na maquete ele desliza pelo lado de fora, com uma luz âmbar piscando enquanto se move.'),
         ] : null) : null,
+      kind === 'gate' ? gateTravelSection(item) : null,
       kind === 'gate' && item.from && item.to ? testSection('gate', item) : null,
       links.deviceSection(item, kind, linkHooks));
     }

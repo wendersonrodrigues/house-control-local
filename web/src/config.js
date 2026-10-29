@@ -131,6 +131,7 @@ export function normalize(raw) {
     g.slide = g.slide === 'from' ? 'from' : 'to';
     g.height = g.height ?? 2.2;
     g.travel = g.travel ?? 14;
+    g.travelMode = g.travelMode === 'manual' ? 'manual' : 'auto';
   }
   // TVs stand in a room like a lamp, as the furniture piece "tv" with a screen that lights up.
   const tvs = (raw.tvs || []).map((t) => {

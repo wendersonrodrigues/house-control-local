@@ -51,7 +51,7 @@ export function createStore(config) {
       for (const [id, g] of Object.entries(saved.gates || {})) {
         if (!state.gates[id]) continue;
         // A gate that was moving when the app closed is shown where it was last seen.
-        const { motion, timer, ...rest } = g;
+        const { motion, timer, run, ...rest } = g;
         Object.assign(state.gates[id], rest);
         if (motion) Object.assign(state.gates[id], settle(rest.position ?? 0));
       }
@@ -154,7 +154,23 @@ export function createStore(config) {
   }
 
   // ---- the gate's one-button model ----
-  const travelMs = (cfg) => Math.max(1, cfg?.travel ?? 14) * 1000;
+  // The time a full run takes: typed in (travelMode "manual"), or learned from the gate itself
+  // ("auto"): how long full openings and closings started here took until Home Assistant
+  // said "open" / "closed", averaged over the last few. Until it has one, the typed value.
+  const MAX_SAMPLES = 6;
+  function travelSeconds(cur, cfg) {
+    const typed = cfg?.travel ?? 14;
+    if (cfg?.travelMode === 'manual' || !cur?.samples?.length) return typed;
+    return cur.samples.reduce((a, b) => a + b, 0) / cur.samples.length;
+  }
+  const travelOf = (id) => travelSeconds(state.gates[id], gateCfg.get(id));
+  const travelMs = (cfg, cur = state.gates[cfg?.id]) => Math.max(1, travelSeconds(cur, cfg)) * 1000;
+  function learn(id, seconds) {
+    const cur = state.gates[id];
+    if (!(seconds >= 3 && seconds <= 180)) return; // a missed report, not a run
+    cur.samples = [...(cur.samples || []), Math.round(seconds * 10) / 10].slice(-MAX_SAMPLES);
+    cur.travel = travelOf(id);
+  }
   function gatePos(cur, cfg) {
     if (!cur) return 0;
     if (!cur.motion) return cur.position ?? 0;
@@ -173,12 +189,15 @@ export function createStore(config) {
   function settle(p) {
     return { position: p, motion: null, state: p >= 0.99 ? 'open' : p <= 0.01 ? 'closed' : 'stopped' };
   }
-  function moveGate(id, dir, from) {
+  function moveGate(id, dir, from, own = false) {
     const cur = state.gates[id];
     const cfg = gateCfg.get(id);
     const p = from ?? gatePos(cur, cfg);
     clearTimeout(cur.timer);
-    writeGate(id, { state: dir === 'open' ? 'opening' : 'closing', dir, position: p, motion: { dir, from: p, start: Date.now() } });
+    writeGate(id, { state: dir === 'open' ? 'opening' : 'closing', dir, position: p, travel: travelOf(id),
+      motion: { dir, from: p, start: Date.now(), full: p <= 0.01 || p >= 0.99, own: Boolean(own) } });
+    // Kept after the run ends here: Home Assistant's "open" / "closed" may come later.
+    cur.run = cur.motion;
     emit({ type: 'gate', id });
     const left = (dir === 'open' ? 1 - p : p) * travelMs(cfg);
     cur.timer = setTimeout(() => { writeGate(id, settle(dir === 'open' ? 1 : 0)); emit({ type: 'gate', id }); }, left);
@@ -186,37 +205,46 @@ export function createStore(config) {
   function stopGate(id) {
     const cur = state.gates[id];
     clearTimeout(cur.timer);
+    cur.run = null; // stopped part way: not a full run
     writeGate(id, settle(gatePos(cur, gateCfg.get(id))));
     emit({ type: 'gate', id });
   }
 
-  // What Home Assistant says corrects the estimate. A reed switch that reports "closed" is
-  // the truth; "open" only says it is not shut, so it starts an opening only when this app
-  // thinks the gate is closed and has not just been closed (someone used the remote).
+  // What Home Assistant says corrects the estimate. Its "open" and "closed" come from the
+  // sensors at each end, so they are the truth, but only when they change: halfway it still
+  // shows the last end it reached. Reaching an end after a full run started here is also a
+  // measurement of how long the gate takes (see travelSeconds).
   function reconcileGate(id, g) {
     const cur = state.gates[id];
-    const cfg = gateCfg.get(id);
     let any = false;
     if ('online' in g && cur.online !== g.online) { cur.online = g.online; any = true; }
     if (g.online === false || !g.state) return any;
-    if (Date.now() - (cur.pressed || 0) < 4000) return any; // the press is still on its way
-    if (typeof g.position === 'number') {
+    const before = cur.ha;
+    cur.ha = g.state;
+    // A position in between is a real reading. 0 or 100 often is not: a template cover
+    // derives it from its state, so it says 0 all the way until the gate reaches the end.
+    if (typeof g.position === 'number' && g.position > 0.01 && g.position < 0.99) {
       if (g.state === 'opening' || g.state === 'closing') {
         const dir = g.state === 'opening' ? 'open' : 'close';
         if (cur.motion?.dir !== dir) { moveGate(id, dir, g.position); return true; }
         return any;
       }
-      if (cur.motion || Math.abs((cur.position ?? 0) - g.position) > 0.01) { writeGate(id, settle(g.position)); return true; }
+      if (cur.motion || Math.abs((cur.position ?? 0) - g.position) > 0.01) { clearTimeout(cur.timer); writeGate(id, settle(g.position)); return true; }
       return any;
     }
-    const p = gatePos(cur, cfg);
-    if (g.state === 'closed' && (cur.motion || p > 0.01)) { clearTimeout(cur.timer); writeGate(id, settle(0)); return true; }
+    if (before === g.state) return any;
+    if (before === undefined && cur.motion) return any; // first look while moving: wait for the end
+    if (g.state === 'open' || g.state === 'closed') {
+      const m = cur.motion || cur.run;
+      const end = g.state === 'open' ? 'open' : 'close';
+      if (m && m.own && m.full && m.dir === end && Date.now() - m.start < 180000) learn(id, (Date.now() - m.start) / 1000);
+      cur.run = null;
+      clearTimeout(cur.timer);
+      writeGate(id, { ...settle(g.state === 'open' ? 1 : 0), dir: end, travel: travelOf(id) });
+      return true;
+    }
     if (g.state === 'opening' && cur.motion?.dir !== 'open') { moveGate(id, 'open'); return true; }
     if (g.state === 'closing' && cur.motion?.dir !== 'close') { moveGate(id, 'close'); return true; }
-    if (g.state === 'open' && !cur.motion && p <= 0.01) {
-      const justClosed = cur.dir === 'close' && Date.now() - (cur.since || 0) < travelMs(cfg) + 20000;
-      if (!justClosed) { moveGate(id, 'open'); return true; }
-    }
     return any;
   }
 
@@ -360,6 +388,14 @@ export function createStore(config) {
     /** Where the gate is now, 0 closed … 1 open, counting the travel in progress. */
     gatePosition(id) { return gatePos(state.gates[id], gateCfg.get(id)); },
 
+    /** The full-run time in use, and how it was found: { seconds, measured, samples }. */
+    gateTravel(id) {
+      const cur = state.gates[id];
+      const cfg = gateCfg.get(id);
+      const measured = cfg?.travelMode !== 'manual' && Boolean(cur?.samples?.length);
+      return { seconds: travelSeconds(cur, cfg), measured, samples: cur?.samples?.length || 0, mode: cfg?.travelMode || 'auto' };
+    },
+
     /** What one press would do now: "open", "close" or "stop". */
     gateNext(id) { return gateNext(state.gates[id]); },
 
@@ -372,7 +408,7 @@ export function createStore(config) {
       const next = gateNext(cur);
       const before = { ...cur };
       cur.pressed = Date.now();
-      if (next === 'stop') stopGate(id); else moveGate(id, next);
+      if (next === 'stop') stopGate(id); else moveGate(id, next, undefined, true);
       order('gate', id, { action: 'toggle' }).catch((error) => {
         clearTimeout(cur.timer);
         Object.assign(cur, before, { motion: before.motion });

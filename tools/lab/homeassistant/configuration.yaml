@@ -125,10 +125,17 @@ template:
         unique_id: lab_cover_portao
         device_class: garage
         state: "{{ 'open' if is_state('input_boolean.lab_portao', 'on') else 'closed' }}"
-        open_cover: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_portao } }
-        close_cover: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_portao } }
+        # Like a real gate: it takes 8 s from end to end and reports only the ends it reaches.
+        open_cover: { action: script.turn_on, target: { entity_id: script.lab_portao_abrir } }
+        close_cover: { action: script.turn_on, target: { entity_id: script.lab_portao_fechar } }
 
 script:
+  lab_portao_abrir:
+    mode: restart
+    sequence: [{ delay: { seconds: 8 } }, { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_portao } }]
+  lab_portao_fechar:
+    mode: restart
+    sequence: [{ delay: { seconds: 8 } }, { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_portao } }]
   apagar_todas_as_luzes:
     alias: Apagar todas as luzes
     sequence: [{ action: light.turn_off, target: { entity_id: all } }]

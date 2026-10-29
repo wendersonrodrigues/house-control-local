@@ -332,6 +332,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const label = h('span');
     const button = gateButton(id, () => update());
     const main = h('button.gate-main', { onclick: () => button.press() }, label);
+    const travelNote = () => {
+      const t = store.gateTravel(id);
+      return `${g().state === 'open' ? 'fecha' : 'abre'} em ~${Math.round(t.seconds)} s${t.measured ? ' (medido)' : t.mode === 'auto' ? ' (ainda sem medição)' : ''}`;
+    };
     let shownIcon = null;
     function update() {
       const s = g();
@@ -345,7 +349,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       since.textContent = s.online === false ? 'O Home Assistant não está recebendo o estado do portão.'
         : s.motion ? 'Em movimento · um toque para parar'
           : s.state === 'stopped' ? `Parou no meio do caminho · o próximo toque ${next === 'open' ? 'abre' : 'fecha'}`
-            : s.since ? `${GATE_TEXT[s.state]} desde ${clock(s.since)}` : '';
+            : [s.since ? `${GATE_TEXT[s.state]} desde ${clock(s.since)}` : null, travelNote()].filter(Boolean).join(' · ');
       bar.firstChild.style.width = pct(pos);
       bar.dataset.label = `${pct(pos)} aberto`;
       main.classList.toggle('armed', button.armed);

@@ -125,8 +125,10 @@ export class GateUnit {
   // worked out it stopped (store.js: one press stops it part way).
   apply(state, { instant = false } = {}) {
     const m = state?.motion;
+    // The time a full run takes: measured by the app (store.js) or as the plan says.
+    this.travel = Math.max(1, state?.travel ?? this.cfg.travel);
     if (m) {
-      const t = (Date.now() - m.start) / (Math.max(1, this.cfg.travel) * 1000);
+      const t = (Date.now() - m.start) / (this.travel * 1000);
       const now = Math.min(1, Math.max(0, m.from + (m.dir === 'open' ? t : -t)));
       if (instant || Math.abs(now - this.open) > 0.08) this.open = now;
       this.goal = m.dir === 'open' ? 1 : 0;
@@ -144,7 +146,7 @@ export class GateUnit {
     this.hover += (this.hoverGoal - this.hover) * (1 - Math.exp(-dt * 14));
     // Travels at the real gate's pace, however its state arrives (a cover that jumps from
     // closed to open still slides across).
-    const step = dt / Math.max(1, this.cfg.travel);
+    const step = dt / (this.travel || Math.max(1, this.cfg.travel));
     const diff = this.goal - this.open;
     this.open = Math.abs(diff) <= step ? this.goal : this.open + Math.sign(diff) * step;
     this.leaf.position.x = this.slideLocal * this.open * this.length;

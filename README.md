@@ -30,6 +30,9 @@ A interface está em português do Brasil. A documentação original, em inglês
   toque vai no sentido contrário; aberto, fecha; fechado, abre (é o `cover.toggle` do Home Assistant). O app mostra
   onde ele parou (“Parado · 40% aberto”). Pôr o portão em movimento pede **dois toques**: o primeiro arma o botão e
   o segundo, em até 3,5 segundos, confirma. Parar é um toque só.
+  O tempo de abertura pode ser **detectado automaticamente** (padrão): a cada abertura ou fechamento completo feito pelo
+  app, ele mede quanto levou até o Home Assistant dizer “aberto” ou “fechado” e usa a média das últimas medições. Ou
+  pode ser **manual**, digitado no editor (Portões → Portão → Tempo de abertura).
   Na maquete, o portão de correr desliza pela parede da garagem, com uma luz âmbar piscando enquanto se move.
   Tocar no portão abre a tela dele: estado, desde quando, quanto está aberto e a câmera aproximada na garagem.
 - **TV.** Liga/desliga, volume, mudo, entrada (HDMI, apps) e reprodução, conforme o que a TV aceita no Home
