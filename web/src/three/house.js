@@ -20,10 +20,11 @@ function wallSegments(config) {
   };
 
   for (const r of config.rooms) {
-    line('x', r.z).edges.push({ a: r.x, b: r.x + r.w, inside: 1 });
-    line('x', r.z + r.d).edges.push({ a: r.x, b: r.x + r.w, inside: -1 });
-    line('z', r.x).edges.push({ a: r.z, b: r.z + r.d, inside: 1 });
-    line('z', r.x + r.w).edges.push({ a: r.z, b: r.z + r.d, inside: -1 });
+    const outdoor = Boolean(r.outdoor);
+    line('x', r.z).edges.push({ a: r.x, b: r.x + r.w, inside: 1, outdoor });
+    line('x', r.z + r.d).edges.push({ a: r.x, b: r.x + r.w, inside: -1, outdoor });
+    line('z', r.x).edges.push({ a: r.z, b: r.z + r.d, inside: 1, outdoor });
+    line('z', r.x + r.w).edges.push({ a: r.z, b: r.z + r.d, inside: -1, outdoor });
   }
   for (const o of config.openings) {
     const alongX = o.from[1] === o.to[1];
@@ -43,14 +44,19 @@ function wallSegments(config) {
       const mid = (pts[i] + pts[i + 1]) / 2;
       const covering = l.edges.filter((e) => e.a < mid && mid < e.b);
       if (!covering.length) continue;
+      // Between a room and an outdoor area (a yard, an open-air corridor) the wall is the
+      // house's outside wall: full height, with real windows, facing the outdoor side.
+      const indoor = covering.filter((e) => !e.outdoor);
+      const facade = covering.length > 1 && indoor.length === 1;
       const seg = {
         axis: l.axis, c: l.c, a: pts[i], b: pts[i + 1],
-        kind: covering.length > 1 ? 'interior' : 'exterior',
-        inside: covering[0].inside,
+        kind: covering.length > 1 && !facade ? 'interior' : 'exterior',
+        inside: (facade ? indoor[0] : covering[0]).inside,
+        facade,
         opening: l.openings.find((o) => o.a < mid && mid < o.b) || null,
       };
       const prev = run[run.length - 1];
-      if (prev && Math.abs(prev.b - seg.a) < EPS && prev.kind === seg.kind
+      if (prev && Math.abs(prev.b - seg.a) < EPS && prev.kind === seg.kind && prev.facade === seg.facade
         && prev.inside === seg.inside && prev.opening === seg.opening) prev.b = seg.b;
       else run.push(seg);
     }
@@ -117,23 +123,32 @@ export function buildHouse(config, camDir) {
     const b = s.b + (s.freeB ? EXT_T / 2 : 0);
     const type = s.opening?.type;
 
-    if (near) {
+    // A camera-side wall that faces a yard or an open corridor, not the edge of the model:
+    // kept at the inner walls' height, so its windows still read as windows.
+    const lowFacade = near && s.facade;
+    if (near && !lowFacade) {
       if (type !== 'door') piece(s, a, b, 0, CURB, t);
       continue;
     }
     if (type === 'door' || type === 'open') continue;
 
-    const height = exterior ? H : Hi;
+    const height = exterior && !lowFacade ? H : Hi;
     if (type === 'window' && exterior) {
-      const { sill, head } = s.opening;
+      const { head } = s.opening;
+      // A high window (a bathroom's) above the cut still shows its lower part.
+      const sill = lowFacade ? Math.min(s.opening.sill, height - 0.4) : s.opening.sill;
+      const top = Math.min(head, height);
+      if (sill >= top) { piece(s, a, b, 0, height, t); continue; } // above the cut: plain wall
       piece(s, a, b, 0, sill, t);
-      piece(s, a, b, Math.min(head, H), H, t);
-      const pane = piece(s, a, b, sill, head, 0.03, glass);
+      if (top < height) piece(s, a, b, top, height, t);
+      const pane = piece(s, a, b, sill, top, 0.03, glass);
       pane.castShadow = false;
       const fw = 0.05;
-      const bars = [[a, a + fw, sill, head], [b - fw, b, sill, head], [a, b, sill, sill + fw], [a, b, head - fw, head]];
-      if (b - a > 1.2) bars.push([(a + b) / 2 - fw / 2, (a + b) / 2 + fw / 2, sill, head]);
+      const bars = [[a, a + fw, sill, top], [b - fw, b, sill, top], [a, b, sill, sill + fw]];
+      bars.push([a, b, top - fw, top]); // the head, or the cut line of a low facade
+      if (b - a > 1.2) bars.push([(a + b) / 2 - fw / 2, (a + b) / 2 + fw / 2, sill, top]);
       for (const [fa, fb, y0, y1] of bars) piece(s, fa, fb, y0, y1, 0.07, frame);
+      if (lowFacade && H > height) piece(s, a, b, height, H, 0.04, blocker).receiveShadow = false;
       continue;
     }
     if (type === 'window') continue; // a window in an interior wall is just a gap
@@ -141,7 +156,7 @@ export function buildHouse(config, camDir) {
     piece(s, a, b, 0, height, t);
     // Interior walls are drawn cut low, but lamps should still be contained by the
     // real, full-height wall: an invisible shadow caster fills in the missing part.
-    if (!exterior && Hi < H) piece(s, a, b, Hi, H, 0.04, blocker).receiveShadow = false;
+    if ((!exterior || lowFacade) && height < H) piece(s, a, b, height, H, 0.04, blocker).receiveShadow = false;
   }
 
   return { group, floors };

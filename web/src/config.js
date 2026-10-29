@@ -78,7 +78,7 @@ export function normalize(raw) {
       `O cômodo "${r.id}" precisa de "rect": [x, z, largura, profundidade]`);
     const [x, z, w, d] = r.rect;
     need(w > 0 && d > 0, `O cômodo "${r.id}" tem "rect" vazio`);
-    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak' };
+    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak', outdoor: Boolean(r.outdoor) };
   });
   const roomIds = new Set(rooms.map((r) => r.id));
 

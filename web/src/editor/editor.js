@@ -610,7 +610,9 @@ export async function bootEditor(root) {
       head(item.name || item.id, `id: ${item.id}`);
       nodes.push(section('Cômodo',
         bind('Nome', text(), prop(item, 'name', '')),
-        bind('Piso', choice(named(FLOOR_KINDS)), { ...prop(item, 'floor', 'oak'), event: 'change' })),
+        bind('Piso', choice(named(FLOOR_KINDS)), { ...prop(item, 'floor', 'oak'), event: 'change' }),
+        h('div.checks', bind('Área externa (quintal, corredor aberto)', h('input', { type: 'checkbox' }), {
+          get: () => Boolean(item.outdoor), set: (on) => { if (on) item.outdoor = true; else delete item.outdoor; }, event: 'change' }))),
       section('Posição e tamanho, m',
         row(bind('X', number(0.1), { ...at(item, 'rect', 0), parse: parseNum }), bind('Z', number(0.1), { ...at(item, 'rect', 1), parse: parseNum })),
         row(bind('Largura', number(0.1), { ...at(item, 'rect', 2), parse: parseNum }), bind('Profundidade', number(0.1), { ...at(item, 'rect', 3), parse: parseNum })),
