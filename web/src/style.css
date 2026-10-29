@@ -912,3 +912,21 @@ html.ios .card.relayout .panel:not(.hidden), html.ios .card.relayout .sheet:not(
     animation-duration: 1ms !important; transition-duration: 1ms !important;
   }
 }
+
+/* Organizar o painel. */
+.organize { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.org-title { margin: 14px 2px 4px; font-size: 10.5px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.org-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); }
+.org-row.hidden-item .org-text { opacity: 0.45; }
+.org-text { flex: 1; min-width: 0; }
+.org-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.org-sub { font-size: 11px; color: var(--muted); }
+.org-eye, .org-move { width: 30px; height: 30px; flex: none; border-radius: 10px; display: grid; place-items: center; color: var(--muted); background: rgba(255, 255, 255, 0.06); }
+@media (hover: hover) { .org-eye:hover, .org-move:not(:disabled):hover { background: rgba(255, 255, 255, 0.14); color: var(--text); } }
+.org-move:disabled { opacity: 0.25; }
+.org-row.hidden-item .org-eye { color: #ffb340; }
+.org-foot { display: flex; gap: 8px; justify-content: space-between; margin-top: 18px; }
+.organize-link { grid-column: 1 / -1; justify-self: center; margin: 10px 0 4px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); padding: 6px 12px; border-radius: 12px; }
+@media (hover: hover) { .organize-link:hover { color: var(--text); background: var(--glass); } }
+.org-btn { display: flex; align-items: center; gap: 6px; }
+.org-done { background: linear-gradient(180deg, #5aa2ff, #2f7bf2); color: #fff; border-color: transparent; }

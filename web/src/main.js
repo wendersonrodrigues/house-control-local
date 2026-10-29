@@ -221,6 +221,7 @@ async function boot() {
     }
     if (isNative) {
       items.push('-',
+        { label: 'Organizar o painel…', action: () => panel.organize() },
         { label: 'Editar casa…', action: () => post('openEditor') },
         EDITION.aiAccess ? { label: 'Acesso por IA…', action: () => post('openAgent') } : null,
         { label: 'Carregar planta…', action: () => post('loadPlan') },

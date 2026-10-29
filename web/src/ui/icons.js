@@ -7,7 +7,7 @@ import {
   Undo2, Activity, KeyRound, ArrowUpRight, Camera, Square,
   HouseWifi, Smartphone, Radar, CircleCheck, CircleAlert, ChevronRight, Unlink, LoaderCircle, Router,
   List, Trash2, Scan, Redo2, Map as MapIcon, DoorClosed, Armchair,
-  LightbulbOff, Flashlight, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
+  LightbulbOff, Flashlight, EyeOff, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
 } from 'lucide';
 
 // A sliding gate on its rail against the post it closes on, shut and slid open (drawn for
@@ -41,7 +41,7 @@ const ICONS = {
   next: ChevronRight, unlink: Unlink, spinner: LoaderCircle, bridge: Router, bulb: Lightbulb,
   list: List, trash: Trash2, fit: Scan, redo: Redo2, map: MapIcon, opening: DoorClosed, furniture: Armchair,
   gate: GateClosed, gateOpen: GateOpen, lightsOff: LightbulbOff, outside: Trees, toggle: ToggleRight, automation: Bot,
-  presence: Footprints, eye: Eye, up: ArrowUp, downArrow: ArrowDown,
+  presence: Footprints, eye: Eye, eyeOff: EyeOff, up: ArrowUp, downArrow: ArrowDown,
 };
 
 export function icon(name, size = 18, stroke = 1.8) {

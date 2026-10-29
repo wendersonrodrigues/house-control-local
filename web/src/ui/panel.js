@@ -7,6 +7,7 @@ import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { AC_SWINGS } from '../store.js';
 import { haptic, isPhone } from '../bridge.js';
+import { loadArrangement, saveArrangement, ordered, visible, move } from './arrange.js';
 
 const MODE_LABEL = { cool: 'Gelar', heat: 'Aquecer', dry: 'Desumidificar', fan: 'Ventilar', auto: 'Automático' };
 const FAN_LABEL = { auto: 'Automático', silent: 'Silencioso', low: 'Baixo', medium: 'Médio', high: 'Alto', turbo: 'Máximo' };
@@ -84,7 +85,11 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     sceneButtons.set(s.id, b);
     scenes.append(b);
   }
+  // How this Mac arranges the panel (Organizar): order and hidden items, never the plan.
+  let arr = loadArrangement(config.name);
+
   // Shortcuts (Home Assistant scripts) sit with the scenes: one press runs them.
+  const shortcutButtons = new Map();
   for (const sc of config.shortcuts) {
     const b = h('button.scene.shortcut', { title: sc.name, onclick: async () => {
       if (b.classList.contains('running')) return;
@@ -96,9 +101,14 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       b.classList.add('active');
       setTimeout(() => b.classList.remove('active'), 1200);
     } }, icon(sc.icon, 19), sc.name);
-    scenes.append(b);
+    shortcutButtons.set(sc.id, b);
   }
-  if (!config.scenes.length && !config.shortcuts.length) scenes.style.display = 'none';
+  function renderScenes() {
+    const shown = visible(config.shortcuts, arr, 'shortcuts').map((sc) => shortcutButtons.get(sc.id));
+    scenes.replaceChildren(...sceneButtons.values(), ...shown);
+    scenes.style.display = config.scenes.length || shown.length ? '' : 'none';
+  }
+  renderScenes();
 
   /* ---------- rooms ---------- */
 
@@ -109,8 +119,11 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const count = h('span.count.zero', '0');
     const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
     roomButtons.set(r.id, { b, count });
-    rooms.append(b);
   }
+  function renderRooms() {
+    rooms.replaceChildren(roomButtons.get('all').b, ...visible(withDevices, arr, 'rooms').map((r) => roomButtons.get(r.id).b));
+  }
+  renderRooms();
 
   /** The house icon: back to the start, whatever is open. */
   function goHome() {
@@ -328,6 +341,59 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     return { el, cfg, kind: 'gate', update };
   }
 
+  // Organizar: the order of each group, and what is shown. One step up or down at a time,
+  // an eye to hide or show; nothing is removed from the home.
+  function organizeSheet() {
+    const body = h('div.organize');
+    const changed = () => {
+      saveArrangement(config.name, arr);
+      renderScenes();
+      renderRooms();
+      layoutTiles();
+      const top = sheet.scrollTop;
+      draw();
+      sheet.scrollTop = top;
+    };
+    const rowFor = (group, items, item, label, sub) => {
+      const hidden = arr.hidden.has(item.id);
+      const list = ordered(items, arr, group);
+      const i = list.findIndex((x) => x.id === item.id);
+      return h(`div.org-row${hidden ? '.hidden-item' : ''}`,
+        h('button.org-eye', { 'aria-label': hidden ? `Mostrar ${label}` : `Esconder ${label}`, title: hidden ? 'Mostrar' : 'Esconder',
+          onclick: () => { if (hidden) arr.hidden.delete(item.id); else arr.hidden.add(item.id); haptic('light'); changed(); } },
+        icon(hidden ? 'eyeOff' : 'eye', 15)),
+        h('div.org-text', h('div.org-name', label), sub ? h('div.org-sub', sub) : null),
+        h('button.org-move', { 'aria-label': `Subir ${label}`, disabled: i === 0, onclick: () => { move(arr, group, items, item.id, -1); haptic('tick'); changed(); } }, icon('up', 14, 2.2)),
+        h('button.org-move', { 'aria-label': `Descer ${label}`, disabled: i === list.length - 1, onclick: () => { move(arr, group, items, item.id, 1); haptic('tick'); changed(); } }, icon('downArrow', 14, 2.2)));
+    };
+    const group = (title, key, items, label = (x) => x.name, sub = () => null) => (items.length
+      ? [h('div.org-title', title), ...ordered(items, arr, key).map((x) => rowFor(key, items, x, label(x), sub(x)))] : []);
+    const KIND_NAME = { ac: 'Ar-condicionado', tv: 'TV', light: 'Luz' };
+    function draw() {
+      body.replaceChildren(
+        ...group('Atalhos', 'shortcuts', config.shortcuts),
+        ...group('Cômodos', 'rooms', withDevices),
+        ...group(config.gates.length > 1 ? 'Portões' : 'Portão', 'gates', config.gates),
+        ...visible(withDevices, arr, 'rooms').flatMap((room) => {
+          const devs = roomDevices(room.id).map((t) => t.cfg);
+          const kindOf = new Map(roomDevices(room.id).map((t) => [t.cfg.id, t.kind]));
+          return group(`Dispositivos · ${room.name}`, `room:${room.id}`, devs, (x) => x.name, (x) => KIND_NAME[kindOf.get(x.id)]);
+        }),
+        ...group('Automações', 'toggles', config.toggles));
+    }
+    draw();
+    return {
+      nodes: [
+        sheetHead('Organizar o painel', h('div.sheet-sub', 'Ordem e o que aparece, só neste Mac'), null),
+        body,
+        h('div.org-foot',
+          h('button.pill.org-btn', { onclick: () => { arr = { order: {}, hidden: new Set() }; changed(); } }, icon('rotate', 13), 'Restaurar o padrão'),
+          h('button.pill.org-btn.org-done', { onclick: closeSheet }, icon('check', 13, 2.4), 'Pronto')),
+      ],
+      update() {},
+    };
+  }
+
   const clock = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   // The gate up close: what it is doing, since when, and the same two-press button, bigger.
@@ -512,26 +578,41 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     store.toggleLight(id);
   }
 
+  // A room's tiles: ACs, TVs, then lights, unless rearranged.
+  const KIND_ORDER = { ac: 0, tv: 1, light: 2 };
+  function roomDevices(roomId) {
+    const all = [...tiles.values()].filter((t) => t.cfg.room === roomId).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+    const byId = new Map(all.map((t) => [t.cfg.id, t]));
+    return ordered(all.map((t) => t.cfg), arr, `room:${roomId}`).map((c) => byId.get(c.id));
+  }
+  const visibleTiles = (list, group) => {
+    const byId = new Map(list.map((t) => [t.cfg.id, t]));
+    return visible(list.map((t) => t.cfg), arr, group).map((c) => byId.get(c.id));
+  };
+
   function layoutTiles() {
     const nodes = [];
     let i = 0;
     const add = (t) => { t.el.style.setProperty('--i', i++); nodes.push(t.el); };
-    if (ui.room === 'all' && gateTiles.length) {
-      nodes.push(h('div.group-label', gateTiles.length > 1 ? 'Portões' : 'Portão'));
-      gateTiles.forEach(add);
+    const shownGates = visibleTiles(gateTiles, 'gates');
+    if (ui.room === 'all' && shownGates.length) {
+      nodes.push(h('div.group-label', shownGates.length > 1 ? 'Portões' : 'Portão'));
+      shownGates.forEach(add);
     }
-    for (const room of config.rooms) {
-      if (ui.room !== 'all' && room.id !== ui.room) continue;
-      const devices = [...tiles.values()].filter((t) => t.cfg.room === room.id);
+    const roomList = ui.room === 'all' ? visible(config.rooms, arr, 'rooms') : config.rooms.filter((r) => r.id === ui.room);
+    for (const room of roomList) {
+      const devices = roomDevices(room.id).filter((t) => !arr.hidden.has(t.cfg.id));
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
-      devices.filter((t) => t.kind === 'ac').forEach(add);
-      devices.filter((t) => t.kind === 'tv').forEach(add);
-      devices.filter((t) => t.kind === 'light').forEach(add);
+      devices.forEach(add);
     }
-    if (ui.room === 'all' && toggleTiles.length) {
+    const shownToggles = visibleTiles(toggleTiles, 'toggles');
+    if (ui.room === 'all' && shownToggles.length) {
       nodes.push(h('div.group-label', 'Automações'));
-      toggleTiles.forEach(add);
+      shownToggles.forEach(add);
+    }
+    if (ui.room === 'all' && !isPhone) {
+      nodes.push(h('button.organize-link', { onclick: () => openSheet({ kind: 'organize' }) }, icon('list', 14), 'Organizar o painel'));
     }
     if (!nodes.length) nodes.push(h('div.group-label', 'Nenhum dispositivo neste cômodo ainda'));
     else if (isPhone && config.lights.some((l) => l.capabilities.length && inScope(l))) {
@@ -548,7 +629,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   function openSheet(target) {
     ui.sheet = target;
     sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'tv' ? tvSheet(target.id)
-      : target.kind === 'gate' ? gateSheet(target.id) : lightSheet(target.id);
+      : target.kind === 'gate' ? gateSheet(target.id) : target.kind === 'organize' ? organizeSheet() : lightSheet(target.id);
     sheet.replaceChildren(...sheetView.nodes);
     panel.classList.add('hidden');
     sheet.classList.remove('hidden');
@@ -557,7 +638,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     card.classList.add('detail');
     hideTooltip();
     const room = target.kind === 'tv' ? store.tvCfg.get(target.id).room : target.kind === 'light' ? store.lightCfg.get(target.id).room : null;
-    onFocus(['ac', 'tv', 'gate'].includes(target.kind) ? target : { kind: 'room', id: room });
+    onFocus(['ac', 'tv', 'gate'].includes(target.kind) ? target : target.kind === 'organize' ? null : { kind: 'room', id: room });
     update();
   }
 
@@ -851,6 +932,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     showTooltip,
     openSheet,
     closeSheet,
+    /** Organizar o painel: order and visibility of shortcuts, rooms and devices. */
+    organize() { openSheet({ kind: 'organize' }); },
     selectRoom,
     toggleLight,
     get room() { return ui.room; },

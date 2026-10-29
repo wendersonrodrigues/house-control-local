@@ -176,6 +176,8 @@ em [docs/floor-plan.md](docs/floor-plan.md) (em inglês).
 | Clique num atalho | Rodar o script |
 | Clique numa chave | Ligar ou desligar a automação |
 | Clique num cômodo | Aproximar e listar só os dispositivos dele |
+| **Organizar o painel** (no fim da lista ou no botão de ajustes) | Mudar a ordem e esconder ou mostrar atalhos, cômodos, portão, dispositivos e chaves (só neste Mac; a planta não muda) |
+| Ícone da casa, no topo | Voltar ao início de qualquer tela |
 | Arraste a maquete | Girar |
 | Role ou faça pinça sobre a maquete | Aproximar ou afastar no ponto sob o ponteiro |
 | Arraste com o botão direito (ou com ⇧ ou ⌥ apertado) | Deslocar a vista |
