@@ -123,6 +123,22 @@ export function normalize(raw) {
   const gates = extra('gates', 'Um portão', () => ({}));
   const shortcuts = extra('shortcuts', 'Um atalho', (x) => ({ icon: x.icon || 'sparkles' }));
   const toggles = extra('toggles', 'Uma chave', (x) => ({ icon: x.icon || 'sparkles' }));
+  // The gate slides along its wall opening (`from` → `to`) towards `slide` ("to" or "from").
+  for (const g of gates) {
+    if (!g.from && !g.to) continue;
+    need(isPoint(g.from) && isPoint(g.to), `O portão "${g.id}" precisa de "from" e "to"`);
+    need(g.from[0] === g.to[0] || g.from[1] === g.to[1], `O portão "${g.id}" precisa ficar alinhado a uma parede`);
+    g.slide = g.slide === 'from' ? 'from' : 'to';
+    g.height = g.height ?? 2.2;
+    g.travel = g.travel ?? 14;
+  }
+  // TVs stand in a room like a lamp, as the furniture piece "tv" with a screen that lights up.
+  const tvs = (raw.tvs || []).map((t) => {
+    unique(t.id, 'Uma TV');
+    need(roomIds.has(t.room), `A TV "${t.id}" aponta para o cômodo desconhecido "${t.room}"`);
+    need(isPoint(t.pos), `A TV "${t.id}" precisa de "pos": [x, z]`);
+    return { ...t, name: t.name || t.id, rot: t.rot || 0, width: t.width ?? 1.6 };
+  });
 
   const minX = Math.min(...rooms.map((r) => r.x));
   const minZ = Math.min(...rooms.map((r) => r.z));
@@ -144,6 +160,7 @@ export function normalize(raw) {
     gates,
     shortcuts,
     toggles,
+    tvs,
     bounds: { minX, minZ, maxX, maxZ },
   };
 }

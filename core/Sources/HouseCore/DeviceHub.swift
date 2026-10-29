@@ -86,7 +86,7 @@ public final class DeviceHub {
         tuyaSensors = [:]
         defer { watchLinks() }
         guard let plan else { return }
-        for (kind, key) in [("light", "lights"), ("ac", "acs"), ("gate", "gates"), ("shortcut", "shortcuts"), ("toggle", "toggles")] {
+        for (kind, key) in [("light", "lights"), ("ac", "acs"), ("gate", "gates"), ("shortcut", "shortcuts"), ("toggle", "toggles"), ("tv", "tvs")] {
             for device in plan[key] as? [[String: Any]] ?? [] {
                 guard let id = device["id"] as? String else { continue }
                 let sensor = Self.sensorLink(device["sensor"])
@@ -190,7 +190,7 @@ public final class DeviceHub {
         let (fromTuya, fromServices) = await (tuyaPart, servicePart)
         guard fromTuya != nil || fromServices != nil else { return nil }
         var merged: [String: Any] = [:]
-        for key in ["lights", "acs", "features", "gates", "toggles"] {
+        for key in ["lights", "acs", "features", "gates", "toggles", "tvs"] {
             var section = fromTuya?[key] as? [String: Any] ?? [:]
             for (id, value) in fromServices?[key] as? [String: Any] ?? [:] {
                 if var existing = section[id] as? [String: Any], let more = value as? [String: Any] {
@@ -223,11 +223,16 @@ public final class DeviceHub {
         }
         guard answered else { return nil }
         var lights: [String: Any] = [:], acs: [String: Any] = [:], features: [String: Any] = [:]
-        var gates: [String: Any] = [:], toggles: [String: Any] = [:]
+        var gates: [String: Any] = [:], toggles: [String: Any] = [:], tvs: [String: Any] = [:]
         for (id, link) in serviceLinks {
             let reading = readings[link.service]?[link.id]
             if link.kind == .gate, let reading {
-                gates[id] = reading.online ? ["state": reading.gate ?? "closed", "online": true] : ["online": false]
+                var gate: [String: Any] = reading.online ? ["state": reading.gate ?? "closed", "online": true] : ["online": false]
+                if let p = reading.gatePosition { gate["position"] = p }
+                gates[id] = gate
+            }
+            if link.kind == .tv, let reading {
+                tvs[id] = reading.online ? (reading.media ?? [:]).merging(["online": true]) { $1 } : ["online": false, "on": false]
             }
             if link.kind == .toggle, let reading {
                 toggles[id] = reading.online ? ["on": reading.toggle ?? false, "online": true] : ["online": false]
@@ -243,7 +248,7 @@ public final class DeviceHub {
         for (id, sensor) in tuyaSensors {
             if let t = readings[sensor.service]?[sensor.id]?.temperature { acs[id] = ["roomTemp": t] }
         }
-        return ["lights": lights, "acs": acs, "features": features, "gates": gates, "toggles": toggles]
+        return ["lights": lights, "acs": acs, "features": features, "gates": gates, "toggles": toggles, "tvs": tvs]
     }
 
     private func pollCloud() async -> [String: Any]? {

@@ -101,7 +101,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   const roomButtons = new Map();
   // Rooms without a device stay in the model but not in the chips (a bathroom, a passage).
-  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs].some((d) => d.room === r.id));
+  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs, ...config.tvs].some((d) => d.room === r.id));
   for (const r of [{ id: 'all', name: 'Todos' }, ...withDevices]) {
     const count = h('span.count.zero', '0');
     const b = h('button.room', { onclick: () => { haptic('tick'); selectRoom(r.id); } }, r.name, count);
@@ -308,7 +308,93 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
+  const TV_BLUE = '#6fa8ff';
+  const tvStatus = (t) => (t.online === false ? 'Indisponível' : !t.on ? 'Desligada'
+    : t.title || t.source || (t.state === 'playing' ? 'Reproduzindo' : t.state === 'paused' ? 'Pausada' : 'Ligada'));
+
+  function tvTile(cfg) {
+    const sub = h('div.tile-sub');
+    const power = h('button.mini-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: (e) => {
+      e.stopPropagation(); haptic('medium'); store.setTV(cfg.id, { on: !state.tvs[cfg.id].on });
+    } }, icon('power', 16, 2.2));
+    const el = h('div.tile.tv', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'tv', id: cfg.id }) },
+      h('div.bubble', icon('tv', 19)), h('div.tile-text', h('div.tile-name', cfg.name), sub), power);
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') openSheet({ kind: 'tv', id: cfg.id }); });
+    return {
+      el, cfg, kind: 'tv',
+      update() {
+        const t = state.tvs[cfg.id];
+        el.classList.toggle('on', t.on);
+        el.classList.toggle('offline', t.online === false);
+        el.style.setProperty('--c', TV_BLUE);
+        sub.textContent = ui.room === 'all' && !isPhone ? `${tvStatus(t)} · ${roomName.get(cfg.room)}` : tvStatus(t);
+      },
+    };
+  }
+
+  function tvSheet(id) {
+    const cfg = store.tvCfg.get(id);
+    const t = () => state.tvs[id];
+    const set = (patch) => store.setTV(id, patch);
+    const sub = h('div.sheet-sub');
+    const powerBtn = h('button.round.power', { 'aria-label': 'Ligar ou desligar', onclick: () => { haptic('medium'); set({ on: !t().on }); } }, icon('power', 21, 2.2));
+    const big = bigNumber('%');
+    const slider = createSlider({
+      min: 0, max: 100, value: Math.round(t().volume * 100), gradient: 'linear-gradient(90deg, #26365e 0%, #6fa8ff 100%)', detent: 5,
+      onInput: (v) => set({ volume: v / 100, muted: false }),
+    });
+    const mute = h('button.toggle-chip', { onclick: () => { haptic('light'); set({ muted: !t().muted }); } }, icon('dim', 17), 'Mudo', h('span.switch'));
+    const sourceValue = h('div.option-value');
+    const source = h('button.option', { onclick: () => {
+      const list = t().sources || [];
+      if (!list.length) return;
+      source.classList.add('open');
+      openMenu(clip, source, list.map((v) => ({
+        label: v, selected: t().source === v, icon: t().source === v ? icon('check', 16, 2.4) : null,
+        action: () => { haptic('light'); set({ source: v }); },
+      })), { onClose: () => source.classList.remove('open') });
+    } }, icon('list', 24, 1.6), h('span.corner', icon('down', 15, 2.2)), h('div.option-label', 'Entrada'), sourceValue);
+    const control = (name, action, label) => h('button.option', { 'aria-label': label, onclick: () => { haptic('light'); store.tvAction(id, action); } },
+      icon(name, 24, 1.6), h('div.option-label', label));
+    const playback = { previous: control('back', 'previous', 'Anterior'), play: control('film', 'play_pause', 'Tocar/pausar'), next: control('next', 'next', 'Próxima') };
+    const options = h('div.options', source, playback.previous, playback.play, playback.next);
+    const readout = h('div.readout', big.el, mute);
+    const volumeRow = h('div.slider-row',
+      h('button.round', { 'aria-label': 'Menos volume', onclick: () => { haptic('tick'); store.tvAction(id, 'volume_down'); set({ volume: Math.max(0, t().volume - 0.01) }); } }, icon('minus', 18, 2.2)),
+      slider.el,
+      h('button.round', { 'aria-label': 'Mais volume', onclick: () => { haptic('tick'); store.tvAction(id, 'volume_up'); set({ volume: Math.min(1, t().volume + 0.01) }); } }, icon('plus', 18, 2.2)));
+    return {
+      nodes: [
+        sheetHead(cfg.name, sub, powerBtn),
+        readout,
+        volumeRow,
+        options,
+      ],
+      update() {
+        const tv = t();
+        powerBtn.classList.toggle('on', tv.on);
+        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', tvStatus(tv)));
+        big.set(Math.round(tv.volume * 100), !tv.on || tv.muted);
+        slider.set(Math.round(tv.volume * 100));
+        mute.classList.toggle('on', Boolean(tv.muted));
+        sourceValue.textContent = tv.source || '—';
+        // A real TV only shows the controls Home Assistant says it has.
+        const has = (name) => !tv.controls || tv.controls.includes(name);
+        source.hidden = !has('source') || !(tv.sources || []).length;
+        for (const [name, el] of Object.entries(playback)) el.hidden = !has(name);
+        options.style.gridTemplateColumns = `repeat(${[source, ...Object.values(playback)].filter((el) => !el.hidden).length || 1}, 1fr)`;
+        options.hidden = [source, ...Object.values(playback)].every((el) => el.hidden);
+        volumeRow.hidden = !has('volume') && !has('step');
+        slider.el.style.visibility = has('volume') ? '' : 'hidden';
+        big.el.style.visibility = has('volume') ? '' : 'hidden';
+        mute.hidden = !has('mute');
+        readout.hidden = !has('volume') && !has('mute');
+      },
+    };
+  }
+
   for (const cfg of config.acs) tiles.set(cfg.id, acTile(cfg));
+  for (const cfg of config.tvs) tiles.set(cfg.id, tvTile(cfg));
   for (const cfg of config.lights) tiles.set(cfg.id, lightTile(cfg));
   // Not in a room: shown above (the gate) and below (automations) the rooms, on "All" only.
   const gateTiles = config.gates.map(gateTile);
@@ -334,6 +420,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       if (!devices.length) continue;
       if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
       devices.filter((t) => t.kind === 'ac').forEach(add);
+      devices.filter((t) => t.kind === 'tv').forEach(add);
       devices.filter((t) => t.kind === 'light').forEach(add);
     }
     if (ui.room === 'all' && toggleTiles.length) {
@@ -354,7 +441,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function openSheet(target) {
     ui.sheet = target;
-    sheetView = target.kind === 'ac' ? acSheet(target.id) : lightSheet(target.id);
+    sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'tv' ? tvSheet(target.id) : lightSheet(target.id);
     sheet.replaceChildren(...sheetView.nodes);
     panel.classList.add('hidden');
     sheet.classList.remove('hidden');
@@ -362,7 +449,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     sheet.inert = false;
     card.classList.add('detail');
     hideTooltip();
-    onFocus(target.kind === 'ac' ? target : { kind: 'room', id: store.lightCfg.get(target.id).room });
+    const room = target.kind === 'tv' ? store.tvCfg.get(target.id).room : target.kind === 'light' ? store.lightCfg.get(target.id).room : null;
+    onFocus(target.kind === 'ac' ? target : { kind: 'room', id: room });
     update();
   }
 
@@ -561,6 +649,14 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       const cfg = store.lightCfg.get(hit.id);
       const s = state.lights[hit.id];
       name = cfg.name; status = lightStatus(cfg, s); on = s.on; color = css(lightColor(s, tmp));
+    } else if (hit.kind === 'tv') {
+      const cfg = store.tvCfg.get(hit.id);
+      const t = state.tvs[hit.id];
+      name = cfg.name; status = tvStatus(t); on = t.on; color = TV_BLUE;
+    } else if (hit.kind === 'gate') {
+      const cfg = store.gateCfg.get(hit.id);
+      const g = state.gates[hit.id];
+      name = cfg.name; status = GATE_TEXT[g.state] || g.state; on = g.state !== 'closed'; color = GATE_COLOR[g.state] || '#8b93a7';
     } else {
       const cfg = store.acCfg.get(hit.id);
       const s = state.acs[hit.id];

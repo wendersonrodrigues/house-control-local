@@ -44,6 +44,8 @@ public enum DeviceKind: String {
     case shortcut
     /// An on/off setting that is not a lamp (an `input_boolean`, an automation being enabled).
     case toggle
+    /// A TV or another media player: power, volume, mute, input and playback.
+    case tv
 
     /// A lamp the panel shows as on, given a new brightness or colour, is switched on as well:
     /// the real one may be off (switched off elsewhere since the last read), and some
@@ -97,6 +99,11 @@ public struct DeviceReading {
     public var gate: String?
     /// A toggle's state.
     public var toggle: Bool?
+    /// A gate's position 0…1 (1 is open), when the platform reports one.
+    public var gatePosition: Double?
+    /// A TV's state: `on`, `state` (playing, paused, idle, on), `volume` 0…1, `muted`,
+    /// `source`, `sources`, `title`.
+    public var media: [String: Any]?
     public var online = true
 
     public init(light: [String: Any]? = nil, ac: [String: Any]? = nil, features: [String: Any]? = nil,

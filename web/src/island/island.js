@@ -138,6 +138,19 @@ export async function bootIsland(root) {
     });
   }
 
+  for (const cfg of config.tvs) {
+    const sub = h('div.chip-sub');
+    const el = h('div.chip.tv', h('span.chip-bubble', icon('tv', 15)), h('div.chip-text', h('div.chip-name', cfg.name), sub),
+      h('button.chip-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: () => store.setTV(cfg.id, { on: !state.tvs[cfg.id].on }) }, icon('power', 13, 2.4)));
+    list.append(el);
+    rows.push(() => {
+      const t = state.tvs[cfg.id];
+      el.classList.toggle('on', t.on);
+      el.style.setProperty('--c', '#6fa8ff');
+      sub.textContent = t.online === false ? 'Indisponível' : !t.on ? 'Desligada' : t.title || t.source || 'Ligada';
+    });
+  }
+
   for (const cfg of config.lights) {
     const dimmable = cfg.capabilities.includes('brightness');
     const sub = h('div.chip-sub');
@@ -209,6 +222,7 @@ export async function bootIsland(root) {
         if (!target) return;
         if (target.kind === 'light') store.toggleLight(target.id);
         else if (target.kind === 'ac') store.setAC(target.id, { on: !state.acs[target.id].on });
+        else if (target.kind === 'tv') store.setTV(target.id, { on: !state.tvs[target.id].on });
         else if (target.kind === 'room') {
           focused = focused === target.id ? null : target.id;
           world.focus(focused ? { kind: 'room', id: focused } : null);

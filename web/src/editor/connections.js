@@ -14,9 +14,9 @@ const LOOK = {
   homekit: { icon: 'home', tint: '#ffb340', blurb: 'HomeKit and Matter accessories, through your iPhone' },
 };
 const KIND_TITLES = { light: 'Luzes e tomadas', ac: 'Ares-condicionados', sensor: 'Sensores de temperatura',
-  gate: 'Portões', shortcut: 'Scripts e cenas', toggle: 'Chaves e automações' };
+  tv: 'TVs e mídia', gate: 'Portões', shortcut: 'Scripts e cenas', toggle: 'Chaves e automações' };
 // Placeholder names the editor gives a new gate, shortcut or switch: replaced by the device's own.
-const PLACEHOLDERS = ['Portão', 'Novo atalho', 'Nova chave'];
+const PLACEHOLDERS = ['Portão', 'Novo atalho', 'Nova chave', 'TV'];
 
 export function createConnections({ rerender, toast, usedBy, onOpen }) {
   const boot = window.__HOUSE_BOOT__ || {};
@@ -111,7 +111,7 @@ export function createConnections({ rerender, toast, usedBy, onOpen }) {
     if (!state.devices) return null;
     if (!list.length) return h('p.note', 'Conectado, mas nenhum dispositivo compatível foi encontrado.');
     const used = usedBy();
-    const groups = ['light', 'ac', 'sensor', 'gate', 'shortcut', 'toggle'].map((kind) => [kind, list.filter((d) => d.kind === kind)]).filter(([, l]) => l.length);
+    const groups = ['light', 'ac', 'tv', 'sensor', 'gate', 'shortcut', 'toggle'].map((kind) => [kind, list.filter((d) => d.kind === kind)]).filter(([, l]) => l.length);
     return h('div.devices-list', groups.map(([kind, items]) => [
       h('h3', `${KIND_TITLES[kind]} · ${items.length}`),
       items.map((d) => h('div.device',
@@ -371,7 +371,7 @@ export function createConnections({ rerender, toast, usedBy, onOpen }) {
         note = device.capabilities.length ? `Ajustado ao que ela faz: ${device.capabilities.join(', ').replace('brightness', 'brilho').replace('temp', 'temperatura de branco').replace('color', 'cor')}` : 'Ajustado: só liga e desliga';
       }
       if (device && kind === 'ac' && device.min != null) { item.min = Math.round(device.min); item.max = Math.round(device.max); }
-      if (device && ['gate', 'shortcut', 'toggle'].includes(kind) && (!item.name || PLACEHOLDERS.includes(item.name))) item.name = device.name;
+      if (device && ['tv', 'gate', 'shortcut', 'toggle'].includes(kind) && (!item.name || PLACEHOLDERS.includes(item.name))) item.name = device.name;
       changed(note);
     });
     const device = find(current);
@@ -409,7 +409,7 @@ export function createConnections({ rerender, toast, usedBy, onOpen }) {
   /** "id → plan item name" for every device the plan links, to mark them in the lists. */
   function usedMap(doc) {
     const out = new Map();
-    for (const d of [...doc.lights, ...doc.acs, ...(doc.gates || []), ...(doc.shortcuts || []), ...(doc.toggles || [])]) {
+    for (const d of [...doc.lights, ...doc.acs, ...(doc.tvs || []), ...(doc.gates || []), ...(doc.shortcuts || []), ...(doc.toggles || [])]) {
       const l = linkOf(d);
       if (l) out.set(`${l.service}|${l.id}`, d.name || d.id);
       if (d.sensor?.id) out.set(`${d.sensor.service}|${d.sensor.id}`, `${d.name || d.id} · room`);

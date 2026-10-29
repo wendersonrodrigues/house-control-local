@@ -28,6 +28,9 @@ A interface está em português do Brasil. A documentação original, em inglês
   Os modos do Midea (Silent, low, medium, high, Full, auto) aparecem como Silencioso, Baixo, Médio, Alto, Máximo e Automático.
 - **Portão.** Mostra se está aberto, fechado, abrindo ou fechando. Abre e fecha com **dois toques**: o primeiro arma
   o botão e o segundo, em até 3,5 segundos, confirma. Um clique perdido na barra de menu nunca abre a casa.
+  Na maquete, o portão de correr desliza pela parede da garagem, com uma luz âmbar piscando enquanto se move.
+- **TV.** Liga/desliga, volume, mudo, entrada (HDMI, apps) e reprodução, conforme o que a TV aceita no Home
+  Assistant (LG webOS e qualquer `media_player`). Na maquete, a tela acende e ilumina a sala quando a TV está ligada.
 - **Atalhos.** Scripts e cenas do Home Assistant num toque ("Apagar todas", "Luzes externas"…), no painel e na ilha.
 - **Chaves de automação.** Liga e desliga `input_boolean` e automações que você escolher, como "Luzes por presença".
 - **Ilha no notch.** Pare o ponteiro sobre o notch do MacBook e uma mini maquete da casa desce dele, com portão,
@@ -110,6 +113,7 @@ usuário (modo `600`). Ele nunca vai para o repositório. **Desconectar** apaga 
 | `sensor.*` de temperatura | O termômetro do cômodo de um ar |
 | `cover.*` | Um portão: abrir e fechar com confirmação, e o estado em movimento |
 | `script.*`, `scene.*` | Um atalho: roda com um toque |
+| `media_player.*` | Uma TV: liga/desliga, volume, mudo, entrada e reprodução (só o que ela suporta) |
 | `input_boolean.*`, `automation.*` | Uma chave de automação: liga e desliga |
 
 As áreas do Home Assistant aparecem ao lado de cada entidade. O app assina os eventos do Home Assistant pelo

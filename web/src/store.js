@@ -29,11 +29,15 @@ export function createStore(config) {
   const lightCfg = new Map(config.lights.map((l) => [l.id, l]));
   const acCfg = new Map(config.acs.map((a) => [a.id, a]));
 
-  const state = { lights: {}, acs: {}, gates: {}, toggles: {}, scene: null };
+  const state = { lights: {}, acs: {}, gates: {}, toggles: {}, tvs: {}, scene: null };
   for (const l of config.lights) state.lights[l.id] = defaultLight(l);
   for (const a of config.acs) state.acs[a.id] = defaultAC(a, config.outdoorTemp);
   for (const g of config.gates) state.gates[g.id] = { state: 'closed', online: true };
   for (const t of config.toggles) state.toggles[t.id] = { on: false, online: true };
+  for (const t of config.tvs) {
+    state.tvs[t.id] = { on: false, online: true, state: 'off', volume: 0.2, muted: false, source: null, sources: [], title: null };
+  }
+  const tvCfg = new Map(config.tvs.map((t) => [t.id, t]));
   const gateCfg = new Map(config.gates.map((g) => [g.id, g]));
   const toggleCfg = new Map(config.toggles.map((t) => [t.id, t]));
   // What each real AC can do, as reported by the native side. A simulated AC can do everything.
@@ -48,6 +52,7 @@ export function createStore(config) {
       for (const [id, f] of Object.entries(saved.features || {})) if (state.acs[id]) features[id] = f;
       for (const [id, g] of Object.entries(saved.gates || {})) if (state.gates[id]) Object.assign(state.gates[id], g);
       for (const [id, t] of Object.entries(saved.toggles || {})) if (state.toggles[id]) Object.assign(state.toggles[id], t);
+      for (const [id, t] of Object.entries(saved.tvs || {})) if (state.tvs[id]) Object.assign(state.tvs[id], t);
       state.scene = saved.scene || null;
       restored = true;
     }
@@ -70,7 +75,7 @@ export function createStore(config) {
       post('summary', summary());
       // The native shell passes this on to its other views of the same home (the panel
       // and the island each run their own store), which adopt it without re-sending.
-      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, scene: state.scene, source: change.source ?? store.source ?? null });
+      if (!change.adopted) post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, tvs: state.tvs, scene: state.scene, source: change.source ?? store.source ?? null });
     }
   }
 
@@ -148,6 +153,17 @@ export function createStore(config) {
       if (!state.gates[id]) continue;
       const { timer, ...clean } = g;
       any = writeGate(id, clean) || any;
+    }
+    for (const [id, t] of Object.entries(update.tvs || {})) {
+      const cur = state.tvs[id];
+      if (!cur) continue;
+      // While a slider is being dragged here, the TV's own (older) volume must not pull it back.
+      const fresh = performance.now() - (cur.touched || 0) < 2500;
+      for (const [k, v] of Object.entries(t)) {
+        if (fresh && k === 'volume') continue;
+        if (k === 'timer' || k === 'pending' || k === 'touched') continue; // this view's own bookkeeping
+        if (JSON.stringify(cur[k]) !== JSON.stringify(v)) { cur[k] = v; any = true; }
+      }
     }
     for (const [id, t] of Object.entries(update.toggles || {})) {
       const cur = state.toggles[id];
@@ -230,6 +246,33 @@ export function createStore(config) {
 
     gateCfg,
     toggleCfg,
+    tvCfg,
+
+    /** Power, volume (0…1), mute or input. Shown at once, sent at most every 250 ms. */
+    setTV(id, patch) {
+      const cur = state.tvs[id];
+      if (!cur) return;
+      const before = Object.fromEntries(Object.keys(patch).map((k) => [k, cur[k]]));
+      Object.assign(cur, patch, { touched: performance.now() });
+      if ('on' in patch) cur.state = patch.on ? 'on' : 'off';
+      emit({ type: 'tv', id });
+      clearTimeout(cur.timer);
+      cur.pending = { ...(cur.pending || {}), ...patch };
+      cur.timer = setTimeout(() => {
+        const send = cur.pending;
+        cur.pending = null;
+        order('tv', id, send).catch((error) => {
+          Object.assign(cur, before);
+          emit({ type: 'tv', id, reverted: true });
+          store.onDeviceError?.(id, error.message);
+        });
+      }, 'volume' in patch ? 250 : 0);
+    },
+
+    /** "play_pause", "next", "previous", "volume_up", "volume_down". */
+    tvAction(id, action) {
+      order('tv', id, { action }).catch((error) => store.onDeviceError?.(id, error.message));
+    },
 
     /** "open", "close" or "stop". The gate shows it moving until the real one reports. */
     gateAction(id, action) {
@@ -307,7 +350,7 @@ export function createStore(config) {
     },
 
     /** Reports the state again, for a view that has only just started. */
-    share() { post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, scene: state.scene }); },
+    share() { post('state', { lights: state.lights, acs: state.acs, gates: state.gates, toggles: state.toggles, tvs: state.tvs, scene: state.scene }); },
 
     // The state of another view of this home (see emit). Nothing goes to the devices:
     // the view where the change was made has already sent it.

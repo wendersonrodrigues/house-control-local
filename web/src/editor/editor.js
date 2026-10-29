@@ -20,9 +20,9 @@ const sv = (tag, attrs = {}, ...kids) => {
 };
 
 const KEYS = { room: 'rooms', light: 'lights', ac: 'acs', furniture: 'furniture', opening: 'openings', scene: 'scenes',
-  gate: 'gates', shortcut: 'shortcuts', toggle: 'toggles' };
+  tv: 'tvs', gate: 'gates', shortcut: 'shortcuts', toggle: 'toggles' };
 const TITLES = { room: 'Cômodos', light: 'Luzes', ac: 'Ares-condicionados', furniture: 'Móveis', opening: 'Portas e janelas', scene: 'Cenas',
-  gate: 'Portões', shortcut: 'Atalhos', toggle: 'Chaves de automação' };
+  tv: 'TVs', gate: 'Portões', shortcut: 'Atalhos', toggle: 'Chaves de automação' };
 // Not on the plan: linked to a Home Assistant entity and shown in the panel only.
 const EXTRAS = ['gate', 'shortcut', 'toggle'];
 const EXTRA_ICONS = ['sparkles', 'lightsOff', 'bulb', 'outside', 'sun', 'moon', 'home', 'gate', 'presence', 'eye', 'automation', 'toggle', 'shield'];
@@ -78,7 +78,7 @@ export async function bootEditor(root) {
   const links = createConnections({
     rerender: () => {
       renderSidebar();
-      if (['connections', 'service', 'light', 'ac', ...EXTRAS].includes(sel.kind)) renderInspector();
+      if (['connections', 'service', 'light', 'ac', 'tv', ...EXTRAS].includes(sel.kind)) renderInspector();
     },
     toast,
     usedBy: () => links.usedMap(doc),
@@ -173,7 +173,7 @@ export async function bootEditor(root) {
   function validate() {
     try {
       valid = normalize(structuredClone(doc));
-      const linked = [...doc.lights, ...doc.acs, ...doc.gates, ...doc.shortcuts, ...doc.toggles].filter(isLinked).length;
+      const linked = [...doc.lights, ...doc.acs, ...doc.tvs, ...doc.gates, ...doc.shortcuts, ...doc.toggles].filter(isLinked).length;
       status.className = 'status';
       status.replaceChildren(h('span.ok', '●'), ` ${doc.rooms.length} cômodos · ${doc.lights.length} luzes · ${doc.acs.length} ares · `,
         `${linked} vinculados a dispositivos reais`, dirty ? h('span.dirty', ' · alterações não salvas') : '');
@@ -231,6 +231,7 @@ export async function bootEditor(root) {
     if (kind === 'room') return [item.name || item.id, `${fix(item.rect[2])} × ${fix(item.rect[3])} m`];
     if (kind === 'light') return [item.name || item.id, `${roomName(item.room)} · ${NAMES[item.type] || item.type}`];
     if (kind === 'ac') return [item.name || item.id, `${roomName(item.room)} · parede ${(NAMES[item.wall] || item.wall).toLowerCase()}`];
+    if (kind === 'tv') return [item.name || item.id, `${roomName(item.room)} · ${item.link?.id || 'não vinculada'}`];
     if (kind === 'furniture') return [NAMES[item.type] || item.type, roomName(roomAt(item.pos)?.id) || '—'];
     if (kind === 'opening') return [NAMES[item.type || 'door'], `${fix(Math.hypot(item.to[0] - item.from[0], item.to[1] - item.from[1]))} m`];
     if (EXTRAS.includes(kind)) return [item.name || item.id, item.link?.id || 'Não vinculado'];
@@ -265,7 +266,7 @@ export async function bootEditor(root) {
   }
 
   function uniqueId(base) {
-    const ids = new Set([...doc.rooms, ...doc.lights, ...doc.acs, ...doc.scenes, ...doc.gates, ...doc.shortcuts, ...doc.toggles].map((x) => x.id));
+    const ids = new Set([...doc.rooms, ...doc.lights, ...doc.acs, ...doc.scenes, ...doc.tvs, ...doc.gates, ...doc.shortcuts, ...doc.toggles].map((x) => x.id));
     if (!ids.has(base)) return base;
     for (let i = 2; ; i++) if (!ids.has(`${base}${i}`)) return `${base}${i}`;
   }
@@ -293,6 +294,9 @@ export async function bootEditor(root) {
       list.push({ type: 'door', from: [fix(center[0] - 0.45), fix(z)], to: [fix(center[0] + 0.45), fix(z)] });
     } else if (kind === 'scene') {
       list.push({ id: uniqueId('scene'), name: 'Nova cena', icon: 'sparkles', lights: { '*': { on: false } } });
+    } else if (kind === 'tv') {
+      if (!room) return toast('Adicione um cômodo primeiro', true);
+      list.push({ id: uniqueId(`${room.id}.tv`), name: 'TV', room: room.id, pos: center, rot: 0, width: 1.6 });
     } else if (kind === 'gate') {
       list.push({ id: uniqueId('portao'), name: 'Portão' });
     } else if (kind === 'shortcut') {
@@ -400,6 +404,19 @@ export async function bootEditor(root) {
       }, big ? sv('rect', { x: -0.62, y: -0.12, width: 1.24, height: 0.74, class: 'hit' }) : null,
         sv('rect', { x: -0.47, y: 0.08, width: 0.94, height: 0.24, rx: 0.07 }),
         sv('path', { d: 'M-0.3 0.42v0.22M0 0.42v0.3M0.3 0.42v0.22', class: 'flow' })));
+    });
+
+    doc.tvs.forEach((t, i) => {
+      kids.push(sv('g', {
+        class: `p-furn p-tv${isSel('tv', i) ? ' sel' : ''}`, 'data-kind': 'tv', 'data-index': i,
+        transform: `translate(${t.pos[0]} ${t.pos[1]}) rotate(${-(t.rot || 0)})`,
+      },
+        sv('rect', { x: -(t.width || 1.6) / 2, y: -0.2, width: t.width || 1.6, height: 0.4, rx: 0.06 }),
+        sv('path', { d: `M${-(t.width || 1.6) / 4} 0.2H${(t.width || 1.6) / 4}`, class: 'front' })));
+    });
+    // Gates on their wall: drawn, not dragged (their ends are edited in the inspector).
+    doc.gates.filter((g) => g.from && g.to).forEach((g) => {
+      kids.push(sv('line', { class: 'p-gate', x1: g.from[0], y1: g.from[1], x2: g.to[0], y2: g.to[1] }));
     });
 
     doc.lights.forEach((l, i) => {
@@ -698,6 +715,17 @@ export async function bootEditor(root) {
           set: (v) => { item.acs ||= {}; if (v === '') delete item.acs['*']; else item.acs['*'] = { on: v === 'on' }; },
           event: 'change',
         })));
+    } else if (kind === 'tv') {
+      head(item.name || item.id, `id: ${item.id}`);
+      nodes.push(section('TV',
+        bind('Nome', text(), prop(item, 'name', '')),
+        bind('Cômodo', choice(doc.rooms.map((r) => [r.id, r.name || r.id])), { ...prop(item, 'room'), event: 'change' })),
+      section('Posição, m',
+        row(bind('X', number(), { ...at(item, 'pos', 0), parse: parseNum }), bind('Z', number(), { ...at(item, 'pos', 1), parse: parseNum })),
+        row(bind('Rotação, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum }),
+          bind('Largura, m', number(0.1), { ...prop(item, 'width', 1.6), parse: parseNum })),
+        h('p.note', 'A TV aparece na maquete com o móvel e a tela acende quando ela está ligada. Rotação 0° fica virada para o sul.')),
+      links.deviceSection(item, 'tv', linkHooks));
     } else if (EXTRAS.includes(kind)) {
       const what = { gate: ['Portão', 'Abre e fecha com dois toques no painel e na ilha'],
         shortcut: ['Atalho', 'Roda um script ou uma cena do Home Assistant'],
@@ -706,6 +734,24 @@ export async function bootEditor(root) {
       nodes.push(section(what[0],
         bind('Nome', text(), prop(item, 'name', '')),
         kind === 'gate' ? null : bind('Ícone', choice(named(EXTRA_ICONS)), { ...prop(item, 'icon', kind === 'toggle' ? 'automation' : 'sparkles'), event: 'change' })),
+      kind === 'gate' ? section('Na maquete',
+        h('div.checks', bind('Mostrar o portão na maquete', h('input', { type: 'checkbox' }), {
+          get: () => Boolean(item.from && item.to),
+          set: (on) => {
+            if (!on) { delete item.from; delete item.to; return; }
+            const o = doc.openings.find((x) => x.type === 'door' && x.from[0] === x.to[0] && x.from[0] === Math.min(...doc.rooms.map((r) => r.rect[0])));
+            item.from = o ? [...o.from] : [0, 0];
+            item.to = o ? [...o.to] : [0, 2.5];
+          },
+          event: 'change',
+        })),
+        item.from && item.to ? [
+          row(bind('De X', number(), { ...at(item, 'from', 0), parse: parseNum }), bind('De Z', number(), { ...at(item, 'from', 1), parse: parseNum })),
+          row(bind('Até X', number(), { ...at(item, 'to', 0), parse: parseNum }), bind('Até Z', number(), { ...at(item, 'to', 1), parse: parseNum })),
+          row(bind('Desliza para', choice([['to', 'O lado do “Até”'], ['from', 'O lado do “De”']]), { ...prop(item, 'slide', 'to'), event: 'change' }),
+            bind('Tempo de abertura, s', number(1), { ...prop(item, 'travel', 14), parse: parseNum })),
+          h('p.note', 'Os dois pontos ficam na parede, nas pontas da abertura do portão. Na maquete ele desliza pelo lado de fora, com uma luz âmbar piscando enquanto se move.'),
+        ] : null) : null,
       links.deviceSection(item, kind, linkHooks));
     }
     const key = `${sel.kind}:${sel.index ?? sel.service ?? ''}`;

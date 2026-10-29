@@ -160,11 +160,11 @@
       "type": "door",
       "from": [
         0,
-        3.7
+        3.65
       ],
       "to": [
         0,
-        6.6
+        6.15
       ]
     },
     {
@@ -439,15 +439,6 @@
         2.6
       ],
       "color": "#d9d4cc"
-    },
-    {
-      "type": "tv",
-      "pos": [
-        12.32,
-        2.2
-      ],
-      "rot": -90,
-      "width": 1.7
     },
     {
       "type": "sideboard",
@@ -893,7 +884,18 @@
       "link": {
         "service": "homeassistant",
         "id": "cover.portao_garagem"
-      }
+      },
+      "from": [
+        0,
+        3.65
+      ],
+      "to": [
+        0,
+        6.15
+      ],
+      "slide": "to",
+      "height": 2.2,
+      "travel": 14
     }
   ],
   "shortcuts": [
@@ -970,6 +972,19 @@
         "service": "homeassistant",
         "id": "automation.cameras_pessoa_detectada_notificar_com_foto"
       }
+    }
+  ],
+  "tvs": [
+    {
+      "id": "sala.tv",
+      "name": "TV da Sala",
+      "room": "sala",
+      "pos": [
+        12.32,
+        2.2
+      ],
+      "rot": -90,
+      "width": 1.7
     }
   ]
 }

@@ -459,3 +459,7 @@ html.ios.mode-editor body { background: var(--bg); }
 @media (prefers-reduced-motion: reduce) {
   .p-sheet, .p-modal, .editor.phone .canvas, .p-scrim { transition-duration: 1ms; }
 }
+
+/* A gate on its wall, and a TV (drawn like furniture, in blue). */
+.p-gate { stroke: #ffb340; stroke-width: 0.16; stroke-linecap: round; pointer-events: none; }
+.p-tv rect { fill: rgba(111, 168, 255, 0.28); stroke: #6fa8ff; }
