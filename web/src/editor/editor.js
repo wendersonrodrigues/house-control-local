@@ -928,12 +928,15 @@ export async function bootEditor(root) {
       head(item.name || item.id, `id: ${item.id}`);
       nodes.push(section('TV',
         bind('Nome', text(), prop(item, 'name', '')),
-        bind('Cômodo', choice(doc.rooms.map((r) => [r.id, r.name || r.id])), { ...prop(item, 'room'), event: 'change' })),
+        bind('Cômodo', choice(doc.rooms.map((r) => [r.id, r.name || r.id])), { ...prop(item, 'room'), event: 'change' }),
+        bind('Fica em', choice([['', 'Rack (TV)'], ['desk', 'Mesa (monitor)']]), { ...prop(item, 'mount', ''), event: 'change' })),
       section('Posição, m',
         row(bind('X', number(), { ...at(item, 'pos', 0), parse: parseNum }), bind('Z', number(), { ...at(item, 'pos', 1), parse: parseNum })),
         row(bind('Rotação, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum }),
           bind('Largura, m', number(0.1), { ...prop(item, 'width', 1.6), parse: parseNum })),
-        h('p.note', 'A TV aparece na maquete com o móvel e a tela acende quando ela está ligada. Rotação 0° fica virada para o sul.')),
+        h('p.note', item.mount === 'desk'
+          ? 'O monitor fica em pé sobre a mesa: use a mesma posição e rotação da mesa. A tela acende quando ele está ligado.'
+          : 'A TV aparece na maquete com o móvel e a tela acende quando ela está ligada. Rotação 0° fica virada para o sul.')),
       testSection('tv', item),
       links.deviceSection(item, 'tv', linkHooks));
     } else if (EXTRAS.includes(kind)) {

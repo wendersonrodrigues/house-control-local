@@ -42,6 +42,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   const canvas = h('canvas', { tabindex: -1 });
   const tooltip = h('div.tooltip');
+  const homeName = h('div.home-name', config.name);
   const homeSub = h('div.home-sub');
   const power = h('button.round.power', { title: 'Ligar / desligar tudo', 'aria-label': 'Ligar ou desligar tudo', onclick: toggleEverything }, icon('power', 21, 2.2));
   const gear = h('button.round', { title: 'Ajustes e plantas', 'aria-label': 'Ajustes e plantas', onclick: () => onMenu(gear) }, icon('settings', 17));
@@ -71,7 +72,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     h('div.tint'),
     h('header.top',
       h('div.home', h('button.home-badge', { title: 'Início', 'aria-label': 'Voltar ao início', onclick: goHome }, icon('home', 17)),
-        h('div', h('div.home-name', config.name), homeSub)),
+        h('div', homeName, homeSub)),
       aiBadge, gear, power),
     tooltip, panel, sheet, toastEl);
   const card = h('div.card.booting', h('div.notch'), clip);
@@ -637,6 +638,20 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   let sheetView = null;
 
+  const cfgOf = (target) => ({ light: store.lightCfg, ac: store.acCfg, tv: store.tvCfg, gate: store.gateCfg })[target.kind]?.get(target.id);
+
+  /** A device picked in the model: its room first, then its menu, so a stray click never
+   *  switches anything; the menu's own button does. */
+  function show(target) {
+    const room = cfgOf(target)?.room;
+    if (room && ui.room !== room) {
+      ui.room = room;
+      layoutTiles();
+      roomButtons.get(room)?.b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+    openSheet(target);
+  }
+
   function openSheet(target) {
     ui.sheet = target;
     sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'tv' ? tvSheet(target.id)
@@ -814,7 +829,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       nodes.push(h('div.field-label', h('span', 'Cor'), colorLabel), pad.el, h('div.swatches', swatches));
     } else {
       nodes.push(h('div.sheet-note', icon(cfg.type, 20),
-        `${roomName.get(cfg.room)} · arraste sobre o botão da luz para ajustar o brilho, ou ${isPhone ? 'toque' : 'clique'} na lâmpada da maquete 3D para acender ou apagar.`));
+        `${roomName.get(cfg.room)} · ${isPhone ? 'toque' : 'clique'} no botão ao lado do nome para acender ou apagar.`));
     }
 
     return {
@@ -905,6 +920,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       h('b', onCount ? `${onCount} de ${lights.length}` : '0'), onCount === 1 ? ' luz acesa' : ' luzes acesas',
       acsOn.length ? ` · Ar ${acsOn[0].target}°` : '');
     power.classList.toggle('on', anyOn);
+    // The room in view, or the home's own name when the whole home is.
+    const inView = ui.sheet && ui.sheet.kind !== 'organize' ? cfgOf(ui.sheet)?.room : ui.room !== 'all' ? ui.room : null;
+    homeName.textContent = roomName.get(inView) || config.name;
 
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);
 
@@ -943,6 +961,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     attach(w) { world = w; card.classList.remove('booting'); },
     showTooltip,
     openSheet,
+    show,
     closeSheet,
     /** Organizar o painel: order and visibility of shortcuts, rooms and devices. */
     organize() { openSheet({ kind: 'organize' }); },

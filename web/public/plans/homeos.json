@@ -665,7 +665,7 @@
       "capabilities": [],
       "link": {
         "service": "homeassistant",
-        "id": "light.sala_central_1"
+        "id": "light.sala_de_estar_luz_central_1"
       },
       "shape": "square"
     },
@@ -681,7 +681,7 @@
       "capabilities": [],
       "link": {
         "service": "homeassistant",
-        "id": "light.sala_central_2"
+        "id": "light.sala_de_estar_luz_central_2"
       },
       "shape": "square"
     },
@@ -697,7 +697,7 @@
       "capabilities": [],
       "link": {
         "service": "homeassistant",
-        "id": "light.sala_spots"
+        "id": "light.sala_de_estar_spots_da_sala"
       },
       "rot": 90,
       "count": 3,
@@ -750,7 +750,7 @@
       "capabilities": [],
       "link": {
         "service": "homeassistant",
-        "id": "light.sala_movel"
+        "id": "light.sala_de_estar_luz_do_movel"
       },
       "rot": 90,
       "length": 2.2,
@@ -867,6 +867,123 @@
         "service": "homeassistant",
         "id": "light.quintal"
       }
+    },
+    {
+      "id": "office.centro",
+      "name": "Centro",
+      "room": "office",
+      "type": "ceiling",
+      "pos": [
+        14.4,
+        1.7
+      ],
+      "shape": "square",
+      "link": {
+        "service": "homeassistant",
+        "id": "light.home_office_centro"
+      },
+      "capabilities": []
+    },
+    {
+      "id": "office.spots",
+      "name": "Spots",
+      "room": "office",
+      "type": "spots",
+      "pos": [
+        14.4,
+        0.5
+      ],
+      "rot": 0,
+      "count": 3,
+      "spacing": 0.8,
+      "link": {
+        "service": "homeassistant",
+        "id": "light.home_office_spots"
+      },
+      "capabilities": []
+    },
+    {
+      "id": "office.led",
+      "name": "LED",
+      "room": "office",
+      "type": "strip",
+      "pos": [
+        14.4,
+        3.2
+      ],
+      "length": 3,
+      "y": 2.6,
+      "link": {
+        "service": "homeassistant",
+        "id": "light.home_office_led"
+      },
+      "capabilities": []
+    },
+    {
+      "id": "suite.led",
+      "name": "LED",
+      "room": "suite",
+      "type": "strip",
+      "pos": [
+        21.4,
+        4.95
+      ],
+      "rot": 180,
+      "length": 3,
+      "y": 2.6,
+      "link": {
+        "service": "homeassistant",
+        "id": "light.suite_led"
+      },
+      "capabilities": []
+    },
+    {
+      "id": "suite.centro",
+      "name": "Centro",
+      "room": "suite",
+      "type": "ceiling",
+      "pos": [
+        21.4,
+        6.6
+      ],
+      "shape": "square",
+      "link": {
+        "service": "homeassistant",
+        "id": "light.suite_centro"
+      },
+      "capabilities": []
+    },
+    {
+      "id": "circulacao.centro",
+      "name": "Centro",
+      "room": "circulacao",
+      "type": "ceiling",
+      "pos": [
+        12.8,
+        5.3
+      ],
+      "link": {
+        "service": "homeassistant",
+        "id": "light.circulacao_centro"
+      },
+      "capabilities": []
+    },
+    {
+      "id": "circulacao.led",
+      "name": "LED",
+      "room": "circulacao",
+      "type": "strip",
+      "pos": [
+        12.8,
+        5.75
+      ],
+      "length": 3.5,
+      "y": 2.6,
+      "link": {
+        "service": "homeassistant",
+        "id": "light.circulacao_led"
+      },
+      "capabilities": []
     }
   ],
   "acs": [
@@ -1018,6 +1135,22 @@
         "service": "homeassistant",
         "id": "media_player.tv_lg"
       }
+    },
+    {
+      "id": "office.monitor",
+      "name": "Monitor LG",
+      "room": "office",
+      "link": {
+        "service": "homeassistant",
+        "id": "media_player.home_office_monitor_lg_webos"
+      },
+      "width": 0.72,
+      "mount": "desk",
+      "pos": [
+        12.85,
+        1.3
+      ],
+      "rot": 90
     }
   ]
 }

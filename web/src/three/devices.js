@@ -10,17 +10,20 @@ const SCREEN_ON = new THREE.Color('#a8c8ff');
 export class TVUnit {
   constructor(cfg) {
     this.cfg = cfg;
-    this.group = buildPiece({ type: 'tv', pos: cfg.pos, rot: cfg.rot, width: cfg.width });
+    this.group = buildPiece({ type: 'tv', pos: cfg.pos, rot: cfg.rot, width: cfg.width, mount: cfg.mount });
     this.screen = this.group.getObjectByName('screen');
     this.screen.material = this.screen.material.clone();
-    // The room in front of the screen takes on its glow.
-    this.glow = new THREE.PointLight('#7fb0ff', 0, 4.5, 1.6);
-    this.glow.position.set(0, 0.8, 0.5);
+    const desk = cfg.mount === 'desk';
+    // The room in front of the screen takes on its glow (a monitor's, nearer and softer).
+    this.glow = new THREE.PointLight('#7fb0ff', 0, desk ? 2.5 : 4.5, 1.6);
+    this.glow.position.set(0, desk ? 1.05 : 0.8, desk ? 0.2 : 0.5);
+    this.glowScale = desk ? 0.6 : 1;
     this.group.add(this.glow);
 
     const sw = cfg.width * 0.84;
-    this.hit = new THREE.Mesh(new THREE.BoxGeometry(cfg.width, sw * 0.5625 + 0.5, 0.6), new THREE.MeshBasicMaterial());
-    this.hit.position.set(0, 0.6, 0);
+    const tall = sw * 0.5625 + (desk ? 0.2 : 0.5);
+    this.hit = new THREE.Mesh(new THREE.BoxGeometry(cfg.width + (desk ? 0.1 : 0), tall, desk ? 0.35 : 0.6), new THREE.MeshBasicMaterial());
+    this.hit.position.set(0, desk ? 0.76 + tall / 2 - 0.05 : 0.6, desk ? -0.15 : 0);
     this.hit.visible = false;
     this.hit.userData = { kind: 'tv', id: cfg.id };
     this.group.add(this.hit);
@@ -34,7 +37,7 @@ export class TVUnit {
   }
 
   anchor(out) {
-    return out.set(0, 1.15, 0).applyMatrix4(this.group.matrixWorld);
+    return out.set(0, this.cfg.mount === 'desk' ? 1.35 : 1.15, 0).applyMatrix4(this.group.matrixWorld);
   }
 
   apply(state, { instant = false } = {}) {
@@ -54,7 +57,7 @@ export class TVUnit {
     const m = this.screen.material;
     m.emissive.copy(SCREEN_OFF).lerp(SCREEN_ON, p);
     m.emissiveIntensity = 0.2 + p * 1.5 * shimmer + this.hover * 0.25;
-    this.glow.intensity = p * 2.2 * shimmer;
+    this.glow.intensity = p * 2.2 * shimmer * this.glowScale;
     return this.goal !== this.power || this.playing && p > 0 || Math.abs(this.hoverGoal - this.hover) > 0.004;
   }
 }

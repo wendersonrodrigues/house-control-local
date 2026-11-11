@@ -79,8 +79,7 @@ async function boot() {
       onHover: panel.showTooltip,
       onPick(target) {
         if (!target) return;
-        if (target.kind === 'light') { haptic('light'); store.toggleLight(target.id); }
-        else if (['ac', 'tv', 'gate'].includes(target.kind)) panel.openSheet(target);
+        if (['light', 'ac', 'tv', 'gate'].includes(target.kind)) { haptic('light'); panel.show(target); }
         else if (target.kind === 'room') panel.selectRoom(target.id);
       },
     });
