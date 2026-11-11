@@ -904,9 +904,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   // Over the device whose menu is open, in place of the hover label's dot: a round switch
   // that glows in the device's colour while it is on. Gates keep their own two-step button.
   const pinPower = h('button.pin-power', { 'aria-label': 'Ligar ou desligar', onclick: (e) => { e.stopPropagation(); flipPinned(); } }, icon('power', 15, 2.4));
+  // Just the name: the switch's glow already says whether it is on, and the menu below says it in words.
   const pinName = h('b');
-  const pinStatus = h('span');
-  const pin = h('div.pin', pinPower, pinName, pinStatus);
+  const pin = h('div.pin', pinPower, pinName);
   clip.append(pin);
 
   const pinnable = (t) => t && ['light', 'tv', 'ac'].includes(t.kind);
@@ -929,12 +929,14 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   }
 
   function updatePin() {
-    if (!pinnable(ui.sheet)) { pin.classList.remove('show'); return; }
-    const { name, status, on, color } = describe(ui.sheet);
+    if (!pinnable(ui.sheet)) { pin.classList.remove('show'); sheet.classList.remove('tinted'); return; }
+    const { name, on, color } = describe(ui.sheet);
     pinName.textContent = name;
-    pinStatus.textContent = status;
     pin.classList.toggle('on', on);
     pin.style.setProperty('--dot', color);
+    // The menu's own switch glows the same colour.
+    sheet.classList.add('tinted');
+    sheet.style.setProperty('--dot', color);
   }
 
   /* ---------- derived state ---------- */
