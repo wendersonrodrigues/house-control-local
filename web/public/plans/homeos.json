@@ -736,7 +736,8 @@
       },
       "length": 4.65,
       "corner": 3.0,
-      "turn": "left"
+      "turn": "left",
+      "use": "ceiling"
     },
     {
       "id": "sala.movel",

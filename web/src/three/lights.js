@@ -205,18 +205,22 @@ const fixtures = {
     };
   },
 
+  // `use: "ceiling"`: a LED that lights the room (a cove or a ceiling profile), about as
+  // bright as a ceiling lamp along its whole length; otherwise a decorative strip that glows.
   strip(cfg) {
     const y = cfg.y ?? 1;
     const length = cfg.length ?? 1;
     const corner = Math.max(0, cfg.corner || 0);
     const side = cfg.turn === 'left' ? -1 : 1;
     const total = length + corner;
+    const room = cfg.use === 'ceiling';
+    const strength = cfg.intensity ?? (room ? 2.6 * total : 1.6);
     const lights = [];
     const spread = (from, to, n) => {
       for (let i = 0; i < n; i++) {
         const t = (i + 0.5) / n;
-        lights.push(point(((cfg.intensity ?? 1.6) * (length + corner) / total) / Math.max(1, Math.round(total)), y,
-          { shadow: false, distance: 3.2, x: from[0] + (to[0] - from[0]) * t, z: from[1] + (to[1] - from[1]) * t + 0.05 }));
+        lights.push(point(strength / Math.max(1, Math.round(total)), y,
+          { shadow: false, distance: room ? 6 : 3.2, x: from[0] + (to[0] - from[0]) * t, z: from[1] + (to[1] - from[1]) * t + 0.05 }));
       }
     };
     spread([-length / 2, 0], [length / 2, 0], Math.max(1, Math.round(length)));

@@ -38,6 +38,8 @@ A interface está em português do Brasil. A documentação original, em inglês
 - **TV.** Liga/desliga, volume, mudo, entrada (HDMI, apps) e reprodução, conforme o que a TV aceita no Home
   Assistant (LG webOS e qualquer `media_player`). Na maquete, a tela acende e ilumina a sala quando a TV está ligada.
   Um monitor (como o LG webOS do Home Office) entra do mesmo jeito: no editor, **Fica em: Mesa (monitor)** o põe sobre a mesa.
+- **Fita de LED: decoração ou teto.** No editor, em cada fita, **Uso** escolhe entre LED de decoração (brilho suave)
+  e LED de teto, que ilumina o cômodo com a força de um plafon.
 - **Clique na maquete.** Clicar numa lâmpada da maquete leva ao cômodo e mostra sobre ela um balão com o botão de
   ligar, sem acender nada; um segundo clique na mesma lâmpada também acende ou apaga. Ar, TV e portão abrem o seu
   menu. No topo aparece o nome do cômodo em vista (ou o nome da casa, na casa toda).
