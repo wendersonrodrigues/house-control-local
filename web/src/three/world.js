@@ -20,7 +20,7 @@ const EL_MAX = 70;
 const ZOOM_MIN = 0.18;     // closest: a long home needs to get near one room
 const ZOOM_MAX = 1.2;
 
-export function createWorld(canvas, config, store, { onHover, onPick, background = STAGE_BG }) {
+export function createWorld(canvas, config, store, { onHover, onPick, onPin, background = STAGE_BG }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -382,6 +382,12 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     return { x: (v.x * 0.5 + 0.5) * width, y: (-v.y * 0.5 + 0.5) * height };
   }
 
+  // The device whose menu is open: the panel keeps a label with its switch over it (onPin).
+  let pinned = null;
+  function placePin() {
+    if (onPin) onPin(pinned ? { ...pinned, ...screenAnchor(pinned) } : null);
+  }
+
   function setHover(t) {
     const same = hovered?.kind === t?.kind && hovered?.id === t?.id;
     if (same) return;
@@ -506,6 +512,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       composer.render(dt);
       awake = Math.max(0, awake - 1);
       if (hovered && active) onHover({ ...hovered, ...screenAnchor(hovered) });
+      placePin();
     }
     if (running && (active || awake > 0)) raf = requestAnimationFrame(frame);
   }
@@ -543,6 +550,13 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
     setInsets(top, bottom) { topInset = top; bottomInset = bottom; resize(); },
     resize,
+
+    /** Keeps the panel's label over this device (null: none) while the camera moves. */
+    pin(t) {
+      pinned = unitOf(t) ? t : null;
+      placePin();
+      wake();
+    },
 
     focus(next) {
       rig.focus = next;

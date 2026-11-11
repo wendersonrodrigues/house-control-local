@@ -668,6 +668,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const room = target.kind === 'tv' ? store.tvCfg.get(target.id).room : target.kind === 'light' ? store.lightCfg.get(target.id).room : null;
     onFocus(['ac', 'tv', 'gate'].includes(target.kind) ? target : target.kind === 'organize' ? null : { kind: 'room', id: room });
     update();
+    world?.pin(pinnable(target) ? target : null);
   }
 
   function closeSheet() {
@@ -681,6 +682,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     card.classList.remove('detail');
     onFocus(ui.room === 'all' ? null : { kind: 'room', id: ui.room });
     update();
+    world?.pin(null);
     return true;
   }
 
@@ -859,8 +861,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function hideTooltip() { tooltip.classList.remove('show'); }
 
-  function showTooltip(hit) {
-    if (!hit) { hideTooltip(); return; }
+  /** What a label over a device says: its name and state, and the colour its dot glows. */
+  function describe(hit) {
     let name;
     let status;
     let on;
@@ -882,12 +884,57 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       const s = state.acs[hit.id];
       name = cfg.name; status = s.on ? `${s.idle ? 'Em espera' : MODE_LABEL[s.mode]} ${s.target}°` : 'Desligado'; on = s.on && !s.idle; color = MODE_COLORS[s.mode];
     }
+    return { name, status, on, color };
+  }
+
+  function showTooltip(hit) {
+    // The open device already has its own label (the pin below).
+    if (!hit || (ui.sheet && ui.sheet.kind === hit.kind && ui.sheet.id === hit.id)) { hideTooltip(); return; }
+    const { name, status, on, color } = describe(hit);
     tooltip.replaceChildren(h('i.dot'), name, h('span', status));
     tooltip.classList.toggle('on', on);
     tooltip.style.setProperty('--dot', color);
     tooltip.style.left = `${clamp(hit.x, 70, card.clientWidth - 70)}px`;
     tooltip.style.top = `${Math.max(64, hit.y)}px`;
     tooltip.classList.add('show');
+  }
+
+  /* ---------- pin: the open device's label, with its switch ---------- */
+
+  // Over the device whose menu is open, in place of the hover label's dot: a round switch
+  // that glows in the device's colour while it is on. Gates keep their own two-step button.
+  const pinPower = h('button.pin-power', { 'aria-label': 'Ligar ou desligar', onclick: (e) => { e.stopPropagation(); flipPinned(); } }, icon('power', 15, 2.4));
+  const pinName = h('b');
+  const pinStatus = h('span');
+  const pin = h('div.pin', pinPower, pinName, pinStatus);
+  clip.append(pin);
+
+  const pinnable = (t) => t && ['light', 'tv', 'ac'].includes(t.kind);
+
+  function flipPinned() {
+    const t = ui.sheet;
+    if (!pinnable(t)) return;
+    if (t.kind === 'light') { toggleLight(t.id); return; }
+    haptic('medium');
+    if (t.kind === 'tv') store.setTV(t.id, { on: !state.tvs[t.id].on });
+    else store.setAC(t.id, { on: !state.acs[t.id].on });
+  }
+
+  function placePin(at) {
+    const show = pinnable(ui.sheet) && at && Number.isFinite(at.x) && at.kind === ui.sheet.kind && at.id === ui.sheet.id;
+    pin.classList.toggle('show', !!show);
+    if (!show) return;
+    pin.style.left = `${clamp(at.x, 90, card.clientWidth - 90)}px`;
+    pin.style.top = `${Math.max(70, at.y)}px`;
+  }
+
+  function updatePin() {
+    if (!pinnable(ui.sheet)) { pin.classList.remove('show'); return; }
+    const { name, status, on, color } = describe(ui.sheet);
+    pinName.textContent = name;
+    pinStatus.textContent = status;
+    pin.classList.toggle('on', on);
+    pin.style.setProperty('--dot', color);
   }
 
   /* ---------- derived state ---------- */
@@ -946,6 +993,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const scopedOn = scoped.filter((l) => state.lights[l.id].on).length;
     listTitle.replaceChildren(h('b', ui.room === 'all' ? 'Casa toda' : roomName.get(ui.room)), ` · ${scopedOn} de ${scoped.length} acesas`);
 
+    updatePin();
     for (const t of tiles.values()) t.update();
     for (const t of [...gateTiles, ...toggleTiles]) t.update();
     sheetView?.update();
@@ -966,6 +1014,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     card,
     attach(w) { world = w; card.classList.remove('booting'); },
     showTooltip,
+    placePin,
     openSheet,
     show,
     closeSheet,
