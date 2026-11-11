@@ -372,6 +372,10 @@ html.native .card { width: auto; height: auto; box-shadow:
 .devices::-webkit-scrollbar { display: none; }
 
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 2px; }
+/* On the Mac, ten columns: a lamp takes half a row (five), the gate 60% (six) and the lamp
+   beside it the rest. Kept weak (:where) so the full-width tiles below still win. */
+:where(html:not(.ios)) .grid { grid-template-columns: repeat(10, 1fr); }
+:where(html:not(.ios) .grid) > .tile { grid-column: span 5; }
 
 .group-label {
   grid-column: 1 / -1;
@@ -463,12 +467,14 @@ html.native .card { width: auto; height: auto; box-shadow:
 
 .tile.ac { grid-column: 1 / -1; cursor: pointer; }
 
-/* The gate (full width, opens on a second press) and the automation switches. */
-.tile.gate { grid-column: 1 / -1; }
+/* The gate (60% of a row, opens on a second press) and the automation switches. */
+.tile.gate { gap: 9px; padding-right: 10px; }
+:where(html:not(.ios) .grid) > .tile.gate { grid-column: span 6; }
+:where(html:not(.ios) .grid) > .tile.gate + .tile:not(.ac):not(.tv):not(.toggle):not(.gate) { grid-column: span 4; }
 .tile.toggle { grid-column: 1 / -1; cursor: pointer; }
 .tile.offline { opacity: 0.55; }
 .gate-action {
-  flex: none; height: 32px; padding: 0 14px; border-radius: 16px;
+  flex: none; height: 32px; padding: 0 12px; border-radius: 16px;
   font-size: 12.5px; font-weight: 600; color: var(--text);
   background: rgba(255, 255, 255, 0.1);
   transition: background 220ms, color 220ms, transform 320ms var(--spring);
