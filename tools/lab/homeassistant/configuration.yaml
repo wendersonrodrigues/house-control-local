@@ -178,6 +178,17 @@ template:
         open_cover: { action: script.turn_on, target: { entity_id: script.lab_portao_abrir } }
         close_cover: { action: script.turn_on, target: { entity_id: script.lab_portao_fechar } }
 
+# The two LG webOS screens, with the real IDs, over the demo players.
+media_player:
+  - platform: universal
+    name: TV LG
+    unique_id: lab_tv_lg
+    children: [media_player.living_room]
+  - platform: universal
+    name: Home Office Monitor LG webOS
+    unique_id: lab_monitor_lg
+    children: [media_player.bedroom]
+
 script:
   lab_portao_abrir:
     mode: restart

@@ -1135,6 +1135,22 @@
         "service": "homeassistant",
         "id": "media_player.tv_lg"
       }
+    },
+    {
+      "id": "office.monitor",
+      "name": "Monitor LG",
+      "room": "office",
+      "link": {
+        "service": "homeassistant",
+        "id": "media_player.home_office_monitor_lg_webos"
+      },
+      "width": 0.72,
+      "mount": "desk",
+      "pos": [
+        12.85,
+        1.3
+      ],
+      "rot": 90
     }
   ]
 }

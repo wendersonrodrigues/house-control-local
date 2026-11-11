@@ -96,12 +96,23 @@ const builders = {
     );
   },
 
-  tv({ width = 1.7 }) {
+  tv({ width = 1.7, mount }) {
     const sw = width * 0.84;
     const sh = sw * 0.5625;
     const screen = new THREE.MeshStandardMaterial({
       color: '#05070c', roughness: 0.25, emissive: '#27407a', emissiveIntensity: 0.35,
     });
+    // A monitor on a desk: placed like the desk, it stands on its top in front of the desk's
+    // own drawn screen and hides it.
+    if (mount === 'desk') {
+      const top = 0.76;
+      return group(
+        at(box(0.26, 0.015, 0.18, mat(BLACK, { rough: 0.4 }), { r: 0.006 }), 0, top, -0.18),
+        at(box(0.04, 0.11, 0.03, mat(BLACK, { rough: 0.4 }), { r: 0.006 }), 0, top, -0.2),
+        at(box(sw + 0.02, sh + 0.02, 0.03, mat(BLACK, { rough: 0.4 }), { r: 0.006 }), 0, top + 0.09, -0.16),
+        Object.assign(at(box(sw - 0.01, sh - 0.01, 0.01, screen, { r: 0 }), 0, top + 0.105, -0.14), { name: 'screen' }),
+      );
+    }
     return group(
       at(box(width, 0.36, 0.4, mat(DARK_WOOD, { rough: 0.6 }), { r: 0.015 }), 0, 0.1, 0),
       ...legs(width, 0.4, 0.1, mat(BLACK), 0.08, 0.015),

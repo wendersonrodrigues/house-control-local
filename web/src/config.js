@@ -159,7 +159,8 @@ export function normalize(raw) {
     unique(t.id, 'Uma TV');
     need(roomIds.has(t.room), `A TV "${t.id}" aponta para o cômodo desconhecido "${t.room}"`);
     need(isPoint(t.pos), `A TV "${t.id}" precisa de "pos": [x, z]`);
-    return { ...t, name: t.name || t.id, rot: t.rot || 0, width: t.width ?? 1.6 };
+    // mount "desk": a monitor standing on a desk placed at the same spot, instead of a TV on a rack.
+    return { ...t, name: t.name || t.id, rot: t.rot || 0, width: t.width ?? 1.6, mount: t.mount === 'desk' ? 'desk' : undefined };
   });
 
   const minX = Math.min(...rooms.map((r) => r.x));
