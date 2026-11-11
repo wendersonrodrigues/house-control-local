@@ -890,8 +890,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   function showTooltip(hit) {
     // The open device already has its own label (the pin below).
     if (!hit || (ui.sheet && ui.sheet.kind === hit.kind && ui.sheet.id === hit.id)) { hideTooltip(); return; }
-    const { name, status, on, color } = describe(hit);
-    tooltip.replaceChildren(h('i.dot'), name, h('span', status));
+    // The dot's glow tells the state; the name is all the words it needs.
+    const { name, on, color } = describe(hit);
+    tooltip.replaceChildren(h('i.dot'), name);
     tooltip.classList.toggle('on', on);
     tooltip.style.setProperty('--dot', color);
     tooltip.style.left = `${clamp(hit.x, 70, card.clientWidth - 70)}px`;
