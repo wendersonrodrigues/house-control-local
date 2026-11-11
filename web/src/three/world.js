@@ -9,6 +9,7 @@ import { buildFurniture } from './furniture.js';
 import { LightUnit } from './lights.js';
 import { ACUnit } from './ac.js';
 import { TVUnit, GateUnit } from './devices.js';
+import { applyRoomMask } from './roommask.js';
 
 export const STAGE_BG = '#0a0e1a';
 
@@ -20,7 +21,7 @@ const EL_MAX = 70;
 const ZOOM_MIN = 0.18;     // closest: a long home needs to get near one room
 const ZOOM_MAX = 1.2;
 
-export function createWorld(canvas, config, store, { onHover, onPick, background = STAGE_BG }) {
+export function createWorld(canvas, config, store, { onHover, onPick, onPin, background = STAGE_BG }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -59,7 +60,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   const parts = new Map(); // main light id -> its pieces
   for (const cfg of config.lightParts || []) {
     const unit = new LightUnit({ ...cfg, capabilities: config.lights.find((l) => l.id === cfg.with)?.capabilities ?? cfg.capabilities }, H);
-    unit.hit.userData = { kind: 'light', id: cfg.with };
+    for (const m of unit.hits) m.userData = { kind: 'light', id: cfg.with };
     if (!parts.has(cfg.with)) parts.set(cfg.with, []);
     parts.get(cfg.with).push(unit);
     scene.add(unit.group);
@@ -112,8 +113,10 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     gates.set(cfg.id, unit);
     scene.add(unit.group);
   }
-  const hitTargets = [...allLights().map((u) => u.hit), ...[...acs.values()].map((u) => u.hit),
+  const hitTargets = [...allLights().flatMap((u) => u.hits), ...[...acs.values()].map((u) => u.hit),
     ...[...tvs.values()].map((u) => u.hit), ...[...gates.values()].map((u) => u.hit), ...house.floors];
+  // Each lamp lights its own room only: walls stop it even without a shadow map.
+  applyRoomMask(scene, config.rooms, camera);
 
   // Night-time ambience: enough to read the model with every lamp off. By day (setDaylight)
   // the same two lights become sky and sun.
@@ -382,6 +385,12 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     return { x: (v.x * 0.5 + 0.5) * width, y: (-v.y * 0.5 + 0.5) * height };
   }
 
+  // The device whose menu is open: the panel keeps a label with its switch over it (onPin).
+  let pinned = null;
+  function placePin() {
+    if (onPin) onPin(pinned ? { ...pinned, ...screenAnchor(pinned) } : null);
+  }
+
   function setHover(t) {
     const same = hovered?.kind === t?.kind && hovered?.id === t?.id;
     if (same) return;
@@ -506,6 +515,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
       composer.render(dt);
       awake = Math.max(0, awake - 1);
       if (hovered && active) onHover({ ...hovered, ...screenAnchor(hovered) });
+      placePin();
     }
     if (running && (active || awake > 0)) raf = requestAnimationFrame(frame);
   }
@@ -543,6 +553,13 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
 
     setInsets(top, bottom) { topInset = top; bottomInset = bottom; resize(); },
     resize,
+
+    /** Keeps the panel's label over this device (null: none) while the camera moves. */
+    pin(t) {
+      pinned = unitOf(t) ? t : null;
+      placePin();
+      wake();
+    },
 
     focus(next) {
       rig.focus = next;

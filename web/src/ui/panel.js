@@ -34,7 +34,7 @@ function acTemperatureColor(target, cfg) {
 
 export function createPanel(root, config, store, { onFocus, onMenu }) {
   const { state } = store;
-  const ui = { room: 'all', sheet: null };
+  const ui = { room: 'all', sheet: null, pinned: null };
   let world = null;
   const roomName = new Map(config.rooms.map((r) => [r.id, r.name]));
 
@@ -132,6 +132,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   function goHome() {
     haptic('light');
     closeSheet();
+    unpin();
     if (ui.room !== 'all') selectRoom('all');
     else onFocus(null);
     grid.parentElement.scrollTo({ top: 0, behavior: 'smooth' });
@@ -139,6 +140,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function selectRoom(id) {
     if (ui.room === id) id = 'all';
+    if (ui.pinned) { ui.pinned = null; world?.pin(null); }
     ui.room = id;
     layoutTiles();
     update();
@@ -644,6 +646,17 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
    *  switches anything; the menu's own button does. */
   function show(target) {
     const room = cfgOf(target)?.room;
+    // A lamp needs no menu: its room's list stays below, and over the lamp a label with its
+    // switch. Clicked again, the lamp itself switches.
+    if (target.kind === 'light') {
+      if (!ui.sheet && ui.pinned?.id === target.id) { toggleLight(target.id); return; }
+      closeSheet();
+      if (room && ui.room !== room) selectRoom(room);
+      ui.pinned = target;
+      world?.pin(target);
+      update();
+      return;
+    }
     if (room && ui.room !== room) {
       ui.room = room;
       layoutTiles();
@@ -652,7 +665,22 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     openSheet(target);
   }
 
+  function unpin() {
+    if (!ui.pinned) return false;
+    ui.pinned = null;
+    world?.pin(null);
+    update();
+    return true;
+  }
+
+  /** The floor of a room clicked: off a lamp's label first, otherwise into (or out of) the room. */
+  function pickRoom(id) {
+    if (ui.pinned && ui.room === id) { unpin(); return; }
+    selectRoom(id);
+  }
+
   function openSheet(target) {
+    ui.pinned = null;
     ui.sheet = target;
     sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'tv' ? tvSheet(target.id)
       : target.kind === 'gate' ? gateSheet(target.id) : target.kind === 'organize' ? organizeSheet() : lightSheet(target.id);
@@ -666,6 +694,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const room = target.kind === 'tv' ? store.tvCfg.get(target.id).room : target.kind === 'light' ? store.lightCfg.get(target.id).room : null;
     onFocus(['ac', 'tv', 'gate'].includes(target.kind) ? target : target.kind === 'organize' ? null : { kind: 'room', id: room });
     update();
+    world?.pin(pinnable(target) ? target : null);
   }
 
   function closeSheet() {
@@ -679,14 +708,16 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     card.classList.remove('detail');
     onFocus(ui.room === 'all' ? null : { kind: 'room', id: ui.room });
     update();
+    world?.pin(null);
     return true;
   }
 
-  function sheetHead(name, sub, powerBtn) {
+  /** `beside`: the power button next to the name, for a lamp that only switches on and off. */
+  function sheetHead(name, sub, powerBtn, { beside = false } = {}) {
+    const title = h('div.sheet-title', h('div.sheet-name', name), sub);
     return h('div.sheet-head',
       h('button.round', { 'aria-label': 'Voltar', onclick: closeSheet }, icon('back', 19, 2.2)),
-      h('div.sheet-title', h('div.sheet-name', name), sub),
-      powerBtn);
+      ...(beside ? [powerBtn, title] : [title, powerBtn]));
   }
 
   function bigNumber(unit) {
@@ -796,8 +827,11 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const caps = cfg.capabilities;
     const sub = h('div.sheet-sub');
     const powerBtn = h('button.round.power', { 'aria-label': 'Ligar ou desligar', onclick: () => toggleLight(id) }, icon('power', 21, 2.2));
-    const big = bigNumber('%');
-    const nodes = [sheetHead(cfg.name, sub, powerBtn), h('div.readout', big.el)];
+    // A percentage only where there is a brightness to show: a lamp that just switches on
+    // and off would read as dimmable.
+    const dimmable = caps.includes('brightness');
+    const big = dimmable ? bigNumber('%') : null;
+    const nodes = [sheetHead(cfg.name, sub, powerBtn, { beside: !dimmable }), ...(big ? [h('div.readout', big.el)] : [])];
     const sliders = {};
 
     if (caps.includes('brightness')) {
@@ -829,7 +863,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       nodes.push(h('div.field-label', h('span', 'Cor'), colorLabel), pad.el, h('div.swatches', swatches));
     } else {
       nodes.push(h('div.sheet-note', icon(cfg.type, 20),
-        `${roomName.get(cfg.room)} · ${isPhone ? 'toque' : 'clique'} no botão ao lado do nome para acender ou apagar.`));
+        `${roomName.get(cfg.room)} · ${isPhone ? 'toque' : 'clique'} no botão ao lado do nome, ou de novo na lâmpada da maquete, para acender ou apagar.`));
     }
 
     return {
@@ -838,7 +872,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         const l = s();
         powerBtn.classList.toggle('on', l.on);
         sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', l.on ? 'Acesa' : 'Apagada'));
-        big.set(caps.includes('brightness') ? Math.round(l.brightness * 100) : l.on ? 100 : 0, !l.on);
+        big?.set(Math.round(l.brightness * 100), !l.on);
         sliders.brightness?.set(Math.round(l.brightness * 100));
         sliders.temp?.set(l.temp);
         if (kelvinLabel) kelvinLabel.textContent = l.color ? '—' : `${l.temp} K`;
@@ -853,8 +887,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function hideTooltip() { tooltip.classList.remove('show'); }
 
-  function showTooltip(hit) {
-    if (!hit) { hideTooltip(); return; }
+  /** What a label over a device says: its name and state, and the colour its dot glows. */
+  function describe(hit) {
     let name;
     let status;
     let on;
@@ -876,12 +910,65 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       const s = state.acs[hit.id];
       name = cfg.name; status = s.on ? `${s.idle ? 'Em espera' : MODE_LABEL[s.mode]} ${s.target}°` : 'Desligado'; on = s.on && !s.idle; color = MODE_COLORS[s.mode];
     }
-    tooltip.replaceChildren(h('i.dot'), name, h('span', status));
+    return { name, status, on, color };
+  }
+
+  function showTooltip(hit) {
+    // The open device already has its own label (the pin below).
+    const p = pinTarget();
+    if (!hit || (p && p.kind === hit.kind && p.id === hit.id)) { hideTooltip(); return; }
+    // The dot's glow tells the state; the name is all the words it needs.
+    const { name, on, color } = describe(hit);
+    tooltip.replaceChildren(h('i.dot'), name);
     tooltip.classList.toggle('on', on);
     tooltip.style.setProperty('--dot', color);
     tooltip.style.left = `${clamp(hit.x, 70, card.clientWidth - 70)}px`;
     tooltip.style.top = `${Math.max(64, hit.y)}px`;
     tooltip.classList.add('show');
+  }
+
+  /* ---------- pin: the open device's label, with its switch ---------- */
+
+  // Over the device whose menu is open, in place of the hover label's dot: a round switch
+  // that glows in the device's colour while it is on. Gates keep their own two-step button.
+  const pinPower = h('button.pin-power', { 'aria-label': 'Ligar ou desligar', onclick: (e) => { e.stopPropagation(); flipPinned(); } }, icon('power', 15, 2.4));
+  // Just the name: the switch's glow already says whether it is on, and the menu below says it in words.
+  const pinName = h('b');
+  const pin = h('div.pin', pinPower, pinName);
+  clip.append(pin);
+
+  const pinnable = (t) => t && ['light', 'tv', 'ac'].includes(t.kind);
+  // The open menu's device, or a lamp clicked in the model (it has no menu).
+  const pinTarget = () => (pinnable(ui.sheet) ? ui.sheet : ui.sheet ? null : ui.pinned);
+
+  function flipPinned() {
+    const t = pinTarget();
+    if (!pinnable(t)) return;
+    if (t.kind === 'light') { toggleLight(t.id); return; }
+    haptic('medium');
+    if (t.kind === 'tv') store.setTV(t.id, { on: !state.tvs[t.id].on });
+    else store.setAC(t.id, { on: !state.acs[t.id].on });
+  }
+
+  function placePin(at) {
+    const t = pinTarget();
+    const show = t && at && Number.isFinite(at.x) && at.kind === t.kind && at.id === t.id;
+    pin.classList.toggle('show', !!show);
+    if (!show) return;
+    pin.style.left = `${clamp(at.x, 90, card.clientWidth - 90)}px`;
+    pin.style.top = `${Math.max(70, at.y)}px`;
+  }
+
+  function updatePin() {
+    const t = pinTarget();
+    if (!t) { pin.classList.remove('show'); sheet.classList.remove('tinted'); return; }
+    const { name, on, color } = describe(t);
+    pinName.textContent = name;
+    pin.classList.toggle('on', on);
+    pin.style.setProperty('--dot', color);
+    // An open menu's own switch glows the same colour.
+    sheet.classList.toggle('tinted', !!ui.sheet);
+    sheet.style.setProperty('--dot', color);
   }
 
   /* ---------- derived state ---------- */
@@ -940,6 +1027,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const scopedOn = scoped.filter((l) => state.lights[l.id].on).length;
     listTitle.replaceChildren(h('b', ui.room === 'all' ? 'Casa toda' : roomName.get(ui.room)), ` · ${scopedOn} de ${scoped.length} acesas`);
 
+    updatePin();
     for (const t of tiles.values()) t.update();
     for (const t of [...gateTiles, ...toggleTiles]) t.update();
     sheetView?.update();
@@ -949,7 +1037,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   store.on(() => update());
   window.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape' && !closeSheet()) onMenu(null, 'escape');
+    if (ev.key === 'Escape' && !closeSheet() && !unpin()) onMenu(null, 'escape');
   });
 
   layoutTiles();
@@ -960,8 +1048,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     card,
     attach(w) { world = w; card.classList.remove('booting'); },
     showTooltip,
+    placePin,
     openSheet,
     show,
+    pickRoom,
     closeSheet,
     /** Organizar o painel: order and visibility of shortcuts, rooms and devices. */
     organize() { openSheet({ kind: 'organize' }); },

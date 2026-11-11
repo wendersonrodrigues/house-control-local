@@ -818,6 +818,8 @@ export async function bootEditor(root) {
         row(bind('Altura (automática se vazia)', number(), { ...optional(item, 'y'), parse: optNum }),
           bind('Rotação, °', number(15), { ...prop(item, 'rot', 0), parse: parseNum })),
         item.type === 'strip' ? [
+          bind('Uso', choice([['', 'LED de decoração (brilho suave)'], ['ceiling', 'LED de teto (ilumina o cômodo)']]), {
+            get: () => item.use || '', set: (v) => { if (v) item.use = v; else delete item.use; }, event: 'change' }),
           row(bind('Comprimento da fita, m', number(0.1), { ...prop(item, 'length', 1), parse: parseNum }),
             bind('Segundo lado do L, m', number(0.1), { ...optional(item, 'corner'), parse: optNum })),
           item.corner ? bind('O L vira para', choice([['right', 'A direita'], ['left', 'A esquerda']]), { ...prop(item, 'turn', 'right'), event: 'change' }) : null,

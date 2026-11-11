@@ -77,10 +77,11 @@ async function boot() {
   try {
     world = createWorld(panel.canvas, config, store, {
       onHover: panel.showTooltip,
+      onPin: panel.placePin,
       onPick(target) {
         if (!target) return;
         if (['light', 'ac', 'tv', 'gate'].includes(target.kind)) { haptic('light'); panel.show(target); }
-        else if (target.kind === 'room') panel.selectRoom(target.id);
+        else if (target.kind === 'room') panel.pickRoom(target.id);
       },
     });
   } catch (error) {
