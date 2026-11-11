@@ -243,7 +243,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         el.style.setProperty('--c', css(lightColor(s, tmp)));
         el.style.setProperty('--level', s.on ? String(s.brightness) : '0');
         // On a phone the group heading above the tile already names the room.
-        sub.textContent = ui.room === 'all' && !isPhone ? `${lightStatus(cfg, s)} · ${roomName.get(cfg.room)}` : lightStatus(cfg, s);
+        // The room is the group's heading already.
+        sub.textContent = lightStatus(cfg, s);
       },
     };
   }
@@ -311,7 +312,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       },
       label(short) {
         const next = store.gateNext(id);
-        if (armed) return next === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar';
+        // The tile is half a row wide: there the second press asks in one word ("Abrir?").
+        if (armed) return short ? `${GATE_VERB[next]}?` : next === 'open' ? 'Toque de novo para abrir' : 'Toque de novo para fechar';
         return short ? GATE_VERB[next] : `${GATE_VERB[next]} o portão`;
       },
     };
@@ -492,7 +494,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         el.classList.toggle('on', t.on);
         el.classList.toggle('offline', t.online === false);
         el.style.setProperty('--c', TV_BLUE);
-        sub.textContent = ui.room === 'all' && !isPhone ? `${tvStatus(t)} · ${roomName.get(cfg.room)}` : tvStatus(t);
+        sub.textContent = tvStatus(t);
       },
     };
   }

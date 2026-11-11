@@ -463,12 +463,12 @@ html.native .card { width: auto; height: auto; box-shadow:
 
 .tile.ac { grid-column: 1 / -1; cursor: pointer; }
 
-/* The gate (full width, opens on a second press) and the automation switches. */
-.tile.gate { grid-column: 1 / -1; }
+/* The gate (half a row like a lamp, opens on a second press) and the automation switches. */
+.tile.gate { gap: 9px; padding-right: 10px; }
 .tile.toggle { grid-column: 1 / -1; cursor: pointer; }
 .tile.offline { opacity: 0.55; }
 .gate-action {
-  flex: none; height: 32px; padding: 0 14px; border-radius: 16px;
+  flex: none; height: 32px; padding: 0 12px; border-radius: 16px;
   font-size: 12.5px; font-weight: 600; color: var(--text);
   background: rgba(255, 255, 255, 0.1);
   transition: background 220ms, color 220ms, transform 320ms var(--spring);
