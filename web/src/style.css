@@ -372,6 +372,10 @@ html.native .card { width: auto; height: auto; box-shadow:
 .devices::-webkit-scrollbar { display: none; }
 
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 2px; }
+/* On the Mac, ten columns: a lamp takes half a row (five), the gate 70% (seven) and the lamp
+   beside it the rest. Kept weak (:where) so the full-width tiles below still win. */
+:where(html:not(.ios)) .grid { grid-template-columns: repeat(10, 1fr); }
+:where(html:not(.ios) .grid) > .tile { grid-column: span 5; }
 
 .group-label {
   grid-column: 1 / -1;
@@ -463,8 +467,12 @@ html.native .card { width: auto; height: auto; box-shadow:
 
 .tile.ac { grid-column: 1 / -1; cursor: pointer; }
 
-/* The gate (half a row like a lamp, opens on a second press) and the automation switches. */
+/* The gate (70% of a row, opens on a second press) and the automation switches. */
 .tile.gate { gap: 9px; padding-right: 10px; }
+:where(html:not(.ios) .grid) > .tile.gate { grid-column: span 7; }
+:where(html:not(.ios) .grid) > .tile.gate + .tile:not(.ac):not(.tv):not(.toggle):not(.gate) { grid-column: span 3; gap: 7px; padding: 0 8px; }
+:where(html:not(.ios) .grid) > .tile.gate + .tile:not(.ac):not(.tv):not(.toggle):not(.gate) .bubble { width: 28px; height: 28px; border-radius: 10px; }
+:where(html:not(.ios) .grid) > .tile.gate + .tile:not(.ac):not(.tv):not(.toggle):not(.gate) .bubble svg { width: 16px; height: 16px; }
 .tile.toggle { grid-column: 1 / -1; cursor: pointer; }
 .tile.offline { opacity: 0.55; }
 .gate-action {
