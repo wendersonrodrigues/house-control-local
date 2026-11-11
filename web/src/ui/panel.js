@@ -643,6 +643,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   /** A device picked in the model: its room first, then its menu, so a stray click never
    *  switches anything; the menu's own button does. */
   function show(target) {
+    // Its menu already open: this second click is the one that switches the lamp.
+    if (target.kind === 'light' && ui.sheet?.kind === 'light' && ui.sheet.id === target.id) { toggleLight(target.id); return; }
     const room = cfgOf(target)?.room;
     if (room && ui.room !== room) {
       ui.room = room;
@@ -682,11 +684,12 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     return true;
   }
 
-  function sheetHead(name, sub, powerBtn) {
+  /** `beside`: the power button next to the name, for a lamp that only switches on and off. */
+  function sheetHead(name, sub, powerBtn, { beside = false } = {}) {
+    const title = h('div.sheet-title', h('div.sheet-name', name), sub);
     return h('div.sheet-head',
       h('button.round', { 'aria-label': 'Voltar', onclick: closeSheet }, icon('back', 19, 2.2)),
-      h('div.sheet-title', h('div.sheet-name', name), sub),
-      powerBtn);
+      ...(beside ? [powerBtn, title] : [title, powerBtn]));
   }
 
   function bigNumber(unit) {
@@ -796,8 +799,11 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const caps = cfg.capabilities;
     const sub = h('div.sheet-sub');
     const powerBtn = h('button.round.power', { 'aria-label': 'Ligar ou desligar', onclick: () => toggleLight(id) }, icon('power', 21, 2.2));
-    const big = bigNumber('%');
-    const nodes = [sheetHead(cfg.name, sub, powerBtn), h('div.readout', big.el)];
+    // A percentage only where there is a brightness to show: a lamp that just switches on
+    // and off would read as dimmable.
+    const dimmable = caps.includes('brightness');
+    const big = dimmable ? bigNumber('%') : null;
+    const nodes = [sheetHead(cfg.name, sub, powerBtn, { beside: !dimmable }), ...(big ? [h('div.readout', big.el)] : [])];
     const sliders = {};
 
     if (caps.includes('brightness')) {
@@ -829,7 +835,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       nodes.push(h('div.field-label', h('span', 'Cor'), colorLabel), pad.el, h('div.swatches', swatches));
     } else {
       nodes.push(h('div.sheet-note', icon(cfg.type, 20),
-        `${roomName.get(cfg.room)} · ${isPhone ? 'toque' : 'clique'} no botão ao lado do nome para acender ou apagar.`));
+        `${roomName.get(cfg.room)} · ${isPhone ? 'toque' : 'clique'} no botão ao lado do nome, ou de novo na lâmpada da maquete, para acender ou apagar.`));
     }
 
     return {
@@ -838,7 +844,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         const l = s();
         powerBtn.classList.toggle('on', l.on);
         sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', l.on ? 'Acesa' : 'Apagada'));
-        big.set(caps.includes('brightness') ? Math.round(l.brightness * 100) : l.on ? 100 : 0, !l.on);
+        big?.set(Math.round(l.brightness * 100), !l.on);
         sliders.brightness?.set(Math.round(l.brightness * 100));
         sliders.temp?.set(l.temp);
         if (kelvinLabel) kelvinLabel.textContent = l.color ? '—' : `${l.temp} K`;

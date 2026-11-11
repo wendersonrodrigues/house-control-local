@@ -39,7 +39,8 @@ A interface está em português do Brasil. A documentação original, em inglês
   Assistant (LG webOS e qualquer `media_player`). Na maquete, a tela acende e ilumina a sala quando a TV está ligada.
   Um monitor (como o LG webOS do Home Office) entra do mesmo jeito: no editor, **Fica em: Mesa (monitor)** o põe sobre a mesa.
 - **Clique na maquete.** Clicar numa luz ou aparelho da maquete leva ao cômodo e abre o menu dele, sem ligar nada;
-  quem liga é o botão do menu. No topo aparece o nome do cômodo em vista (ou o nome da casa, na casa toda).
+  quem liga é o botão ao lado do nome, ou um segundo clique na mesma lâmpada. No topo aparece o nome do cômodo
+  em vista (ou o nome da casa, na casa toda).
 - **Atalhos.** Scripts e cenas do Home Assistant num toque ("Apagar todas", "Luzes externas"…), no painel e na ilha.
 - **Chaves de automação.** Liga e desliga `input_boolean` e automações que você escolher, como "Luzes por presença".
 - **Ilha no notch.** Pare o ponteiro sobre o notch do MacBook e uma mini maquete da casa desce dele, com portão,

@@ -59,7 +59,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
   const parts = new Map(); // main light id -> its pieces
   for (const cfg of config.lightParts || []) {
     const unit = new LightUnit({ ...cfg, capabilities: config.lights.find((l) => l.id === cfg.with)?.capabilities ?? cfg.capabilities }, H);
-    unit.hit.userData = { kind: 'light', id: cfg.with };
+    for (const m of unit.hits) m.userData = { kind: 'light', id: cfg.with };
     if (!parts.has(cfg.with)) parts.set(cfg.with, []);
     parts.get(cfg.with).push(unit);
     scene.add(unit.group);
@@ -112,7 +112,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, background
     gates.set(cfg.id, unit);
     scene.add(unit.group);
   }
-  const hitTargets = [...allLights().map((u) => u.hit), ...[...acs.values()].map((u) => u.hit),
+  const hitTargets = [...allLights().flatMap((u) => u.hits), ...[...acs.values()].map((u) => u.hit),
     ...[...tvs.values()].map((u) => u.hit), ...[...gates.values()].map((u) => u.hit), ...house.floors];
 
   // Night-time ambience: enough to read the model with every lamp off. By day (setDaylight)

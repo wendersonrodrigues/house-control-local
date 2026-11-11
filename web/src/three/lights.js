@@ -90,7 +90,8 @@ function squareBeamTexture() {
   return squareBeam;
 }
 
-// Each fixture: { parts: Mesh[], glow: Mesh[] (emissive when on), lights: Light[], hit: [w, h, d, y] }
+// Each fixture: { parts: Mesh[], glow: Mesh[] (emissive when on), lights: Light[], hit: [w, h, d, y, x?, z?],
+// more?: further hit boxes like it (an L strip has one per leg, so the corner between stays clickable) }
 const fixtures = {
   // Round, or square (`shape: "square"`, a panel like the ones in the lighting plan).
   ceiling(cfg, H) {
@@ -220,13 +221,14 @@ const fixtures = {
     };
     spread([-length / 2, 0], [length / 2, 0], Math.max(1, Math.round(length)));
     const glow = [at(box(length, 0.022, 0.022, glowMaterial(), { r: 0.008 }), 0, y - 0.011, 0)];
-    let hit = [length + 0.2, 0.4, 0.4, y];
+    const hit = [length + 0.2, 0.4, 0.4, y];
+    const more = [];
     if (corner > 0) {
       spread([length / 2, 0], [length / 2, side * corner], Math.max(1, Math.round(corner)));
       glow.push(at(box(0.022, 0.022, corner + 0.011, glowMaterial(), { r: 0.008 }), length / 2, y - 0.011, side * corner / 2));
-      hit = [length + 0.2, 0.4, corner + 0.4, y, 0, side * corner / 2];
+      more.push([0.4, 0.4, corner + 0.2, y, length / 2, side * corner / 2]);
     }
-    return { parts: [], glow, lights, hit };
+    return { parts: [], glow, lights, hit, more };
   },
 };
 
@@ -260,12 +262,15 @@ export class LightUnit {
       if (l.target) this.group.add(l.target);
     }
 
-    const [hw, hh, hd, hy, hx = 0, hz = 0] = f.hit;
-    this.hit = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), new THREE.MeshBasicMaterial());
-    this.hit.position.set(hx, hy, hz);
-    this.hit.visible = false;
-    this.hit.userData = { kind: 'light', id: cfg.id };
-    this.group.add(this.hit);
+    this.hits = [f.hit, ...(f.more || [])].map(([hw, hh, hd, hy, hx = 0, hz = 0]) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(hw, hh, hd), new THREE.MeshBasicMaterial());
+      m.position.set(hx, hy, hz);
+      m.visible = false;
+      m.userData = { kind: 'light', id: cfg.id };
+      this.group.add(m);
+      return m;
+    });
+    this.hit = this.hits[0];
 
     this.level = 0;        // eased 0..1 output
     this.goal = 0;
