@@ -9,6 +9,7 @@ import { buildFurniture } from './furniture.js';
 import { LightUnit } from './lights.js';
 import { ACUnit } from './ac.js';
 import { TVUnit, GateUnit } from './devices.js';
+import { applyRoomMask } from './roommask.js';
 
 export const STAGE_BG = '#0a0e1a';
 
@@ -114,6 +115,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
   }
   const hitTargets = [...allLights().flatMap((u) => u.hits), ...[...acs.values()].map((u) => u.hit),
     ...[...tvs.values()].map((u) => u.hit), ...[...gates.values()].map((u) => u.hit), ...house.floors];
+  // Each lamp lights its own room only: walls stop it even without a shadow map.
+  applyRoomMask(scene, config.rooms, camera);
 
   // Night-time ambience: enough to read the model with every lamp off. By day (setDaylight)
   // the same two lights become sky and sun.
