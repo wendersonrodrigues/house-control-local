@@ -25,6 +25,20 @@ demo:
 # --- HomeOs Bar: as entidades da casa real, com os mesmos IDs, para testar sem a casa ---
 # Cada luz é um template sobre um input_boolean lab_*; o portão também.
 input_boolean:
+  lab_home_office_centro:
+    name: lab Home Office Centro
+  lab_home_office_spots:
+    name: lab Home Office Spots
+  lab_home_office_led:
+    name: lab Home Office LED
+  lab_suite_led:
+    name: lab Suite LED
+  lab_suite_centro:
+    name: lab Suite Centro
+  lab_circulacao_centro:
+    name: lab Circulacao Centro
+  lab_circulacao_led:
+    name: lab Circulacao LED
   lab_sala_principal:
     name: lab Sala Principal
   lab_sala_cortina:
@@ -70,23 +84,23 @@ template:
         state: "{{ is_state('input_boolean.lab_sala_cortina', 'on') }}"
         turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_cortina } }
         turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_cortina } }
-      - name: Sala Central 1
-        unique_id: lab_light_sala_central_1
+      - name: Sala de estar Luz Central 1
+        unique_id: lab_light_sala_de_estar_luz_central_1
         state: "{{ is_state('input_boolean.lab_sala_central_1', 'on') }}"
         turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_central_1 } }
         turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_central_1 } }
-      - name: Sala Central 2
-        unique_id: lab_light_sala_central_2
+      - name: Sala de estar Luz Central 2
+        unique_id: lab_light_sala_de_estar_luz_central_2
         state: "{{ is_state('input_boolean.lab_sala_central_2', 'on') }}"
         turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_central_2 } }
         turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_central_2 } }
-      - name: Sala Spots
-        unique_id: lab_light_sala_spots
+      - name: Sala de estar Spots da Sala
+        unique_id: lab_light_sala_de_estar_spots_da_sala
         state: "{{ is_state('input_boolean.lab_sala_spots', 'on') }}"
         turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_spots } }
         turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_spots } }
-      - name: Sala Movel
-        unique_id: lab_light_sala_movel
+      - name: Sala de estar Luz do Movel
+        unique_id: lab_light_sala_de_estar_luz_do_movel
         state: "{{ is_state('input_boolean.lab_sala_movel', 'on') }}"
         turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_sala_movel } }
         turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_sala_movel } }
@@ -120,6 +134,41 @@ template:
         state: "{{ is_state('input_boolean.lab_quintal', 'on') }}"
         turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_quintal } }
         turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_quintal } }
+      - name: Home Office Centro
+        unique_id: lab_light_home_office_centro
+        state: "{{ is_state('input_boolean.lab_home_office_centro', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_home_office_centro } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_home_office_centro } }
+      - name: Home Office Spots
+        unique_id: lab_light_home_office_spots
+        state: "{{ is_state('input_boolean.lab_home_office_spots', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_home_office_spots } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_home_office_spots } }
+      - name: Home Office LED
+        unique_id: lab_light_home_office_led
+        state: "{{ is_state('input_boolean.lab_home_office_led', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_home_office_led } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_home_office_led } }
+      - name: Suite LED
+        unique_id: lab_light_suite_led
+        state: "{{ is_state('input_boolean.lab_suite_led', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_suite_led } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_suite_led } }
+      - name: Suite Centro
+        unique_id: lab_light_suite_centro
+        state: "{{ is_state('input_boolean.lab_suite_centro', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_suite_centro } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_suite_centro } }
+      - name: Circulacao Centro
+        unique_id: lab_light_circulacao_centro
+        state: "{{ is_state('input_boolean.lab_circulacao_centro', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_circulacao_centro } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_circulacao_centro } }
+      - name: Circulacao LED
+        unique_id: lab_light_circulacao_led
+        state: "{{ is_state('input_boolean.lab_circulacao_led', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_circulacao_led } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_circulacao_led } }
   - cover:
       - name: Portão Garagem
         unique_id: lab_cover_portao
