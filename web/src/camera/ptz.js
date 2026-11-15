@@ -1,7 +1,5 @@
 // PTZ (pan, tilt, zoom) of a camera, through Frigate's Home Assistant integration.
-// PREPARED, NOT IN USE YET: nothing in the panel calls this. It is the one place the camera
-// box will talk to when the controls are added, so the box and the plan already carry what
-// they need:
+// Used by the camera box (camera/view.js): a round pad over the picture. What it relies on:
 //   - the plan marks a camera that moves with `"ptz": true` (Frente and Sala, whose ONVIF
 //     reports pan/tilt and zoom: Frigate's /api/<camera>/ptz/info);
 //   - the box (camera/view.js) has an empty `.cam-ptz` layer over the video for the arrows;
@@ -11,9 +9,6 @@
 //       action: 'stop'
 //       action: 'preset' argument: <preset name>
 //     A move keeps going until 'stop' (press and hold an arrow, release to stop).
-//
-// To turn it on: show controls in the `.cam-ptz` layer when createPtz() returns something,
-// wire press/release to move()/stop(), and list presets() if the camera has any.
 
 export const PTZ_MOVES = ['up', 'down', 'left', 'right'];
 

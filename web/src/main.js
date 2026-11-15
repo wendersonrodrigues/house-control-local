@@ -124,6 +124,7 @@ async function boot() {
         const extra = (bundled.tvs || []).filter((t) => !have.has(t.id) && rooms.has(t.room));
         if (extra.length) raw = { ...raw, tvs: [...(raw.tvs || []), ...extra] };
         if (!raw.weather && bundled.weather) raw = { ...raw, weather: bundled.weather };
+        if (!raw.cameraControls && bundled.cameraControls) raw = { ...raw, cameraControls: bundled.cameraControls };
       } catch { /* the plan as sent */ }
     }
     // A plan sent from the Mac before the gate's camera view existed: taken from the bundled plan.

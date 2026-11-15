@@ -1390,5 +1390,48 @@
   ],
   "version": 1,
   "wallHeight": 2.8,
-  "weather": "weather.forecast_casa"
+  "weather": "weather.forecast_casa",
+  "cameraControls": {
+    "actions": [
+      {
+        "entity": "script.ligar_deteccao_cameras",
+        "name": "Ligar detecção em todas",
+        "icon": "cctv"
+      },
+      {
+        "entity": "script.desligar_deteccao_cameras",
+        "name": "Desligar detecção em todas",
+        "icon": "cameraOff"
+      }
+    ],
+    "switches": [
+      {
+        "entity": "input_boolean.vigilancia_da_sala",
+        "name": "Vigilância (Sala + Cozinha)",
+        "icon": "shield"
+      },
+      {
+        "entity": "automation.cameras_pessoa_detectada_notificar_com_foto",
+        "name": "Notificações",
+        "icon": "bell"
+      },
+      {
+        "entity": "input_boolean.luzes_por_presenca",
+        "name": "Luzes por presença",
+        "icon": "presence"
+      },
+      {
+        "entity": "input_boolean.automacoes_do_portao",
+        "name": "Automações do portão",
+        "icon": "gate"
+      }
+    ],
+    "selects": [
+      {
+        "entity": "input_select.pessoas_conhecidas",
+        "name": "Pessoas conhecidas",
+        "icon": "face"
+      }
+    ]
+  }
 }

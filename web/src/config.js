@@ -238,6 +238,8 @@ export function normalize(raw) {
     cameras,
     // the weather entity of the start page's card (ui/weather.js); else the first one found
     weather: typeof raw.weather === 'string' ? raw.weather : null,
+    // the cameras' page: general controls (camera/console.js): { actions, switches, selects }
+    cameraControls: raw.cameraControls && typeof raw.cameraControls === 'object' ? raw.cameraControls : null,
     bounds: { minX, minZ, maxX, maxZ },
   };
 }

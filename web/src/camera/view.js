@@ -8,10 +8,11 @@
 import { h } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { playCamera } from './live.js';
+import { createPtz } from './ptz.js';
 
 const MAX_ZOOM = 8;
 
-export function createCameraBox({ access, onSize = () => {} }) {
+export function createCameraBox({ access, onSize = () => {}, reserve = () => 190 }) {
   // The picture: one camera whole, or a custom view made of parts of several, one above the
   // other (the gate: the top half of the garage's dual-lens stream, then the bottom half of the
   // front's). The zoom moves the whole stage.
@@ -37,13 +38,65 @@ export function createCameraBox({ access, onSize = () => {} }) {
     for (const ev of ['loadedmetadata', 'resize', 'loadeddata']) v.addEventListener(ev, () => { if (shown.some((p) => p.video === v)) takeAspect(); });
     return v;
   }
-  const ptzLayer = h('div.cam-ptz', { hidden: true }); // camera/ptz.js: the arrows go here
+  // PTZ (camera/ptz.js): a round pad over the picture of a camera that moves. Hold an arrow to
+  // turn, let go to stop; + / − zoom the lens (not the digital zoom).
+  const ptzLayer = h('div.cam-ptz', { hidden: true });
+  let ptz = null;
+  function ptzButton(cls, glyph, label, start) {
+    const b = h(`button.ptz-btn.${cls}`, { 'aria-label': label, title: label }, icon(glyph, 18, 2.4));
+    let held = false;
+    const go = (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      if (!ptz || held) return;
+      held = true;
+      b.classList.add('held');
+      b.setPointerCapture?.(ev.pointerId);
+      start().catch(() => {});
+    };
+    const end = (ev) => {
+      ev?.stopPropagation();
+      if (!held) return;
+      held = false;
+      b.classList.remove('held');
+      ptz?.stop().catch(() => {});
+    };
+    b.addEventListener('pointerdown', go);
+    b.addEventListener('pointerup', end);
+    b.addEventListener('pointercancel', end);
+    b.addEventListener('lostpointercapture', end);
+    b.addEventListener('dblclick', (ev) => ev.stopPropagation());
+    return b;
+  }
+  const pad = h('div.ptz-pad',
+    ptzButton('up', 'upArrow', 'Virar para cima', () => ptz.move('up')),
+    ptzButton('left', 'back', 'Virar para a esquerda', () => ptz.move('left')),
+    ptzButton('right', 'next', 'Virar para a direita', () => ptz.move('right')),
+    ptzButton('down', 'down', 'Virar para baixo', () => ptz.move('down')));
+  const zoomPad = h('div.ptz-zoom',
+    ptzButton('zin', 'zoomIn', 'Aproximar (lente)', () => ptz.zoom('in')),
+    ptzButton('zout', 'zoomOut', 'Afastar (lente)', () => ptz.zoom('out')));
+  ptzLayer.append(pad, zoomPad);
+  for (const ev of ['pointerdown', 'wheel', 'dblclick']) ptzLayer.addEventListener(ev, (e) => e.stopPropagation());
+
+  // A detection's clip (camera/console.js), over the live picture until "Ao vivo".
+  const clipVideo = h('video.cam-clip-video', { controls: true, playsInline: true, autoplay: true });
+  clipVideo.setAttribute('playsinline', '');
+  const clipName = h('span.cam-clip-name');
+  const clipLayer = h('div.cam-clip', { hidden: true }, clipVideo,
+    h('div.cam-clip-bar', icon('video', 14, 2.2), clipName,
+      h('button.cam-clip-back', { onclick: () => closeClip() }, h('i'), 'Ao vivo')));
+  function closeClip() {
+    clipLayer.hidden = true;
+    clipVideo.pause();
+    clipVideo.removeAttribute('src');
+    clipVideo.load();
+  }
   const status = h('div.cam-status');
   const name = h('span.cam-name');
   const zoomTag = h('span.cam-zoom', { hidden: true });
   const chips = h('div.cam-chips');
   const bar = h('div.cam-bar', h('span.cam-live', h('i'), 'AO VIVO'), name, zoomTag, chips);
-  const box = h('div.cam-box', frame, ptzLayer, bar, status);
+  const box = h('div.cam-box', frame, ptzLayer, bar, status, clipLayer);
   const dock = h('div.cam-dock', { hidden: true }, box);
 
   let cameras = [];
@@ -57,7 +110,8 @@ export function createCameraBox({ access, onSize = () => {} }) {
      room tabs. Everywhere else (the Mac, a phone, an iPad standing): as wide as the panel
      less a margin, as tall as that makes it (up to what leaves room for some cards), and the
      cards move down below it (onSize: the panel sets --cam-h). */
-  const RESERVE = 190; // px kept below the box for the cards, in the full-width layout
+  // px kept below the box for the cards, in the full-width layout (`reserve()`: more on the
+  // cameras' page, whose detections and settings sit there)
   function fit() {
     const w = dock.clientWidth;
     if (!w || dock.hidden) return;
@@ -73,7 +127,7 @@ export function createCameraBox({ access, onSize = () => {} }) {
       // the room tabs at the foot (a phone, an iPad) take their height off too
       const tabs = clip?.querySelector('.panel.rooms-bottom:not(.hidden) .rooms');
       const foot = tabs ? clip.getBoundingClientRect().bottom - tabs.getBoundingClientRect().top : 0;
-      const room = (clip?.clientHeight || innerHeight) - dock.offsetTop - RESERVE - foot;
+      const room = (clip?.clientHeight || innerHeight) - dock.offsetTop - reserve() - foot;
       bw = w;
       bh = bw / aspect;
       if (bh > room && room > 120) { bh = room; bw = bh * aspect; }
@@ -202,6 +256,9 @@ export function createCameraBox({ access, onSize = () => {} }) {
     stage.replaceChildren(...shown.map((p) => p.pane || p.video));
     stage.classList.toggle('stacked', shown.length > 1 || shown.some((p) => p.pane));
     takeAspect();
+    closeClip();
+    ptz = null;
+    ptzLayer.hidden = true;
     let ha;
     try {
       ha = await access.use();
@@ -210,6 +267,11 @@ export function createCameraBox({ access, onSize = () => {} }) {
       return;
     }
     if (mine !== serial) return;
+    // one camera whole, that moves: the pad
+    if (view.length === 1 && view[0].part === 'full' && view[0].camera.ptz) {
+      ptz = createPtz(view[0].camera, ha);
+      ptzLayer.hidden = !ptz;
+    }
     const results = await Promise.allSettled(shown.map((p) => playCamera(ha, p.camera.link.id, p.video, {
       onState: (st) => { if (mine === serial && st === 'fallback') say('Conectando (modo alternativo)…'); },
       isCancelled: () => mine !== serial,
@@ -257,8 +319,19 @@ export function createCameraBox({ access, onSize = () => {} }) {
       play(view);
     },
     /** Stops the video and Home Assistant's stream, and hides the box. */
+    /** Plays a recorded clip (a detection) over the live picture. */
+    playClip(url, title) {
+      if (dock.hidden) return;
+      clipName.textContent = title;
+      clipLayer.hidden = false;
+      clipVideo.src = url;
+      clipVideo.play().catch(() => {});
+    },
     close() {
       if (dock.hidden) return;
+      closeClip();
+      ptz = null;
+      ptzLayer.hidden = true;
       serial++;
       for (const p of playing) p.stop();
       playing = [];

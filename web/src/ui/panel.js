@@ -13,6 +13,7 @@ import { createLastSeen, ago, span, when } from '../lastseen.js';
 import { createCameraBox } from '../camera/view.js';
 import { createWeather } from './weather.js';
 import { createAlexaLive } from './alexa.js';
+import { createCamConsole } from '../camera/console.js';
 import { whileVisible } from '../ha/live.js';
 
 const MODE_LABEL = { cool: 'Gelar', heat: 'Aquecer', dry: 'Desumidificar', fan: 'Ventilar', auto: 'Automático' };
@@ -101,12 +102,17 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     access: cameraAccess || { use: () => Promise.reject(new Error('indisponível')), release() {}, warm() {} },
     // the cards below the box start where it ends (style.css: --cam-h)
     onSize: (px) => card.style.setProperty('--cam-h', `${px}px`),
+    reserve: () => (ui.room === CAM_TAB ? Math.min(380, Math.round(innerHeight * 0.42)) : 190),
   });
   // The weather on the start page and the Alexa's extras come over the same line to Home
   // Assistant (camera/access.js): only in the app and on the HA edition, not in a plain browser.
   const haLine = cameraAccess?.available ? cameraAccess : null;
   const weather = haLine ? createWeather({ access: haLine, entity: config.weather, night: () => (state.sun?.elevation ?? 10) < 0 }) : null;
   const alexaLive = haLine ? createAlexaLive(haLine) : null;
+  // The cameras' page (the last tab): the camera chosen live, its detections and settings, and
+  // the general controls of the cameras (camera/console.js).
+  const camConsole = haLine && camsHere ? createCamConsole({ access: haLine, config, camBox,
+    onPick: (id) => toggleCamera(id), isCurrent: (id) => camBox.currentId === id }) : null;
   /** A camera card's switch: `id` on (another one in view switches to it), or off when it is
    *  the one on screen. Without `id`: closes whatever is on. From the start page, the card
    *  first goes to its room (the box belongs to the room in view). */
@@ -158,7 +164,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   const panel = h('section.panel',
     scenes, rooms,
     listHead, editBar, camStrip,
-    h('div.devices', weather?.el, grid));
+    h('div.devices', weather?.el, camConsole?.el, grid));
   const sheet = h('section.sheet.hidden');
   sheet.inert = true;
   // The stage above grows into whatever the open sheet leaves free.
@@ -1181,6 +1187,14 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   // cameras only where they can play (the apps and the Home Assistant edition), in the strip
   const camTiles = cameraAccess?.available ? (config.cameras || []).map(cameraTile) : [];
   function renderCamStrip() {
+    // the cameras' page: a row of chips instead of a card for each camera
+    if (ui.room === CAM_TAB && camConsole) {
+      camStrip.replaceChildren(camConsole.picker);
+      camStrip.hidden = false;
+      camStrip.classList.add('picker');
+      return;
+    }
+    camStrip.classList.remove('picker');
     const ids = new Set(camerasOf(ui.room).map((c) => c.id));
     const list = camTiles.filter((t) => ids.has(t.cfg.id));
     camStrip.replaceChildren(...list.map((t) => t.el));
@@ -2111,6 +2125,10 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     card.classList.toggle('cam-open', camBox.isOpen);
     // the weather: on the start page only, not while the cards are being arranged
     if (weather) weather.el.hidden = ui.room !== 'all' || ui.editing;
+    if (camConsole) {
+      camConsole.el.hidden = ui.room !== CAM_TAB || ui.editing;
+      camConsole.show(ui.room === CAM_TAB ? camBox.currentId : null);
+    }
     // the start page laid sideways without the map, and a camera opening or closing over it
     if (sideways() !== laidSideways) layoutTiles(true);
 

@@ -11,6 +11,7 @@ import {
   Pencil, ArrowLeftRight, LayoutGrid, Cctv, CameraOff,
   Cloud, CloudSun, CloudMoon, CloudRain, CloudDrizzle, CloudLightning, CloudSnow, CloudFog, CloudHail, MoonStar,
   Mic, Megaphone, BellOff, Speaker, Umbrella,
+  BellRing, Contrast, ScanFace, Hourglass, UserCheck, ZoomIn, ZoomOut, ChevronUp, Play, Video, Dog, Cat, User, Truck,
 } from 'lucide';
 
 // A sliding gate on its rail against the post it closes on, shut and slid open (drawn for
@@ -104,6 +105,9 @@ const ICONS = {
   cloud: Cloud, cloudSun: CloudSun, cloudMoon: CloudMoon, rain: CloudRain, drizzle: CloudDrizzle,
   storm: CloudLightning, snow: CloudSnow, fog: CloudFog, hail: CloudHail, clearNight: MoonStar,
   mic: Mic, megaphone: Megaphone, bellOff: BellOff, speaker: Speaker, umbrella: Umbrella,
+  // the cameras' page (camera/console.js)
+  bell: BellRing, contrast: Contrast, face: ScanFace, hourglass: Hourglass, userCheck: UserCheck,
+  zoomIn: ZoomIn, zoomOut: ZoomOut, upArrow: ChevronUp, play: Play, video: Video, dog: Dog, cat: Cat, person: User, truck: Truck,
 };
 
 // Filled glyphs made for HomeOs Bar in Magnific (vector), on their own grid: switch every
