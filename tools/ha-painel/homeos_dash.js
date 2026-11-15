@@ -1,11 +1,15 @@
 // Gera e grava o painel "HomeOs" (url /home-os) no HA. Uso: abrir o HA no navegador já logado,
 // colar este arquivo no console (DevTools) e rodar. Requer uix (card_mod) para o visual de vidro.
-const BASE = '/home-os', WARM = '#ffb46b', BLUE = '#3d8bff';
-const BG = 'radial-gradient(90% 70% at 20% 0%, #5b6f8f 0%, transparent 60%), radial-gradient(80% 80% at 90% 100%, #6e5a4a 0%, transparent 60%), #2b3140';
-const GLASS = `ha-card { background: rgba(255,255,255,0.055) !important; border: 1px solid rgba(255,255,255,0.085) !important; border-radius: 20px !important; box-shadow: none !important; backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3); color: #f3f5fa; --primary-text-color: #f3f5fa; --secondary-text-color: rgba(222,230,247,0.58); }`;
-const GLASS_ON = GLASS + ` ha-card.active { background: rgba(255,180,107,0.16) !important; border-color: rgba(255,180,107,0.35) !important; }`;
+// Cores: as do app HomeOs (paleta "Deep Ocean", web/src/style.css), as mesmas do tema HomeOs
+// (tools/ha-tema/homeos.yaml): fundo #040D17, cards em degradê azul-escuro com borda fina,
+// luz acesa em azul (#91CCFF), como os cartões do app.
+// WARM: a cor das luzes (era laranja até 15/11/2026; agora o azul aceso do app).
+const BASE = '/home-os', WARM = '#91ccff', BLUE = '#5aa2ff';
+const BG = 'radial-gradient(120% 55% at 50% 0%, #0b2741 0%, rgba(11, 39, 65, 0) 62%) fixed, #040d17';
+const GLASS = `ha-card { background: linear-gradient(165deg, rgba(13,30,47,0.92) 0%, rgba(7,19,31,0.92) 100%) !important; border: 1px solid rgba(145,204,255,0.13) !important; border-radius: 20px !important; box-shadow: none !important; backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); color: #e9edf2; --primary-text-color: #e9edf2; --secondary-text-color: rgba(233,237,242,0.64); }`;
+const GLASS_ON = GLASS + ` ha-card.active { background: radial-gradient(120% 90% at 50% 120%, #0a78c8 0%, #00508d 38%, #0b2741 72%, #0d1e2f 100%) !important; border-color: rgba(145,204,255,0.38) !important; box-shadow: 0 16px 30px -20px #0a78c8 !important; }`;
 const PLAIN = `ha-card { background: none !important; border: 0 !important; box-shadow: none !important; }`;
-const GREET_CSS = PLAIN + ` ha-card { color: #f3f5fa; padding: 4px 4px 0 !important; } ha-markdown { padding: 0 !important; } ha-markdown h2 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin: 0 0 2px; color: #f3f5fa; } ha-markdown p { color: rgba(222,230,247,0.58); margin: 0; font-size: 14px; }`;
+const GREET_CSS = PLAIN + ` ha-card { color: #e9edf2; padding: 4px 4px 0 !important; } ha-markdown { padding: 0 !important; } ha-markdown h2 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin: 0 0 2px; color: #e9edf2; } ha-markdown p { color: rgba(233,237,242,0.64); margin: 0; font-size: 14px; }`;
 const mod = (css = GLASS) => ({ card_mod: { style: css } });
 
 const tile = (entity, name, icon, color = BLUE, kw = {}) => ({
@@ -91,7 +95,7 @@ const view = (title, path, icon, sections, extra = {}) => ({ title, path, icon, 
   dense_section_placement: true, background: BG, sections, ...extra });
 
 const home = view('Casa', 'casa', 'mdi:home', [
-  { type: 'grid', column_span: 4, cards: [{ type: 'markdown', content: GREETING, text_only: true, card_mod: { style: { '.': 'ha-card { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 4px !important; }', 'ha-markdown$': 'h2 { font-size: 32px; font-weight: 700; letter-spacing: -0.6px; margin: 0 0 4px; color: #f3f5fa; } p { color: rgba(222,230,247,0.62); margin: 0; font-size: 15px; }' } } }] },
+  { type: 'grid', column_span: 4, cards: [{ type: 'markdown', content: GREETING, text_only: true, card_mod: { style: { '.': 'ha-card { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 4px !important; }', 'ha-markdown$': 'h2 { font-size: 32px; font-weight: 700; letter-spacing: -0.6px; margin: 0 0 4px; color: #e9edf2; } p { color: rgba(233,237,242,0.64); margin: 0; font-size: 15px; }' } } }] },
   section('Atalhos', [gate(),
     script('script.apagar_todas_as_luzes', 'Apagar todas', 'mdi:lightbulb-group-off-outline'),
     script('script.ligar_todas_as_luzes', 'Ligar todas', 'mdi:lightbulb-group-outline'),

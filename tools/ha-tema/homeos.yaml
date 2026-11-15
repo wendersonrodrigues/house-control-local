@@ -1,0 +1,174 @@
+# Tema "HomeOs" para o Home Assistant: o visual do app HomeOs (web/src/style.css, paleta
+# "Deep Ocean" de 12/11/2026) no HA inteiro: menu lateral, cabeçalho, cards, botões, diálogos.
+#
+#   fundo #040D17 · destaque #8CCBE9 · texto #E9EDF2 · azuis #0A78C8 → #2F7BF2 → #5AA2FF → #91CCFF
+#   cards: degradê escuro #0D1E2F → #07131F, borda azul fina, cantos de 20 px, sem sombra
+#   ligado: azul aceso; desligado / erro: o vermelho do anel da lâmpada (#FF4D4D)
+#
+# Instalar: ./tools/ha-tema/instalar.sh  (copia para /config/themes/homeos/ e recarrega os temas)
+# Voltar ao anterior: Configurações → perfil → Tema, ou a ação frontend.set_theme com "visionos".
+HomeOs:
+  # ---------- tipografia: a do app (San Francisco no Apple, Inter / sistema no resto) ----------
+  ha-font-family-body: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif"
+  ha-font-family-heading: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif"
+  paper-font-common-base_-_font-family: "var(--ha-font-family-body)"
+  mdc-typography-font-family: "var(--ha-font-family-body)"
+
+  # ---------- cores-base ----------
+  primary-color: "#5aa2ff"
+  accent-color: "#8ccbe9"
+  dark-primary-color: "#2f7bf2"
+  light-primary-color: "#91ccff"
+  rgb-primary-color: "90, 162, 255"
+  rgb-accent-color: "140, 203, 233"
+  primary-background-color: "#040d17"
+  secondary-background-color: "#07131f"
+  primary-text-color: "#e9edf2"
+  secondary-text-color: "rgba(233, 237, 242, 0.64)"
+  disabled-text-color: "rgba(233, 237, 242, 0.38)"
+  text-primary-color: "#ffffff"
+  rgb-primary-text-color: "233, 237, 242"
+  rgb-secondary-text-color: "233, 237, 242"
+  rgb-text-primary-color: "255, 255, 255"
+  divider-color: "rgba(145, 204, 255, 0.13)"
+  outline-color: "rgba(145, 204, 255, 0.18)"
+  outline-hover-color: "rgba(145, 204, 255, 0.32)"
+  error-color: "#ff4d4d"
+  warning-color: "#ffb46b"
+  success-color: "#5fe08a"
+  info-color: "#8ccbe9"
+  rgb-card-background-color: "13, 30, 47"
+
+  # Escala de cores primárias do HA 2026 (botões, chips, preenchimentos): os azuis do app.
+  ha-color-primary-05: "#040d17"
+  ha-color-primary-10: "#0b1a2b"
+  ha-color-primary-20: "#0d2a45"
+  ha-color-primary-30: "#00508d"
+  ha-color-primary-40: "#2f7bf2"
+  ha-color-primary-50: "#5aa2ff"
+  ha-color-primary-60: "#7cb6ff"
+  ha-color-primary-70: "#91ccff"
+  ha-color-primary-80: "#a1c3e1"
+  ha-color-primary-90: "#d6e9fb"
+  ha-color-primary-95: "#eef6ff"
+  ha-color-surface-default: "#0b1826"
+  ha-color-on-primary-loud: "#ffffff"
+
+  # ---------- fundo dos painéis: o do app, com o brilho azul no alto ----------
+  lovelace-background: "radial-gradient(120% 55% at 50% 0%, #0b2741 0%, rgba(11, 39, 65, 0) 62%) fixed, #040d17"
+
+  # ---------- menu lateral ----------
+  sidebar-background-color: "#06111d"
+  sidebar-text-color: "rgba(233, 237, 242, 0.72)"
+  sidebar-icon-color: "rgba(140, 203, 233, 0.62)"
+  sidebar-selected-text-color: "#ffffff"
+  sidebar-selected-icon-color: "#8ccbe9"
+  sidebar-menu-button-text-color: "#e9edf2"
+  sidebar-menu-button-background-color: "#06111d"
+  sidebar-border-color: "rgba(145, 204, 255, 0.10)"
+
+  # ---------- cabeçalho ----------
+  app-header-background-color: "#06111d"
+  app-header-text-color: "#e9edf2"
+  app-header-selection-bar-color: "#8ccbe9"
+  app-header-border-bottom: "1px solid rgba(145, 204, 255, 0.10)"
+  app-header-edit-background-color: "#00508d"
+  app-header-edit-text-color: "#ffffff"
+
+  # ---------- cards: vidro escuro com borda azul fina, como os cartões do app ----------
+  card-background-color: "#0d1e2f"
+  ha-card-background: "linear-gradient(165deg, #0d1e2f 0%, #07131f 100%)"
+  ha-card-border-color: "rgba(145, 204, 255, 0.13)"
+  ha-card-border-width: "1px"
+  ha-card-border-radius: "20px"
+  ha-card-box-shadow: "none"
+  ha-card-header-color: "#e9edf2"
+  ha-card-header-font-size: "18px"
+  ha-section-title-font-size: "13px"
+  ha-tile-icon-border-radius: "50%"
+
+  # ---------- botões: pílulas; o principal é o azul do botão de energia ligado ----------
+  ha-button-border-radius: "999px"
+  ha-border-radius-pill: "999px"
+  mdc-theme-primary: "#5aa2ff"
+  mdc-theme-secondary: "#8ccbe9"
+  mdc-theme-on-primary: "#ffffff"
+  mdc-theme-surface: "#0b1826"
+  mdc-theme-on-surface: "#e9edf2"
+  mdc-button-outline-color: "rgba(145, 204, 255, 0.22)"
+  mdc-shape-small: "12px"
+  mdc-shape-medium: "16px"
+  mdc-shape-large: "20px"
+
+  # ---------- estados: aceso em azul, apagado discreto ----------
+  state-icon-color: "rgba(140, 203, 233, 0.75)"
+  state-icon-active-color: "#91ccff"
+  state-active-color: "#5aa2ff"
+  state-inactive-color: "rgba(233, 237, 242, 0.42)"
+  state-unavailable-color: "rgba(233, 237, 242, 0.28)"
+  state-on-color: "#5aa2ff"
+  state-off-color: "rgba(233, 237, 242, 0.42)"
+  state-light-active-color: "#91ccff"
+  state-switch-active-color: "#5aa2ff"
+  state-input_boolean-active-color: "#5aa2ff"
+  state-automation-active-color: "#5fe08a"
+  state-script-active-color: "#5aa2ff"
+  state-cover-active-color: "#ffb46b"
+  state-media_player-active-color: "#6fa8ff"
+  state-climate-cool-color: "#58b4f5"
+  state-climate-heat-color: "#f6a54a"
+  state-climate-auto-color: "#5fe08a"
+  state-climate-dry-color: "#8ccbe9"
+  state-climate-fan_only-color: "#a1c3e1"
+  state-camera-active-color: "#5aa2ff"
+  paper-item-icon-color: "rgba(140, 203, 233, 0.75)"
+  paper-item-icon-active-color: "#91ccff"
+
+  # ---------- interruptores, barras, campos ----------
+  switch-checked-color: "#5aa2ff"
+  switch-checked-button-color: "#ffffff"
+  switch-checked-track-color: "#2f7bf2"
+  switch-unchecked-button-color: "#a1c3e1"
+  switch-unchecked-track-color: "rgba(145, 204, 255, 0.22)"
+  slider-color: "#5aa2ff"
+  slider-secondary-color: "rgba(145, 204, 255, 0.18)"
+  slider-track-color: "rgba(145, 204, 255, 0.16)"
+  input-fill-color: "rgba(145, 204, 255, 0.06)"
+  input-disabled-fill-color: "rgba(145, 204, 255, 0.03)"
+  input-ink-color: "#e9edf2"
+  input-label-ink-color: "rgba(233, 237, 242, 0.64)"
+  input-idle-line-color: "rgba(145, 204, 255, 0.22)"
+  input-hover-line-color: "rgba(145, 204, 255, 0.4)"
+  input-dropdown-icon-color: "rgba(233, 237, 242, 0.64)"
+  mdc-text-field-fill-color: "rgba(145, 204, 255, 0.06)"
+  mdc-text-field-ink-color: "#e9edf2"
+  mdc-text-field-label-ink-color: "rgba(233, 237, 242, 0.64)"
+  mdc-select-fill-color: "rgba(145, 204, 255, 0.06)"
+  mdc-select-ink-color: "#e9edf2"
+  mdc-select-label-ink-color: "rgba(233, 237, 242, 0.64)"
+  mdc-checkbox-unchecked-color: "rgba(145, 204, 255, 0.45)"
+  code-editor-background-color: "#07131f"
+  codemirror-property: "#8ccbe9"
+
+  # ---------- diálogos e menus ----------
+  ha-dialog-surface-background: "#0b1826"
+  ha-dialog-border-radius: "24px"
+  mdc-dialog-scrim-color: "rgba(2, 6, 14, 0.6)"
+  dialog-backdrop-filter: "blur(6px)"
+  more-info-header-background: "#0b1826"
+  table-row-background-color: "#07131f"
+  table-row-alternative-background-color: "#0b1826"
+  data-table-background-color: "#07131f"
+  markdown-code-background-color: "#07131f"
+  chip-background-color: "rgba(145, 204, 255, 0.10)"
+  label-badge-background-color: "#0d1e2f"
+  label-badge-text-color: "#e9edf2"
+  label-badge-red: "#ff4d4d"
+  label-badge-blue: "#5aa2ff"
+  label-badge-green: "#5fe08a"
+  label-badge-yellow: "#ffb46b"
+  ha-assist-chip-filled-container-color: "rgba(145, 204, 255, 0.10)"
+
+  # o app é escuro: no modo claro o HA usa as mesmas cores acima
+  modes:
+    dark: {}
