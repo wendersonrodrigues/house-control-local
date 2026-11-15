@@ -279,13 +279,39 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
     });
   }
 
+  /** "calcada_baixo" → "Calçada (baixo)" (the plan's name), else the id made readable. */
+  function zoneName(z) {
+    const known = (current?.zones || []).map((x) => (Array.isArray(x) ? x : [x.id || x, x.name || x])).find(([id]) => id === z);
+    return known ? known[1] : String(z).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  }
+  /** The other clips of the camera, in the player's drawer. */
+  const drawerRows = () => filtered().slice(0, 40).map(row);
   async function play(it) {
     if (!it.clip) return;
     haptic('light');
     playing = it;
-    const path = hls ? `/api/frigate/notifications/${it.clip}/master.m3u8` : `/api/frigate/notifications/${it.clip}/${camEntities(current).name}/clip.mp4`;
-    const [hh, mm] = clock(it.start);
-    camBox.playClip(await signed(path), `${labelOf(it.label)}${it.people[0] ? ` · ${it.people[0]}` : ''} · ${hh}:${mm}`, () => { playing = null; renderClips(); });
+    const name = camEntities(current).name;
+    const mp4 = `/api/frigate/notifications/${it.clip}/${name}/clip.mp4`;
+    const url = await signed(hls ? `/api/frigate/notifications/${it.clip}/master.m3u8` : mp4);
+    const [hh, mm, ss] = clock(it.start);
+    const d = new Date(it.start);
+    camBox.playClip({
+      url,
+      title: it.people.length ? `${labelOf(it.label)} · ${it.people.join(', ')}` : labelOf(it.label),
+      info: [
+        ['date', `${d.toLocaleDateString('pt-BR')} ${hh}:${mm}:${ss}`],
+        ['timer', it.end ? span((it.end - it.start) / 1000) : 'gravando'],
+        ['cctv', current.name],
+        ['place', it.zones.map(zoneName).join(', ')],
+        ['userCheck', it.score ? `${Math.round(it.score * 100)}% de confiança` : ''],
+        ['alert', it.severity === 'alert' ? 'Alerta' : it.severity === 'detection' ? 'Detecção' : ''],
+      ],
+      download: await signed(mp4),
+      viewed: it.kind === 'reviews' ? it.reviewed : null,
+      onViewed: (v) => markViewed(it, v),
+      list: drawerRows(),
+      onClose: () => { playing = null; renderClips(); },
+    });
     renderClips();
     viewer.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
@@ -338,7 +364,7 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
         !it.end ? h('span.cc-rec.inline', h('i'), 'REC') : null,
         h('span.cc-row-top', h('b', it.people[0] || labelOf(it.label)), h('span.cc-row-time', `${hh}:${mm}`, h('small', `:${ss}`))),
         h('span.cc-row-sub', [dayWord(it.start), dur].filter(Boolean).join(' · ')),
-        h('span.cc-row-sub', [current?.name, ...(it.zones || [])].filter(Boolean).join(' · '))));
+        h('span.cc-row-sub', [current?.name, ...(it.zones || []).map(zoneName)].filter(Boolean).join(' · '))));
   }
 
   /* ================= the layout ================= */
@@ -495,7 +521,8 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
     timeline.replaceChildren(...(mode === 'timeline' ? list.map(row) : []));
     // beside the picture on a wide screen: the timeline while live
     side.replaceChildren(...(mode === 'live' ? list.slice(0, 30).map(row) : []));
-    viewer.classList.toggle('with-side', mode === 'live' && list.length > 0);
+    viewer.classList.toggle('with-side', mode === 'live' && list.length > 0 && !playing);
+    if (playing) camBox.setClipList(list.slice(0, 40).map(row));
     empty.hidden = list.length > 0;
     empty.textContent = failed ? 'Não foi possível ler as detecções do Frigate.'
       : items.length ? 'Nada com esses filtros.'

@@ -9,6 +9,7 @@ import { h } from '../ui/dom.js';
 import { icon } from '../ui/icons.js';
 import { playCamera } from './live.js';
 import { createPtz } from './ptz.js';
+import { createClipPlayer } from './player.js';
 
 const MAX_ZOOM = 8;
 
@@ -79,19 +80,13 @@ export function createCameraBox({ access, onSize = () => {}, reserve = () => 190
   for (const ev of ['pointerdown', 'wheel', 'dblclick']) ptzLayer.addEventListener(ev, (e) => e.stopPropagation());
 
   // A detection's clip (camera/console.js), over the live picture until "Ao vivo".
-  const clipVideo = h('video.cam-clip-video', { controls: true, playsInline: true, autoplay: true });
-  clipVideo.setAttribute('playsinline', '');
-  const clipName = h('span.cam-clip-name');
-  const clipLayer = h('div.cam-clip', { hidden: true }, clipVideo,
-    h('div.cam-clip-bar', icon('video', 14, 2.2), clipName,
-      h('button.cam-clip-back', { onclick: () => closeClip() }, h('i'), 'Ao vivo')));
+  // A detection's clip (camera/console.js, camera/player.js), over the live picture until "Ao vivo".
+  const player = createClipPlayer();
+  const clipLayer = player.el;
   let onClipClose = null;
   function closeClip() {
-    if (!clipLayer.hidden) { const f = onClipClose; onClipClose = null; f?.(); }
-    clipLayer.hidden = true;
-    clipVideo.pause();
-    clipVideo.removeAttribute('src');
-    clipVideo.load();
+    if (player.isOpen) { const f = onClipClose; onClipClose = null; f?.(); }
+    player.close();
   }
   const status = h('div.cam-status');
   const name = h('span.cam-name');
@@ -328,22 +323,23 @@ export function createCameraBox({ access, onSize = () => {}, reserve = () => 190
     },
     /** Stops the video and Home Assistant's stream, and hides the box. */
     /** Plays a recorded clip (a detection) over the live picture. */
-    playClip(url, title, onClose = null) {
+    /** `clip`: what camera/player.js open() takes, and `onClose` (back to live, or the box
+     *  closing). Another clip replaces the one on screen without closing it. */
+    playClip(clip) {
       if (dock.hidden) return;
-      if (!clipLayer.hidden) closeClip();
-      onClipClose = onClose;
-      clipName.textContent = title;
-      clipLayer.hidden = false;
-      clipVideo.src = url;
-      clipVideo.play().catch(() => {});
+      onClipClose = clip.onClose || null;
+      player.open({ ...clip, onBack: () => closeClip() });
     },
+    /** The clip drawer redrawn (which one plays), or nothing when no clip is on screen. */
+    setClipList(list) { if (player.isOpen) player.setList(list); },
+    get clipOpen() { return player.isOpen; },
     /** The picture full screen (the box; on an iPhone, the video itself). */
     fullscreen() {
       if (dock.hidden) return;
       const target = box;
       const req = target.requestFullscreen || target.webkitRequestFullscreen;
       if (req) { req.call(target).catch?.(() => {}); return; }
-      const v = !clipLayer.hidden ? clipVideo : shown[0]?.video;
+      const v = player.isOpen ? player.video : shown[0]?.video;
       v?.webkitEnterFullscreen?.();
     },
     /** Inside the cameras' page (true) or over the model (false). */

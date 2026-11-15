@@ -2127,19 +2127,90 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
 @container (max-width: 380px) { .ptz-pad { transform: scale(0.82); transform-origin: bottom right; right: 56px; } .ptz-zoom { transform: scale(0.82); transform-origin: bottom right; } }
 .cam-box { container-type: inline-size; }
 
-/* a detection's clip over the live picture */
-.cam-clip { position: absolute; inset: 0; z-index: 3; background: #02070d; display: flex; flex-direction: column; }
+/* a detection's clip over the live picture (camera/player.js), like the Frigate card's player */
+.cam-clip { position: absolute; inset: 0; z-index: 4; background: #000; overflow: hidden; color: #eaf6ff; }
 .cam-clip[hidden] { display: none; }
-.cam-clip-video { flex: 1; min-height: 0; width: 100%; object-fit: contain; background: #000; }
-.cam-clip-bar {
-  position: absolute; top: 8px; left: 8px; right: 8px; display: flex; align-items: center; gap: 6px;
-  font-size: 11.5px; font-weight: 650; color: #eaf6ff; pointer-events: none;
+.cp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.cp-video::-webkit-media-controls-start-playback-button, .cp-video::-webkit-media-controls { display: none !important; -webkit-appearance: none; }
+/* the play button, in the very middle of the clip's area (left of the drawer when it is open) */
+.cp-big {
+  position: absolute; z-index: 2; left: 50%; top: 50%; width: 72px; height: 72px; margin: -36px 0 0 -36px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff; cursor: pointer; padding-left: 4px;
+  background: rgba(2, 7, 13, 0.55); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.35), 0 8px 30px rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: transform 220ms var(--spring);
 }
-.cam-clip-name { padding: 5px 9px; border-radius: 10px; background: rgba(2, 7, 13, 0.6); }
-.cam-clip-bar .icon { display: none; }
-.cam-clip-back {
-  margin-left: auto; pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px;
-  border-radius: 14px; font: inherit; font-size: 11.5px; font-weight: 700; color: #ffd6d6; cursor: pointer;
-  background: rgba(2, 7, 13, 0.7); border: 1px solid rgba(255, 120, 120, 0.4);
+.cp-big:active { transform: scale(0.92); }
+.cp-big[hidden], .cp-spin[hidden], .cp-fail[hidden], .cp-info[hidden], .cam-clip [hidden] { display: none; }
+.cp-spin { position: absolute; z-index: 2; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; animation: cp-spin 0.9s linear infinite; }
+@keyframes cp-spin { to { transform: rotate(360deg); } }
+.cp-fail { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 10px 14px; border-radius: 12px; font-size: 13px; background: rgba(2, 7, 13, 0.7); }
+.cam-clip.drawer .cp-big, .cam-clip.drawer .cp-spin, .cam-clip.drawer .cp-fail { left: calc((100% - var(--drawer-w)) / 2); }
+.cam-clip.drawer .cp-fail { left: calc((100% - var(--drawer-w)) / 2); }
+/* top: what it is, and back to live */
+.cp-top {
+  position: absolute; z-index: 3; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 10px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent); pointer-events: none; transition: opacity 260ms;
 }
-.cam-clip-back i { width: 6px; height: 6px; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 6px #ff4d4d; }
+.cp-title { padding: 5px 10px; border-radius: 10px; font-size: 12px; font-weight: 650; background: rgba(2, 7, 13, 0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-back {
+  margin-left: auto; pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+  border-radius: 15px; font: inherit; font-size: 12px; font-weight: 700; color: #ffd6d6; cursor: pointer;
+  background: rgba(2, 7, 13, 0.7); border: 1px solid rgba(255, 120, 120, 0.45);
+}
+.cp-back i { width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 6px #ff4d4d; }
+.cam-clip.drawer .cp-top { right: var(--drawer-w); }
+/* foot: play, time, the progress bar, sound, details, download, the drawer */
+.cp-foot {
+  position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 6px; padding: 26px 10px 10px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.7), transparent); transition: opacity 260ms;
+}
+.cam-clip.drawer .cp-foot { right: var(--drawer-w); }
+.cam-clip.playing:not(.awake) .cp-foot, .cam-clip.playing:not(.awake) .cp-top { opacity: 0; }
+.cp-btn {
+  flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; cursor: pointer;
+  transition: background 150ms;
+}
+.cp-btn:hover, .cp-btn.on { background: rgba(255, 255, 255, 0.16); }
+.cp-time { flex: none; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.9); }
+.cp-time.total { color: rgba(255, 255, 255, 0.6); }
+.cp-seek {
+  flex: 1; min-width: 40px; height: 22px; margin: 0 4px; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+.cp-seek::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, #fff 0 var(--p, 0%), rgba(255, 255, 255, 0.3) var(--p, 0%)); }
+.cp-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.cp-seek::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.3); }
+.cp-seek::-moz-range-progress { height: 4px; border-radius: 2px; background: #fff; }
+.cp-seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
+@container (max-width: 420px) { .cp-time.total { display: none; } .cp-foot { gap: 2px; } }
+/* the details, over the picture */
+.cp-info {
+  position: absolute; z-index: 5; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(92%, 520px);
+  padding: 16px 18px; border-radius: 22px; background: rgba(28, 30, 34, 0.92); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.cam-clip.drawer .cp-info { left: calc((100% - var(--drawer-w)) / 2); width: min(92%, calc(100% - var(--drawer-w) - 24px), 520px); }
+.cp-info-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.cp-info-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+.cp-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #e5484d; }
+.cp-info-acts { display: flex; gap: 2px; padding: 3px; border-radius: 16px; background: rgba(255, 255, 255, 0.08); }
+.cp-info-act, .cp-info-close { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #eaf6ff; cursor: pointer; }
+.cp-info-act.done { color: #5fe08a; }
+.cp-info-close { background: rgba(255, 255, 255, 0.08); }
+.cp-info-rows { display: flex; flex-wrap: wrap; gap: 12px 22px; }
+.cp-info-row { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+.cp-info-row .icon { color: rgba(234, 246, 255, 0.7); }
+/* the other clips, in a drawer at the right (the whole width on a narrow box) */
+.cam-clip { --drawer-w: min(300px, 44%); }
+.cp-drawer {
+  position: absolute; z-index: 4; top: 0; right: 0; bottom: 0; width: var(--drawer-w); overflow-y: auto; scrollbar-width: thin;
+  padding: 8px; background: rgba(11, 24, 38, 0.92); border-left: 1px solid rgba(145, 204, 255, 0.14);
+  transform: translateX(100%); transition: transform 280ms var(--ease); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.cam-clip.drawer .cp-drawer { transform: none; }
+.cp-drawer-list { display: flex; flex-direction: column; gap: 6px; }
+.cp-drawer .cc-row { padding: 5px; gap: 10px; background: rgba(255, 255, 255, 0.04); }
+.cp-drawer .cc-row:not(.playing) { opacity: 0.72; }
+.cp-drawer .cc-row-pic { width: 84px; }
+.cp-drawer .cc-row-top b { font-size: 13px; }
+.cp-drawer .cc-row-time { font-size: 14px; }
+@container (max-width: 520px) { .cam-clip { --drawer-w: 100%; } .cam-clip.drawer .cp-foot { right: 0; z-index: 5; background: none; opacity: 1; } .cam-clip.drawer .cp-drawer { padding-bottom: 54px; } .cam-clip.drawer .cp-foot > :not(:last-child) { visibility: hidden; } }
