@@ -118,7 +118,9 @@ struct HouseModel: View {
         switch kind {
         case "walnut": return Color(hex: "#2b2019")
         case "tile": return Color(hex: "#262c36")
+        case "porcelain": return Color(hex: "#2c2e33")
         case "stone": return Color(hex: "#2e3036")
+        case "cement": return Color(hex: "#303131")
         default: return Color(hex: "#3a2b20")
         }
     }

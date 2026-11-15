@@ -41,8 +41,10 @@ export class TVUnit {
   }
 
   apply(state, { instant = false } = {}) {
-    this.goal = state?.on ? 1 : 0;
-    this.playing = state?.state === 'playing';
+    const goal = state?.on ? 1 : 0;
+    const playing = state?.state === 'playing';
+    this.goal = goal;
+    this.playing = playing;
     if (instant) this.power = this.goal;
   }
 
@@ -50,17 +52,16 @@ export class TVUnit {
     this.power += (this.goal - this.power) * (1 - Math.exp(-dt * 4));
     if (Math.abs(this.goal - this.power) < 0.002) this.power = this.goal;
     this.hover += (this.hoverGoal - this.hover) * (1 - Math.exp(-dt * 14));
-    this.clock += dt;
-    // A playing picture never holds still: a slow shimmer in the light it throws.
-    const shimmer = this.playing ? 0.85 + Math.sin(this.clock * 2.3) * 0.08 + Math.sin(this.clock * 5.1) * 0.05 : 1;
+    // No animation on a TV or a monitor: a steady light while it is on, eased in and out.
     const p = this.power;
     const m = this.screen.material;
     m.emissive.copy(SCREEN_OFF).lerp(SCREEN_ON, p);
-    m.emissiveIntensity = 0.2 + p * 1.5 * shimmer + this.hover * 0.25;
-    this.glow.intensity = p * 2.2 * shimmer * this.glowScale;
-    return this.goal !== this.power || this.playing && p > 0 || Math.abs(this.hoverGoal - this.hover) > 0.004;
+    m.emissiveIntensity = 0.2 + p * 1.5 + this.hover * 0.25;
+    this.glow.intensity = p * 2.2 * this.glowScale;
+    return this.goal !== this.power || Math.abs(this.hoverGoal - this.hover) > 0.004;
   }
 }
+
 
 const SLAT = 0.16;
 

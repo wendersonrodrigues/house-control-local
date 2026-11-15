@@ -1,4 +1,4 @@
-import { post, call, isNative } from './bridge.js';
+import { post, call, canCall } from './bridge.js';
 import { linkOf } from './config.js';
 
 const STORAGE_KEY = 'house-control:state:v1';
@@ -90,7 +90,7 @@ export function createStore(config) {
   const outbox = new Map();
 
   function transmit(kind, id, patch) {
-    if (!isNative) return Promise.resolve();
+    if (!canCall()) return Promise.resolve();
     const current = kind === 'light' ? state.lights[id] : state.acs[id];
     const sent = call('command', { kind, id, patch, state: { ...current } });
     // Never let a lost reply block the device for good.
@@ -139,7 +139,7 @@ export function createStore(config) {
   // The gate, the shortcuts and the automation switches: one command each, never merged
   // (two presses on the gate are two commands). Without a real device the result is simulated.
   async function order(kind, id, patch) {
-    if (!isNative) return;
+    if (!canCall()) return;
     await call('command', { kind, id, patch, state: {} });
   }
 
@@ -488,8 +488,14 @@ export function createStore(config) {
     },
 
     // State reported by real devices (native provider). Never echoed back as a command.
+    /** When each device's current state began, as its platform reports it (ms), by id. */
+    changedAt: {},
+
     applyRemote(update) {
       let any = false;
+      for (const [id, t] of Object.entries(update.changed || {})) {
+        if (store.changedAt[id] !== t) { store.changedAt[id] = t; any = true; }
+      }
       for (const [id, patch] of Object.entries(update.lights || {})) any = writeLight(id, patch, { remote: true }) || any;
       for (const [id, patch] of Object.entries(update.acs || {})) any = writeAC(id, patch, { remote: true }) || any;
       any = adoptExtras(update, { fromDevices: true }) || any;

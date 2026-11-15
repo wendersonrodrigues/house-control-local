@@ -28,7 +28,7 @@ struct EditorScreen: View {
                 }
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { model.editorSheet = nil }.fontWeight(.semibold)
+                        Button("OK") { model.editorSheet = nil }.fontWeight(.semibold)
                     }
                 }
             }

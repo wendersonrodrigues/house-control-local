@@ -106,6 +106,8 @@ public struct DeviceReading {
     /// A TV's state: `on`, `state` (playing, paused, idle, on), `volume` 0…1, `muted`,
     /// `source`, `sources`, `title`.
     public var media: [String: Any]?
+    /// When the current state began (ms since 1970), when the platform says (HA's last_changed).
+    public var changedAt: Double?
     public var online = true
 
     public init(light: [String: Any]? = nil, ac: [String: Any]? = nil, features: [String: Any]? = nil,

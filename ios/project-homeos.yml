@@ -1,0 +1,126 @@
+# HomeOs Bar no iPhone e no iPad: só Home Assistant, em português, instalado pelo Xcode com a
+# conta Apple pessoal (sem App Store). project.yml e project-smartlife.yml continuam sendo as
+# edições do projeto original.
+#   xcodegen generate --spec project-homeos.yml
+# scripts/build-ios.sh e scripts/ios-sim.sh usam esta edição por padrão (EDITION=homeos).
+# O bundle id (HOMEOS_BUNDLE_ID) e a equipe (DEVELOPMENT_TEAM) ficam em Config/HomeOs.xcconfig
+# e Config/Local.xcconfig; a conta gratuita exige um bundle id que ninguém mais usa.
+name: HouseControl
+options:
+  bundleIdPrefix: net.kacto
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+configFiles:
+  Debug: Config/HomeOs.xcconfig
+  Release: Config/HomeOs.xcconfig
+packages:
+  HouseCore:
+    path: ../core
+targets:
+  HouseControl:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+      - path: ../widgets/Sources/OpenApp.swift
+      - path: ../web/dist
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: HouseCore
+      - target: HouseWidgets
+        embed: true
+    entitlements:
+      path: Config/HouseControl.entitlements
+      properties:
+        # Sem HomeKit: o Apple Home fica escondido nesta edição.
+        com.apple.security.application-groups: [$(HOUSE_APP_GROUP)]
+        keychain-access-groups: [$(AppIdentifierPrefix)$(HOMEOS_BUNDLE_ID)]
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: HomeOs
+        HouseAppGroup: $(HOUSE_APP_GROUP)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: pt-BR
+        CFBundleLocalizations: [pt-BR]
+        LSApplicationCategoryType: public.app-category.lifestyle
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        # iPhone em pé; iPad em qualquer posição (deitado é o uso principal).
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+        UIUserInterfaceStyle: Dark
+        ITSAppUsesNonExemptEncryption: false
+        NSLocalNetworkUsageDescription: O HomeOs fala com o seu Home Assistant pela rede Wi-Fi de casa.
+        NSBonjourServices: [_home-assistant._tcp]
+        # O Home Assistant responde em HTTP simples na rede local.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        CFBundleURLTypes:
+          - CFBundleURLName: $(HOMEOS_BUNDLE_ID).open
+            CFBundleURLSchemes: [housecontrol]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(HOMEOS_BUNDLE_ID)
+        HOUSE_APP_GROUP: group.$(HOMEOS_BUNDLE_ID)
+        PRODUCT_NAME: HouseControl
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_VERSION: "5.0"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) HOMEOS
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        GENERATE_INFOPLIST_FILE: NO
+  HouseWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../widgets/Sources
+      - path: ../widgets/Resources
+        buildPhase: resources
+    dependencies:
+      - package: HouseCore
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    entitlements:
+      path: ../widgets/Config/iOS.entitlements
+      properties:
+        com.apple.security.application-groups: [$(HOUSE_APP_GROUP)]
+        keychain-access-groups: [$(AppIdentifierPrefix)$(HOMEOS_BUNDLE_ID)]
+    info:
+      path: ../widgets/Config/Info-iOS.plist
+      properties:
+        CFBundleDisplayName: HomeOs
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        HouseAppGroup: $(HOUSE_APP_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(HOMEOS_BUNDLE_ID).Widgets
+        HOUSE_APP_GROUP: group.$(HOMEOS_BUNDLE_ID)
+        PRODUCT_NAME: HouseWidgets
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) HOMEOS
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+schemes:
+  HouseControl:
+    build:
+      targets:
+        HouseControl: all
+    run:
+      config: Debug
+    archive:
+      config: Release

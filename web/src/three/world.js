@@ -10,6 +10,7 @@ import { LightUnit } from './lights.js';
 import { ACUnit } from './ac.js';
 import { TVUnit, GateUnit } from './devices.js';
 import { applyRoomMask } from './roommask.js';
+import { createShadowBake } from './bake.js';
 
 export const STAGE_BG = '#0a0e1a';
 
@@ -21,14 +22,16 @@ const EL_MAX = 70;
 const ZOOM_MIN = 0.18;     // closest: a long home needs to get near one room
 const ZOOM_MAX = 1.2;
 
-export function createWorld(canvas, config, store, { onHover, onPick, onPin, background = STAGE_BG }) {
+export function createWorld(canvas, config, store, { onHover, onPick, onPin, background = STAGE_BG, lite = false }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
-  renderer.shadowMap.enabled = true;
+  // No shadow maps while drawing: the shadows are baked into textures (bake.js), which turns
+  // shadow mapping on only while it bakes.
+  renderer.shadowMap.enabled = false;
   renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.shadowMap.autoUpdate = false; // the model is static: shadow maps are rendered once
+  renderer.shadowMap.autoUpdate = false;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(background);
@@ -67,32 +70,10 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
   }
   const allLights = () => [...lights.values(), ...[...parts.values()].flat()];
 
-  // Every shadow-casting lamp costs the shader a texture sampler, and WebGL caps how many
-  // one program may use (16 on Apple GPUs — and the moonlight takes one of them too). Past
-  // the cap the program no longer links, three.js logs `useProgram: program not valid` on
-  // every draw and the whole stage renders black. The bundled demo plans have 11 lamps, so
-  // this only shows up on a real floor plan. Give the most important lamps the shadow slots
-  // and let the rest light the room without casting.
-  const SHADOW_PRIORITY = { ceiling: 0, flood: 0, pendant: 1, floor: 2, spots: 3, table: 4, strip: 9 };
-  const canShadow = (unit) => unit.lights.some((l) => l.userData.canShadow);
-  const shadowCap = Math.max(1, Math.min(8, renderer.capabilities.maxTextures - 6));
-  const ranked = allLights().sort((a, b) =>
-    (SHADOW_PRIORITY[a.cfg.type] ?? 9) - (SHADOW_PRIORITY[b.cfg.type] ?? 9));
-  // One lamp per room first, so every room keeps some depth, then fill up to the cap.
-  const shadowOrder = [];
-  const seenRooms = new Set();
-  for (const unit of ranked) {
-    if (shadowOrder.length >= shadowCap) break;
-    if (canShadow(unit) && !seenRooms.has(unit.cfg.room)) { shadowOrder.push(unit); seenRooms.add(unit.cfg.room); }
-  }
-  for (const unit of ranked) {
-    if (shadowOrder.length >= shadowCap) break;
-    if (canShadow(unit) && !shadowOrder.includes(unit)) shadowOrder.push(unit);
-  }
-  for (const unit of allLights()) {
-    const keep = shadowOrder.includes(unit);
-    for (const l of unit.lights) if (l.userData.canShadow) l.castShadow = keep;
-  }
+  // The lamps whose shadows are baked onto the floors (bake.js). Baked shadows cost the
+  // drawing no shadow map, so every lamp that can cast one does, not just the first few.
+  const bakedLamps = allLights().flatMap((u) => u.lights.filter((l) => l.isSpotLight && l.userData.canShadow));
+  for (const unit of allLights()) for (const l of unit.lights) l.castShadow = false;
 
   const acs = new Map();
   for (const cfg of config.acs) {
@@ -115,8 +96,6 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
   }
   const hitTargets = [...allLights().flatMap((u) => u.hits), ...[...acs.values()].map((u) => u.hit),
     ...[...tvs.values()].map((u) => u.hit), ...[...gates.values()].map((u) => u.hit), ...house.floors];
-  // Each lamp lights its own room only: walls stop it even without a shadow map.
-  applyRoomMask(scene, config.rooms, camera);
 
   // Night-time ambience: enough to read the model with every lamp off. By day (setDaylight)
   // the same two lights become sky and sun.
@@ -137,6 +116,17 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
   moon.shadow.normalBias = 0.04;
   moon.shadow.radius = 4;
   scene.add(moon, moon.target);
+
+  const receivers = [...house.floors, house.plinth];
+  const baker = createShadowBake(renderer, scene, config.bounds, receivers, { sun: moon, lamps: bakedLamps });
+  let baked = false;
+  // Everything the first time; afterwards only the sun's, which moves with the day.
+  function rebake() {
+    baker.bake({ everything: !baked });
+    baked = true;
+  }
+  // Each lamp lights its own room only: walls stop it even without a shadow map.
+  applyRoomMask(scene, config.rooms, camera, baker, new Set(receivers.map((m) => m.material)));
 
   // 0 at night … 1 in full daylight.
   const NIGHT = { sky: new THREE.Color(0x8ea6ff), ground: new THREE.Color(0x0b0e17), sun: new THREE.Color(0xa9c0ff), bg: new THREE.Color(background) };
@@ -182,12 +172,34 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
 
   /* ---------- post-processing ---------- */
 
-  const target = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+  // 2× MSAA (4× cost more and was hardly visible at a Retina pixel ratio).
+  const target = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 2 });
   const composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.34, 0.5, 1.0);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
+  bloom.enabled = !lite;
+
+  // Pixel ratio: the full one (Retina) for a still picture, a lower one while the view moves
+  // or animates for more than a moment (a blur nobody sees in motion, at half the cost). The
+  // frame after the motion ends is drawn sharp again.
+  // Modo leve (an older iPad): pixel ratio 1 always, and no glow (see setLite).
+  const FULL_PR = () => (lite ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+  const MOVING_PR = () => Math.min(FULL_PR(), Math.max(1, FULL_PR() * 0.6));
+  const BUSY_FRAMES = 10; // short changes (a hover, a lamp easing on) stay sharp
+  let pixelRatio = 0;
+  let busy = 0;
+  function setPixelRatio(pr) {
+    if (pr === pixelRatio) return;
+    pixelRatio = pr;
+    renderer.setPixelRatio(pr);
+    renderer.setSize(width, height, false);
+    composer.setPixelRatio(pr);
+    composer.setSize(width, height);
+    // The glow is soft anyway: computed at half the size the pass would use.
+    bloom.setSize(Math.round(width * pr / 2), Math.round(height * pr / 2));
+  }
 
   /* ---------- camera rig ---------- */
 
@@ -203,6 +215,17 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
   const basePan = new THREE.Vector3(config.camera.pan?.[0] ?? 0, 0, config.camera.pan?.[1] ?? 0);
   rig.zoom = baseZoom;
   rig.pan.copy(basePan);
+  // A room's own view when it is opened (editor: "Câmera deste cômodo"), within the same
+  // freedom the drag has; without one, the home's angles, framing just the room.
+  function roomView(id) {
+    const cam = config.rooms.find((r) => r.id === id)?.camera || {};
+    return {
+      az: clamp(cam.azimuth ?? baseAz, baseAz - ORBIT_AZ, baseAz + ORBIT_AZ),
+      el: clamp(cam.elevation ?? config.camera.elevation, EL_MIN, EL_MAX),
+      zoom: clamp(cam.zoom ?? 1, ZOOM_MIN, ZOOM_MAX),
+      pan: new THREE.Vector3(cam.pan?.[0] ?? 0, 0, cam.pan?.[1] ?? 0),
+    };
+  }
   let width = 1;
   let height = 1;
   let topInset = 0;    // pixels at the top covered by the header
@@ -242,8 +265,12 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
     let box;
     let fill = 0.96;
     if (f?.kind === 'room') {
-      const r = config.rooms.find((x) => x.id === f.id);
-      box = new THREE.Box3(new THREE.Vector3(r.x, 0, r.z), new THREE.Vector3(r.x + r.w, H * 0.75, r.z + r.d));
+      // A room and the ones merged into it are framed together.
+      box = new THREE.Box3();
+      for (const r of config.rooms) {
+        if (r.id !== f.id && r.tab !== f.id) continue;
+        box.expandByPoint(new THREE.Vector3(r.x, 0, r.z)).expandByPoint(new THREE.Vector3(r.x + r.w, H * 0.75, r.z + r.d));
+      }
       fill = 0.84;
     } else if (f?.kind === 'ac') {
       const unit = acs.get(f.id);
@@ -481,8 +508,9 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
   canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
   // Double-click: the whole home again.
   canvas.addEventListener('dblclick', () => {
-    rig.zoom = rig.focus ? 1 : baseZoom;
-    if (rig.focus) rig.pan.set(0, 0, 0); else rig.pan.copy(basePan);
+    if (rig.focus?.kind === 'room') { const rv = roomView(rig.focus.id); rig.zoom = rv.zoom; rig.pan.copy(rv.pan); }
+    else if (rig.focus) { rig.zoom = 1; rig.pan.set(0, 0, 0); }
+    else { rig.zoom = baseZoom; rig.pan.copy(basePan); }
     frameGoal();
     wake();
   });
@@ -510,7 +538,10 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
     for (const unit of acs.values()) active = unit.update(dt) || active;
     for (const unit of tvs.values()) active = unit.update(dt) || active;
     for (const unit of gates.values()) active = unit.update(dt) || active;
-    if (shadowFrames > 0) { renderer.shadowMap.needsUpdate = true; shadowFrames--; active = true; }
+    if (shadowFrames > 0) { rebake(); shadowFrames = 0; active = true; }
+    busy = active ? busy + 1 : 0;
+    const pr = busy > BUSY_FRAMES ? MOVING_PR() : FULL_PR();
+    if (pr !== pixelRatio) { setPixelRatio(pr); awake = Math.max(awake, 1); }
     if (active || awake > 0) {
       composer.render(dt);
       awake = Math.max(0, awake - 1);
@@ -525,11 +556,8 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
     if (!r.width || !r.height) return;
     width = r.width;
     height = r.height;
-    const pr = Math.min(window.devicePixelRatio || 1, 2);
-    renderer.setPixelRatio(pr);
-    renderer.setSize(width, height, false);
-    composer.setPixelRatio(pr);
-    composer.setSize(width, height);
+    pixelRatio = 0; // the size changed: set it again
+    setPixelRatio(FULL_PR());
     camera.aspect = width / height;
     // Centre the model between header and panel by shifting the projection window.
     camera.setViewOffset(width, height, 0, -(topInset - bottomInset) / 2, width, height);
@@ -573,7 +601,14 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
       } else if (next?.kind === 'gate' && gates.get(next.id)) {
         rig.goal.az = facing(gates.get(next.id).outward);
         rig.goal.el = 30;
+      } else if (next?.kind === 'room') {
+        const rv = roomView(next.id);
+        rig.goal.az = rv.az;
+        rig.goal.el = rv.el;
+        rig.zoom = rv.zoom;
+        rig.pan.copy(rv.pan);
       } else {
+        if (next?.kind === 'ac') acs.get(next.id).kick(); // its airflow plays while you look at it
         rig.goal.az = baseAz + (next?.kind === 'ac' ? (WALL_SIDE[acs.get(next.id).cfg.wall] ?? 0) : 0);
         rig.goal.el = next?.kind === 'ac' ? 30 : config.camera.elevation;
       }
@@ -585,7 +620,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
     intro() {
       syncAll({ instant: true });
       for (const unit of allLights()) { unit.level = 0; unit.write(); }
-      for (const unit of acs.values()) unit.power = 0;
+      for (const unit of acs.values()) { unit.power = 0; unit.kick(); }
       syncAll({ stagger: true });
       frameGoal();
       rig.az = rig.goal.az - 16;
@@ -593,6 +628,15 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
       rig.dist = rig.goal.dist * 1.28;
       rig.target.copy(rig.goal.target);
       wake(4);
+    },
+
+    /** Modo leve on or off: pixel ratio 1 and no bloom, for an older device. */
+    setLite(on) {
+      lite = Boolean(on);
+      bloom.enabled = !lite;
+      pixelRatio = 0;
+      setPixelRatio(FULL_PR());
+      wake(3);
     },
 
     setRunning(on) {
@@ -609,6 +653,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
       raf = 0;
       composer.dispose();
       target.dispose();
+      baker.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
     },
@@ -620,7 +665,7 @@ export function createWorld(canvas, config, store, { onHover, onPick, onPin, bac
         for (const unit of allLights()) unit.update(0.05);
         for (const unit of acs.values()) unit.update(0.05);
       }
-      renderer.shadowMap.needsUpdate = true;
+      rebake();
       composer.render(0);
     },
   };

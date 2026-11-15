@@ -1,0 +1,10 @@
+// Edição HomeOs (ios/project-homeos.yml): a do projeto original mais o bundle id próprio.
+#include "Base.xcconfig"
+
+// Único no mundo: a conta Apple gratuita não aceita um bundle id que outra pessoa já registrou.
+// Para trocar, escreva HOMEOS_BUNDLE_ID = … em Config/Local.xcconfig (não vai para o git).
+HOMEOS_BUNDLE_ID = net.kacto.homeosbar
+
+// Config/Local.xcconfig (não vai para o git) leva a equipe da conta Apple:
+//   DEVELOPMENT_TEAM = ABCDE12345
+#include? "Local.xcconfig"

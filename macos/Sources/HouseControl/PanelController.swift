@@ -8,6 +8,11 @@ private final class FloatingPanel: NSPanel {
 
 /// The borderless popover under the menu bar icon. The web content draws the card
 /// (rounded corners, notch, shadow) itself on a fully transparent window.
+///
+/// Solto (detached): the same window, let go of the menu bar. It floats above the other
+/// windows wherever it was dragged (by the header), stays open when you click elsewhere, and
+/// the menu bar icon shows or hides it. Nothing new is loaded: the page is the one the popover
+/// already keeps in memory, and the 3D view only draws while something changes.
 final class PanelController: NSObject, NSWindowDelegate {
     private static let card = NSSize(width: 440, height: 800)
     // Transparent margin around the card, matching `html.native #app` padding in style.css.
@@ -21,6 +26,9 @@ final class PanelController: NSObject, NSWindowDelegate {
     var onVisibilityChange: ((Bool) -> Void)?
     /// Keeps the panel open when it loses focus (HOUSE_PIN=1, for UI automation and screenshots).
     private let pinned = ProcessInfo.processInfo.environment["HOUSE_PIN"] != nil
+    /// Let go of the menu bar (remembered, with where it was left).
+    private(set) var detached = UserDefaults.standard.bool(forKey: "panelDetached")
+    private static let originKey = "panelDetachedOrigin"
 
     init(host: WebHost) {
         self.host = host
@@ -50,6 +58,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     func show(below button: NSStatusBarButton) {
+        if detached { showDetached(); return }
         guard let buttonWindow = button.window else { return }
         let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         let screen = buttonWindow.screen ?? NSScreen.main
@@ -65,6 +74,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         host.call("setNotch", Double(anchor.midX - x - Self.padSide))
         host.call("shown")
 
+        applyMode()
         isVisible = true
         window.alphaValue = 0
         window.makeKeyAndOrderFront(nil)
@@ -98,6 +108,81 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
-        if !pinned { hide() }
+        if !pinned && !detached { hide() }
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard detached else { return }
+        UserDefaults.standard.set(NSStringFromPoint(window.frame.origin), forKey: Self.originKey)
+    }
+
+    // MARK: - Solto
+
+    /// Lets the panel go from the menu bar (it stays where it is, now floating), or puts it back.
+    func setDetached(_ on: Bool, below button: NSStatusBarButton?) {
+        guard on != detached else { return }
+        detached = on
+        UserDefaults.standard.set(on, forKey: "panelDetached")
+        if on {
+            UserDefaults.standard.set(NSStringFromPoint(window.frame.origin), forKey: Self.originKey)
+            if let monitor = outsideClickMonitor { NSEvent.removeMonitor(monitor) }
+            outsideClickMonitor = nil
+            applyMode()
+            if isVisible { window.makeKeyAndOrderFront(nil) }
+        } else if isVisible, let button {
+            isVisible = false
+            if let monitor = outsideClickMonitor { NSEvent.removeMonitor(monitor) }
+            outsideClickMonitor = nil
+            show(below: button)
+        } else {
+            applyMode()
+        }
+    }
+
+    /// Dragged by the header (the page sends how far the pointer moved, in screen points).
+    func move(by dx: CGFloat, _ dy: CGFloat) {
+        guard detached else { return }
+        var origin = window.frame.origin
+        origin.x += dx
+        origin.y -= dy
+        // keep the header reachable on some screen
+        if let visible = (window.screen ?? NSScreen.main)?.visibleFrame {
+            origin.y = min(origin.y, visible.maxY - window.frame.height + Self.padTop)
+        }
+        window.setFrameOrigin(origin)
+    }
+
+    private func showDetached() {
+        applyMode()
+        let saved = UserDefaults.standard.string(forKey: Self.originKey).map(NSPointFromString)
+        var frame = window.frame
+        let screens = NSScreen.screens.map(\.visibleFrame)
+        if let saved, screens.contains(where: { $0.intersects(NSRect(origin: saved, size: frame.size).insetBy(dx: 60, dy: 60)) }) {
+            frame.origin = saved
+        } else if let visible = NSScreen.main?.visibleFrame {
+            frame.origin = NSPoint(x: visible.maxX - frame.width - 12, y: visible.maxY - frame.height)
+        }
+        if let visible = NSScreen.screens.first(where: { $0.visibleFrame.intersects(frame) })?.visibleFrame {
+            frame.size.height = min(Self.card.height + Self.padTop + Self.padBottom, visible.height - 4)
+        }
+        window.setFrame(frame, display: true)
+        host.call("shown")
+        isVisible = true
+        window.alphaValue = 0
+        window.makeKeyAndOrderFront(nil)
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.16
+            window.animator().alphaValue = 1
+        }
+        onVisibilityChange?(true)
+    }
+
+    /// Popover under the icon, or a floating window of its own.
+    private func applyMode() {
+        window.level = detached ? .floating : .popUpMenu
+        window.collectionBehavior = detached
+            ? [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+            : [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        host.call("setDetached", detached)
     }
 }

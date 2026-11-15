@@ -3,10 +3,24 @@
 #   ./scripts/ios-sim.sh                 build + install + launch on the booted simulator
 #   HOUSE_SCREEN=settings ./scripts/ios-sim.sh   …opening on a given screen (settings, pairing, smartlife, welcome, home)
 #   EDITION=appstore ./scripts/ios-sim.sh        …the App Store edition, without Smart Life
+#   EDITION=smartlife ./scripts/ios-sim.sh       …the original's Smart Life edition
+# HomeOs (default): ios/project-homeos.yml, on an iPad simulator unless DEVICE says otherwise.
+#   DEVICE="iPhone 17 Pro" ./scripts/ios-sim.sh  …on another simulator (name or UDID)
 # Any HOUSE_* variable set here is passed on to the app.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEVICE="${DEVICE:-iPhone 17 Pro}"   # a simulator's name or UDID
+EDITION="${EDITION:-homeos}"
+if [ -z "${DEVICE:-}" ]; then
+  if [ "$EDITION" = homeos ]; then
+    # the first iPad simulator there is (iPad Pro first)
+    DEVICE="$(xcrun simctl list devices available | grep -E '^ +iPad' \
+      | awk '/iPad Pro/{print; next} {rest = rest $0 "\n"} END {printf "%s", rest}' \
+      | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/' | head -1)"
+    [ -n "$DEVICE" ] || { echo "Nenhum simulador de iPad. Instale o iOS em Xcode → Settings → Components."; exit 1; }
+  else
+    DEVICE="iPhone 17 Pro"
+  fi
+fi
 [[ "$DEVICE" =~ ^[0-9A-F-]{36}$ ]] && DEST="id=$DEVICE" || DEST="name=$DEVICE"
 
 if [ -z "${SKIP_WEB:-}" ]; then
@@ -16,7 +30,11 @@ if [ -z "${SKIP_WEB:-}" ]; then
 fi
 
 cd "$ROOT/ios"
-[ "${EDITION:-smartlife}" = appstore ] && SPEC=project.yml || SPEC=project-smartlife.yml
+case "$EDITION" in
+  appstore) SPEC=project.yml ;;
+  smartlife) SPEC=project-smartlife.yml ;;
+  *) SPEC=project-homeos.yml ;;
+esac
 xcodegen generate --spec "$SPEC" --quiet
 xcodebuild -project HouseControl.xcodeproj -scheme HouseControl -configuration Debug \
   -destination "platform=iOS Simulator,$DEST" -derivedDataPath build/DerivedData \
@@ -33,6 +51,8 @@ if [ -n "$SIGN" ]; then
   done
 fi
 
+xcrun simctl boot "$DEVICE" 2>/dev/null || true
+open -a Simulator 2>/dev/null || true # (Xcode 27 has no Simulator.app; the app runs headless)
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null
 xcrun simctl install "$DEVICE" "$APP"
 for name in $(compgen -v | grep '^HOUSE_' || true); do export "SIMCTL_CHILD_$name=${!name}"; done

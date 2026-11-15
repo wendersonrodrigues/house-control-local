@@ -126,6 +126,38 @@ export function buildHouse(config, camDir) {
     group.add(roof);
   }
 
+  // An open area with a slab over part of it (a garage roofed up to a strip before the
+  // gate): the same invisible roof over that part, which shades it, and the dark beam along
+  // each edge that is not on a wall, as built. Edges towards the camera keep no beam, like
+  // the walls there, so the slab itself stays unseen and the car under it in view.
+  const beamMat = mat('#1c1f27', { rough: 0.7 });
+  const BEAM = 0.28;
+  for (const room of config.rooms) {
+    const c = room.roof;
+    if (!c || !room.outdoor) continue;
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(c.w, 0.05, c.d), blocker);
+    roof.position.set(c.x + c.w / 2, H + 0.025, c.z + c.d / 2);
+    roof.castShadow = true;
+    roof.receiveShadow = false;
+    roofs.push(roof);
+    group.add(roof);
+    const on = (a, b) => Math.abs(a - b) < 0.02;
+    const edges = [
+      { open: !on(c.x, room.x), n: [-1, 0], x: c.x, z: c.z + c.d / 2, len: c.d, alongX: false },
+      { open: !on(c.x + c.w, room.x + room.w), n: [1, 0], x: c.x + c.w, z: c.z + c.d / 2, len: c.d, alongX: false },
+      { open: !on(c.z, room.z), n: [0, -1], x: c.x + c.w / 2, z: c.z, len: c.w, alongX: true },
+      { open: !on(c.z + c.d, room.z + room.d), n: [0, 1], x: c.x + c.w / 2, z: c.z + c.d, len: c.w, alongX: true },
+    ];
+    for (const e of edges) {
+      if (!e.open || e.n[0] * camDir.x + e.n[1] * camDir.z > 0.15) continue;
+      const beam = box(e.alongX ? e.len : 0.12, BEAM, e.alongX ? 0.12 : e.len, beamMat, { r: 0.01 });
+      at(beam, e.x, H - BEAM, e.z);
+      beam.castShadow = true;
+      beam.receiveShadow = true;
+      group.add(beam);
+    }
+  }
+
   for (const s of wallSegments(config)) {
     const exterior = s.kind === 'exterior';
     const t = exterior ? EXT_T : INT_T;
@@ -176,5 +208,5 @@ export function buildHouse(config, camDir) {
     if ((!exterior || lowFacade) && height < H) piece(s, a, b, height, H, 0.04, blocker).receiveShadow = false;
   }
 
-  return { group, floors, roofs };
+  return { group, floors, roofs, plinth };
 }

@@ -1,6 +1,7 @@
 // Procedural furniture library. Every builder returns a Group standing on y = 0,
 // centred on its footprint and facing +z; the plan's "rot" turns it from there.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { box, cyl, mat, at, rng } from './kit.js';
 
 const WOOD = '#a98459';
@@ -193,6 +194,77 @@ const builders = {
     return g;
   },
 
+  // A black SUV after the Caoa Chery Tiggo 7 Pro (4.50 × 1.84 × 1.70 m), nose towards +z.
+  // Two side profiles pushed out across the width (body, then the glass house on it) give
+  // the shape with a handful of meshes; the rest is a few strips: lamps, trim, wheels.
+  car({ color = '#16171b' }) {
+    const L = 4.5;
+    const W = 1.84;
+    // The scene has no environment map, so nothing here is metallic: metal renders flat black.
+    const paint = mat(color, { rough: 0.3 });
+    const glass = mat('#4b5668', { rough: 0.1 });
+    const trim = mat('#0a0a0c', { rough: 0.7 });
+    const chrome = mat('#c9ced6', { rough: 0.3 });
+    const tyre = mat('#0c0c0e', { rough: 0.9 });
+    // The wheel's face: one flat grey, unlit, so no light or shadow speckles it.
+    const rim = new THREE.MeshBasicMaterial({ color: '#6e737b' });
+    const R = 0.37;   // wheel radius
+    const AX = 1.36;  // axles from the middle
+
+    // A side profile (u along the car, rear -L/2 to nose +L/2; y up), extruded across `width`.
+    const profile = (pts, width, bevel) => {
+      const shape = new THREE.Shape(pts.map(([u, y]) => new THREE.Vector2(u, y)));
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: width - bevel * 2, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 6,
+      });
+      geo.translate(0, 0, -(width - bevel * 2) / 2);
+      geo.rotateY(-Math.PI / 2);
+      return geo;
+    };
+    const body = new THREE.Mesh(profile([
+      [-2.12, 0.42], [2.04, 0.42], [2.17, 0.56], [2.17, 0.86], [2.06, 0.97], // tall, blunt nose
+      [1.2, 1.03], [0.95, 1.06], // short bonnet up to the windscreen
+      [-1.9, 1.13], [-2.12, 1.07], [-2.17, 0.86], [-2.15, 0.56], // the beltline rises to the tail
+    ], W, 0.08), paint);
+    const house = new THREE.Mesh(profile([
+      [0.97, 1.05], [0.08, 1.6], [-0.3, 1.66], [-1.55, 1.64], [-1.95, 1.55], [-2.1, 1.12], [-1.9, 1.11],
+    ], W - 0.2, 0.05), glass);
+
+    const parts = [body, house,
+      // underbody and bumpers' lower edge, so it stands on its wheels
+      at(box(W - 0.12, 0.2, L - 0.3, trim, { r: 0.05 }), 0, 0.26, 0),
+      // black roof over the glass and the spoiler lip
+      at(box(W - 0.26, 0.04, 1.5, paint, { r: 0.015 }), 0, 1.68, -0.82),
+      at(box(W - 0.3, 0.04, 0.32, trim, { r: 0.015 }), 0, 1.57, -2.02),
+      // pillars between the side windows
+      ...[-1, 1].flatMap((sx) => [-0.35, -1.38].map((z) => at(box(0.03, 0.54, 0.09, trim, { r: 0 }), sx * (W / 2 - 0.1), 1.1, z))),
+      // chrome line under the windows and along the sills, over the black cladding
+      ...[-1, 1].map((sx) => { const b = at(box(0.02, 0.02, 2.9, chrome, { r: 0 }), sx * (W / 2 - 0.09), 1.08, -0.5); b.rotation.x = 0.025; return b; }),
+      ...[-1, 1].map((sx) => at(box(0.05, 0.12, 1.75, trim, { r: 0.02 }), sx * (W / 2 + 0.005), 0.44, 0)),
+      ...[-1, 1].map((sx) => at(box(0.02, 0.02, 1.7, chrome, { r: 0 }), sx * (W / 2 + 0.03), 0.56, 0)),
+      // slim headlights high on the nose, the grille under them, the full-width tail light
+      ...[-1, 1].map((sx) => at(box(0.46, 0.06, 0.04, mat('#dfe8f6', { emissive: '#cfe0ff', emissiveIntensity: 0.7 }), { r: 0.01 }), sx * 0.6, 0.84, L / 2)),
+      at(box(0.95, 0.34, 0.04, mat('#2a2c31', { rough: 0.5 }), { r: 0.03 }), 0, 0.46, L / 2),
+      at(box(W - 0.12, 0.06, 0.04, mat('#5a0a0d', { emissive: '#c0161e', emissiveIntensity: 0.9 }), { r: 0.01 }), 0, 0.9, -L / 2),
+      // mirrors
+      ...[-1, 1].map((sx) => at(box(0.18, 0.1, 0.1, paint, { r: 0.03 }), sx * (W / 2 + 0.06), 1.1, 0.8)),
+    ];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const w = new THREE.Group();
+      const t = cyl(R, R, 0.24, tyre, 24);
+      t.position.y = -0.12;
+      // a disc just off the tyre's outer side, clear of it so the two never flicker
+      const face = new THREE.Mesh(new THREE.CircleGeometry(R * 0.68, 24), rim);
+      face.rotation.x = sx * Math.PI / 2; // facing out
+      face.position.y = sx * -0.135;
+      w.add(t, face);
+      w.rotation.z = Math.PI / 2;
+      w.position.set(sx * (W / 2 - 0.09), R, sz * AX);
+      parts.push(w);
+    }
+    return group(parts);
+  },
+
   fridge() {
     const body = mat('#c5c9d0', { rough: 0.35, metal: 0.5 });
     return group(
@@ -350,6 +422,7 @@ export function footprint(item) {
     case 'island': return [w || 2, 1.1];
     case 'kitchen': return [w || 3, 0.62];
     case 'fridge': return [0.7, 0.68];
+    case 'car': return [1.86, 4.5];
     case 'bed': return [(w || 1.6) + 0.1, 2.14];
     case 'nightstand': return [0.46, 0.4];
     case 'dresser': return [w || 1.3, 0.45];
@@ -395,5 +468,53 @@ export function buildFurniture(items) {
     });
     root.add(g);
   }
-  return root;
+  return mergeByMaterial(root);
+}
+
+// The pieces never move once placed, so all those sharing a material (and the same shadow
+// flags) are drawn as one mesh: a home's few hundred parts become a few dozen draw calls.
+function mergeByMaterial(root) {
+  root.updateMatrixWorld(true);
+  const buckets = new Map();
+  const parts = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    parts.push(o);
+    if (!o.visible || Array.isArray(o.material)) return;
+    const key = `${o.material.uuid}|${o.castShadow}|${o.receiveShadow}`;
+    if (!buckets.has(key)) buckets.set(key, { material: o.material, cast: o.castShadow, receive: o.receiveShadow, geos: [] });
+    let geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    for (const name of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(name)) geo.deleteAttribute(name);
+    geo.applyMatrix4(o.matrixWorld);
+    // A mirroring transform turns the faces inside out: put their corners back in order.
+    if (o.matrixWorld.determinant() < 0) {
+      for (const attr of Object.values(geo.attributes)) {
+        const a = attr.array;
+        const n = attr.itemSize;
+        for (let i = 0; i < attr.count; i += 3) {
+          for (let k = 0; k < n; k++) {
+            const t = a[(i + 1) * n + k];
+            a[(i + 1) * n + k] = a[(i + 2) * n + k];
+            a[(i + 2) * n + k] = t;
+          }
+        }
+      }
+    }
+    geo.groups = [];
+    buckets.get(key).geos.push(geo);
+  });
+  const merged = new THREE.Group();
+  for (const { material, cast, receive, geos } of buckets.values()) {
+    // Every part has the same attributes (position, normal, uv): primitives from kit.js.
+    const same = geos.filter((g) => g.attributes.uv && g.attributes.normal);
+    const geo = mergeGeometries(same, false);
+    if (!geo) continue;
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.castShadow = cast;
+    mesh.receiveShadow = receive;
+    merged.add(mesh);
+    for (const g of geos) g.dispose();
+  }
+  for (const o of parts) o.geometry.dispose();
+  return merged;
 }

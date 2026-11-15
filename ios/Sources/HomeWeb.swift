@@ -72,6 +72,9 @@ final class HomeWeb: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         var payload = boot()
         payload["mode"] = mode
         payload["platform"] = "ios"
+        // On an iPad the page takes the tablet layout (web/src/bridge.js isTablet).
+        payload["tablet"] = UIDevice.current.userInterfaceIdiom == .pad
+        payload["edition"] = ["name": Edition.name, "aiAccess": Edition.aiAccess, "phones": Edition.phones]
         controller.addUserScript(WKUserScript(source: "window.__HOUSE_BOOT__ = \(WebJSON.literal(payload));",
                                               injectionTime: .atDocumentStart, forMainFrameOnly: true))
         controller.addUserScript(WKUserScript(source: Self.errorReporter, injectionTime: .atDocumentStart, forMainFrameOnly: true))

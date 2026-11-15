@@ -145,10 +145,12 @@ private struct GeneralPane: View {
             } footer: {
                 Footnote("O HomeOs Bar abre junto com o Mac e fica esperando na barra de menu.")
             }
-            Card {
-                SwitchRow("Mostrar a Ilha", isOn: Binding(get: { model.islandShown }, set: model.setIsland))
-            } footer: {
-                Footnote("Luzes acesas, ar-condicionado, portão e atalhos num relance, no meio da barra de menu. Clique para abrir.")
+            if Edition.island {
+                Card {
+                    SwitchRow("Mostrar a Ilha", isOn: Binding(get: { model.islandShown }, set: model.setIsland))
+                } footer: {
+                    Footnote("Luzes acesas, ar-condicionado, portão e atalhos num relance, no meio da barra de menu. Clique para abrir.")
+                }
             }
             Card(title: "Como usar") {
                 Tip(symbol: "cursorarrow.click", text: "Clique na casinha da barra de menu para abrir o painel.")

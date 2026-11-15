@@ -119,12 +119,70 @@ function tiles(base, perSide, grout) {
   });
 }
 
+// Large-format porcelain: tiles side by side with a hairline joint, barely there.
+function porcelain(base, perSide) {
+  return canvasTexture(1024, (g, s) => {
+    const rand = rng(perSide * 53 + base.charCodeAt(4));
+    const t = s / perSide;
+    g.fillStyle = shade(base, -0.035);
+    g.fillRect(0, 0, s, s);
+    for (let i = 0; i < perSide; i++) {
+      for (let j = 0; j < perSide; j++) {
+        const x = i * t + 1;
+        const y = j * t + 1;
+        g.fillStyle = shade(base, (rand() - 0.5) * 0.012);
+        g.fillRect(x, y, t - 2, t - 2);
+        // a soft veining, very light, so it reads as stone-look porcelain and not as paint
+        g.strokeStyle = 'rgba(120,110,100,0.035)';
+        g.lineWidth = 2;
+        for (let k = 0; k < 2; k++) {
+          g.beginPath();
+          g.moveTo(x + rand() * t, y);
+          g.bezierCurveTo(x + rand() * t, y + t * 0.3, x + rand() * t, y + t * 0.7, x + rand() * t, y + t - 2);
+          g.stroke();
+        }
+      }
+    }
+  });
+}
+
+// Plain cement (cimentado): mottled grey with fine grain and a joint at each slab edge.
+function cement(base) {
+  return canvasTexture(1024, (g, s) => {
+    const rand = rng(base.charCodeAt(1) * 71 + 7);
+    g.fillStyle = base;
+    g.fillRect(0, 0, s, s);
+    for (let k = 0; k < 90; k++) {
+      const r = s * (0.04 + rand() * 0.12);
+      const x = rand() * s;
+      const y = rand() * s;
+      const grad = g.createRadialGradient(x, y, 0, x, y, r);
+      const tone = rand() > 0.5 ? '255,255,255' : '0,0,0';
+      grad.addColorStop(0, `rgba(${tone},${0.025 + rand() * 0.03})`);
+      grad.addColorStop(1, `rgba(${tone},0)`);
+      g.fillStyle = grad;
+      // drawn at every wrap offset so the texture repeats without a seam
+      for (const dx of [-s, 0, s]) for (const dy of [-s, 0, s]) { g.save(); g.translate(dx, dy); g.fillRect(x - r, y - r, r * 2, r * 2); g.restore(); }
+    }
+    for (let k = 0; k < 14000; k++) {
+      g.fillStyle = `rgba(${rand() > 0.5 ? '255,255,255' : '0,0,0'},${0.05 + rand() * 0.07})`;
+      g.fillRect(rand() * s, rand() * s, 1.3, 1.3);
+    }
+    g.fillStyle = 'rgba(0,0,0,0.16)';
+    g.fillRect(0, 0, s, 2);
+    g.fillRect(0, 0, 2, s);
+  });
+}
+
 const FLOORS = {
   oak: () => planks('#c7a47c'),
   walnut: () => planks('#94705a'),
   tile: () => tiles('#d5dade', 4, '#aab0b8'),
   stone: () => tiles('#a2a7ae', 3, '#7c828b'),
+  porcelain: () => porcelain('#dcd8d1', 3),
+  cement: () => cement('#9c9d99'),
 };
+const ROUGHNESS = { tile: 0.55, stone: 0.55, porcelain: 0.32, cement: 0.92 };
 
 const floorMaterials = new Map();
 
@@ -133,7 +191,7 @@ export function floorMaterial(kind) {
   if (!floorMaterials.has(name)) {
     floorMaterials.set(name, new THREE.MeshStandardMaterial({
       map: FLOORS[name](),
-      roughness: name === 'tile' || name === 'stone' ? 0.55 : 0.75,
+      roughness: ROUGHNESS[name] ?? 0.75,
     }));
   }
   return floorMaterials.get(name);

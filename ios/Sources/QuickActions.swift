@@ -31,10 +31,10 @@ struct QuickAction: Identifiable, Hashable {
     /// Everything the home offers, in the order the editor lists it.
     static func catalog(for home: HomeSnapshot) -> [QuickAction] {
         var out = home.scenes.map {
-            QuickAction(id: "scene:\($0.id)", title: $0.name, subtitle: "Scene", symbol: $0.symbol, group: .scenes)
+            QuickAction(id: "scene:\($0.id)", title: $0.name, subtitle: "Cena", symbol: $0.symbol, group: .scenes)
         }
-        out.append(QuickAction(id: "lights:off", title: "All Lights Off", subtitle: home.name, symbol: "lightbulb.slash", group: .home))
-        out.append(QuickAction(id: "lights:on", title: "All Lights On", subtitle: home.name, symbol: "lightbulb.2.fill", group: .home))
+        out.append(QuickAction(id: "lights:off", title: "Apagar todas", subtitle: home.name, symbol: "lightbulb.slash", group: .home))
+        out.append(QuickAction(id: "lights:on", title: "Acender todas", subtitle: home.name, symbol: "lightbulb.2.fill", group: .home))
         for light in home.lights {
             out.append(QuickAction(id: "light:\(light.id)", title: light.name, subtitle: home.room(light.room)?.name,
                                    symbol: light.symbol, group: .lights))

@@ -18,6 +18,11 @@ const SWING_ANGLE = { l1: 12, l2: 24, l3: 38, l4: 52, l5: 66, off: 38 };
 const WALL_ROT = { north: 0, south: Math.PI, west: Math.PI / 2, east: -Math.PI / 2 };
 
 const STREAKS = 72;
+// The airflow only moves for a few seconds after something changes (switched on, a new mode,
+// fan or swing, the panel opening), to show the unit starting; then it slows to a still
+// cascade, so a running AC does not keep the 3D view redrawing (and the GPU busy) forever.
+const BURST = 5;      // seconds of motion
+const SETTLE = 1.2;   // seconds to slow down to a stop
 const REACH = 2.5;
 const FLOOR_CLEARANCE = 0.02; // streaks skim just above the floor, never under it
 
@@ -98,6 +103,15 @@ export class ACUnit {
     this.clock = 0;
     this.hover = 0;
     this.hoverGoal = 0;
+    this.motion = 0;    // 1 while the air moves, easing to 0 when it settles
+    this.burst = 0;     // seconds of motion left
+    this.still = false; // the still cascade has been drawn
+  }
+
+  /** Plays the starting animation again (a change, or the panel appearing). */
+  kick() {
+    this.burst = BURST;
+    this.still = false;
   }
 
   anchor(out) {
@@ -105,7 +119,11 @@ export class ACUnit {
   }
 
   apply(state, { instant = false } = {}) {
-    this.goal = state.on && !state.idle ? 1 : 0;
+    const goal = state.on && !state.idle ? 1 : 0;
+    const look = `${goal}|${state.mode}|${state.fan}|${state.sleep}|${state.swing}`;
+    if (look !== this.look && goal) this.kick();
+    this.look = look;
+    this.goal = goal;
     this.goalColor.set(MODE_COLORS[state.mode] || MODE_COLORS.cool);
     this.speed = FAN_SPEED[state.fan] ?? FAN_SPEED.auto;
     if (state.sleep) this.speed *= 0.6;
@@ -118,7 +136,14 @@ export class ACUnit {
     if (Math.abs(this.goal - this.power) < 0.002) this.power = this.goal;
     this.color.lerp(this.goalColor, 1 - Math.exp(-dt * 5));
     this.hover += (this.hoverGoal - this.hover) * (1 - Math.exp(-dt * 14));
-    this.clock += dt;
+    this.burst = Math.max(0, this.burst - dt);
+    const motionGoal = this.burst > 0 ? 1 : 0;
+    this.motion = motionGoal > this.motion ? Math.min(1, this.motion + dt * 4)
+      : Math.max(0, this.motion - dt / SETTLE);
+    // The clock (airflow and swinging flap) slows with the motion and stops with it.
+    this.clock += dt * this.motion * this.motion * (3 - 2 * this.motion);
+    const colorMoving = Math.abs(this.color.r - this.goalColor.r) + Math.abs(this.color.g - this.goalColor.g)
+      + Math.abs(this.color.b - this.goalColor.b) > 0.004;
 
     const target = this.swing === 'swing'
       ? 38 + Math.sin(this.clock * 0.9) * 26
@@ -134,8 +159,12 @@ export class ACUnit {
 
     const running = this.power > 0.004;
     this.flow.visible = running;
-    if (running) this.writeFlow();
-    return running || Math.abs(this.hoverGoal - this.hover) > 0.004 || this.goal !== this.power;
+    const moving = this.motion > 0 || Math.abs(target - this.angle) > 0.05 || colorMoving || this.goal !== this.power;
+    if (running && (moving || !this.still)) this.writeFlow();
+    // One last frame draws the still cascade; after that a running AC asks for nothing.
+    const changed = moving || (running && !this.still);
+    this.still = running && !moving;
+    return changed || Math.abs(this.hoverGoal - this.hover) > 0.004;
   }
 
   writeFlow() {

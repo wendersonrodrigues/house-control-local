@@ -26,18 +26,18 @@ const TITLES = { room: 'Cômodos', light: 'Luzes', ac: 'Ares-condicionados', fur
 // Not on the plan: linked to a Home Assistant entity and shown in the panel only.
 const EXTRAS = ['gate', 'shortcut', 'toggle'];
 const EXTRA_ICONS = ['sparkles', 'lightsOff', 'bulb', 'outside', 'sun', 'moon', 'home', 'gate', 'presence', 'eye', 'automation', 'toggle', 'shield'];
-const FLOOR_FILL = { oak: '#4a3d2e', walnut: '#3c2f28', tile: '#39424b', stone: '#30353c' };
+const FLOOR_FILL = { oak: '#4a3d2e', walnut: '#3c2f28', tile: '#39424b', porcelain: '#44464a', stone: '#30353c', cement: '#3a3b3a' };
 const WALLS = ['north', 'east', 'south', 'west'];
 const SCENE_ICONS = ['sun', 'sofa', 'film', 'moon', 'door', 'table', 'bed', 'tv', 'sparkles'];
 // What the pickers show for the plan's own words (the file keeps the English ones).
 const NAMES = {
-  oak: 'Carvalho', walnut: 'Nogueira', tile: 'Cerâmica', stone: 'Pedra',
+  oak: 'Carvalho', walnut: 'Nogueira', tile: 'Cerâmica', porcelain: 'Porcelanato', stone: 'Pedra', cement: 'Cimento',
   ceiling: 'Teto', pendant: 'Pendente', spots: 'Spots', floor: 'Coluna', table: 'Abajur', strip: 'Fita de LED', flood: 'Holofote',
   north: 'Norte', south: 'Sul', east: 'Leste', west: 'Oeste',
   rug: 'Tapete', sofa: 'Sofá', armchair: 'Poltrona', coffeeTable: 'Mesa de centro', tv: 'TV', sideboard: 'Aparador',
   diningSet: 'Mesa de jantar', island: 'Ilha de cozinha', kitchen: 'Cozinha', fridge: 'Geladeira', bed: 'Cama',
   nightstand: 'Criado-mudo', dresser: 'Cômoda', plant: 'Planta', vanity: 'Pia de banheiro', bathtub: 'Banheira',
-  toilet: 'Vaso sanitário', desk: 'Escrivaninha', wardrobe: 'Guarda-roupa', bookshelf: 'Estante',
+  toilet: 'Vaso sanitário', desk: 'Escrivaninha', wardrobe: 'Guarda-roupa', bookshelf: 'Estante', car: 'Carro (SUV)',
   door: 'Porta', open: 'Passagem aberta', window: 'Janela',
   // Icons of shortcuts and switches.
   sparkles: 'Brilho', lightsOff: 'Luzes apagadas', bulb: 'Lâmpada', outside: 'Área externa', sun: 'Sol', moon: 'Lua',
@@ -65,6 +65,8 @@ export async function bootEditor(root) {
   let sel = sectionSel(window.__HOUSE_BOOT__?.section || new URLSearchParams(location.search).get('section') || '');
   let dirty = false;
   let world = null;
+  // The room the preview is looking at ("Ver este cômodo na prévia"), kept across rebuilds.
+  let previewFocus = null;
   let phone = null; // the iPhone's layout and gestures, set up by buildPhoneLayout()
   let previewLights = true;
   const undo = [];
@@ -306,6 +308,8 @@ export async function bootEditor(root) {
       });
       world.setInsets(isPhone ? 20 : 6, isPhone ? 20 : 6);
       world.setRunning(true);
+      if (previewFocus && valid.rooms.some((r) => r.id === previewFocus.id)) world.focus(previewFocus);
+      else previewFocus = null;
       const w = world;
       new ResizeObserver(() => { if (world === w) w.resize(); }).observe(canvas);
     } catch (e) {
@@ -463,6 +467,10 @@ export async function bootEditor(root) {
       const [x, z, w, d] = r.rect;
       const g = sv('g', { class: `p-room${isSel('room', i) ? ' sel' : ''}`, 'data-kind': 'room', 'data-index': i },
         sv('rect', { x, y: z, width: w, height: d, fill: FLOOR_FILL[r.floor] || FLOOR_FILL.oak }),
+        // The roofed part of an open area: dashed, like a slab drawn on a plan.
+        r.outdoor && Array.isArray(r.roof) && r.roof.length === 4 ? sv('rect', {
+          x: r.roof[0], y: r.roof[1], width: r.roof[2], height: r.roof[3], fill: 'rgba(255,255,255,0.05)',
+          stroke: 'rgba(255,255,255,0.45)', 'stroke-width': 0.04, 'stroke-dasharray': '0.18 0.12', 'pointer-events': 'none' }) : null,
         sv('text', { x: x + w / 2, y: z + d / 2 - 0.02, class: 'p-label' }, document.createTextNode(r.name || r.id)),
         sv('text', { x: x + w / 2, y: z + d / 2 + 0.3, class: 'p-dim' }, document.createTextNode(`${fix(w)} × ${fix(d)}`)));
       kids.push(g);
@@ -736,6 +744,103 @@ export async function bootEditor(root) {
   // Linking to a real device: links.deviceSection / links.sensorSection (connections.js).
   const linkHooks = { snapshot: () => snapshot(), changed: (note) => { touch(); if (note) toast(note); } };
 
+  /* Part of an open area under a slab (a garage roofed up to a strip before the gate). */
+  function roomRoofSection(item) {
+    const has = Array.isArray(item.roof) && item.roof.length === 4;
+    const nodes = [h('div.checks', bind('Tem laje em parte da área', h('input', { type: 'checkbox' }), {
+      get: () => has,
+      set: (on) => { if (on) item.roof = [...item.rect]; else delete item.roof; },
+      event: 'change',
+    }))];
+    if (has) {
+      const [rx, , rw] = item.rect;
+      nodes.push(
+        row(bind('X', number(0.05), { ...at(item, 'roof', 0), parse: parseNum }), bind('Z', number(0.05), { ...at(item, 'roof', 1), parse: parseNum })),
+        row(bind('Largura', number(0.05), { ...at(item, 'roof', 2), parse: parseNum }), bind('Profundidade', number(0.05), { ...at(item, 'roof', 3), parse: parseNum })),
+        row(
+          bind('Vão aberto do lado oeste, m', number(0.05), {
+            get: () => fix(item.roof[0] - rx),
+            set: (v) => { const right = item.roof[0] + item.roof[2]; item.roof[0] = fix(rx + v); item.roof[2] = fix(Math.max(0.1, right - item.roof[0])); },
+            parse: (v) => { const n = parseNum(v); return n != null && n >= 0 && n < rw ? n : undefined; },
+          }),
+          bind('Vão aberto do lado leste, m', number(0.05), {
+            get: () => fix(rx + rw - item.roof[0] - item.roof[2]),
+            set: (v) => { item.roof[2] = fix(Math.max(0.1, rx + rw - v - item.roof[0])); },
+            parse: (v) => { const n = parseNum(v); return n != null && n >= 0 && n < rw ? n : undefined; },
+          })),
+        h('p.note', 'Em metros, como o cômodo. A laje faz sombra, aparece como uma viga escura na borda aberta e fica tracejada na planta.'));
+    }
+    return section('Cobertura', nodes);
+  }
+
+  /* A room in the panel: its own chip, or merged into another's. */
+  function roomPanelSection(item) {
+    const into = doc.rooms.find((r) => r.id === item.mergeWith);
+    const mergedHere = doc.rooms.filter((r) => r.mergeWith === item.id && r !== item);
+    // Only one level: a room others are merged into cannot be merged itself.
+    const targets = doc.rooms.filter((r) => r !== item && !r.mergeWith);
+    return section('No painel',
+      mergedHere.length
+        ? h('p.note', `${mergedHere.map((r) => r.name || r.id).join(', ')} ${mergedHere.length > 1 ? 'estão mesclados' : 'está mesclado'} neste cômodo: aparecem juntos, na mesma aba e com um título só (“${[item, ...mergedHere].map((r) => r.name || r.id).join(' · ')}”), os cartões lado a lado.`)
+        : [bind('Mesclar com', choice([['', 'Não, aba própria'], ...targets.map((r) => [r.id, r.name || r.id])]), {
+          get: () => item.mergeWith || '', set: (v) => { if (v) item.mergeWith = v; else delete item.mergeWith; }, event: 'change' }),
+        h('p.note', into
+          ? `Fica na aba “${into.name || into.id}”: os dois aparecem juntos, com um título só (“${into.name || into.id} · ${item.name || item.id}”) e os cartões lado a lado, e a câmera abre nos dois.`
+          : 'Para cômodos quase no mesmo lugar (circulação e passagem, corredor e quintal): uma aba só no painel, com os dois.')]);
+  }
+
+  /* The view the panel opens a room with; empty fields keep the home's. */
+  function roomCameraSection(item) {
+    const into = doc.rooms.find((r) => r.id === item.mergeWith);
+    if (into) {
+      return section('Câmera deste cômodo',
+        h('p.note', `Mesclado: abre com a câmera de “${into.name || into.id}”.`),
+        h('button.btn.wide', { onclick: () => selectRoomById(into.id) }, icon('fit', 14), `Ajustar em ${into.name || into.id}`));
+    }
+    const cam = () => item.camera || {};
+    const setCam = (key, v) => {
+      if (v === '' || v == null) { if (item.camera) delete item.camera[key]; } else (item.camera ||= {})[key] = v;
+      if (item.camera && !Object.keys(item.camera).length) delete item.camera;
+    };
+    const field = (key) => ({ get: () => cam()[key] ?? '', set: (v) => setCam(key, v), parse: optNum });
+    const lookHere = () => {
+      if (!world) return false;
+      previewFocus = { kind: 'room', id: item.id };
+      world.focus(previewFocus);
+      return true;
+    };
+    const home = doc.camera || {};
+    return section('Câmera deste cômodo',
+      row(bind(`Azimute, ° (vazio: ${home.azimuth ?? 34})`, number(1), field('azimuth')),
+        bind(`Elevação, ° (vazio: ${home.elevation ?? 47})`, number(1), field('elevation'))),
+      bind('Distância, % (100 = o cômodo inteiro; menos, mais perto)', number(5), {
+        get: () => (cam().zoom == null ? '' : Math.round(cam().zoom * 100)),
+        set: (v) => setCam('zoom', v === '' || v === 100 ? '' : v / 100),
+        parse: (v) => { if (v === '') return ''; const n = Math.round(Number(v)); return n >= 18 && n <= 120 ? n : undefined; },
+      }),
+      h('div.fields',
+        h('button.btn', { onclick: () => { if (lookHere()) toast(`Prévia em ${item.name || item.id}`); } }, icon('eye', 14), 'Ver na prévia'),
+        h('button.btn', { onclick: () => {
+          if (!world) return;
+          // The view is taken relative to the room: look at it first.
+          if (previewFocus?.id !== item.id) { lookHere(); toast('Prévia neste cômodo: ajuste a vista e clique de novo'); return; }
+          snapshot();
+          const v = world.view();
+          item.camera = { azimuth: v.azimuth, elevation: v.elevation };
+          if (v.zoom !== 1) item.camera.zoom = v.zoom;
+          if (v.pan[0] || v.pan[1]) item.camera.pan = v.pan;
+          touch();
+          toast('Câmera do cômodo = a vista da prévia');
+        } }, icon('fit', 14), 'Usar a vista da prévia')),
+      item.camera ? h('button.btn.wide', { onclick: () => { snapshot(); delete item.camera; touch(); toast('Câmera do cômodo: a da casa'); } }, 'Voltar à câmera da casa') : null,
+      h('p.note', 'É como o painel mostra este cômodo quando você o abre. O giro fica até 40° para cada lado da câmera da casa, porque as paredes cortadas são as viradas para ela.'));
+  }
+
+  function selectRoomById(id) {
+    const index = doc.rooms.findIndex((r) => r.id === id);
+    if (index >= 0) select({ kind: 'room', index });
+  }
+
   function renderInspector() {
     const kind = sel.kind;
     const item = sel.index != null ? doc[KEYS[kind]]?.[sel.index] : null;
@@ -798,6 +903,9 @@ export async function bootEditor(root) {
         bind('Piso', choice(named(FLOOR_KINDS)), { ...prop(item, 'floor', 'oak'), event: 'change' }),
         h('div.checks', bind('Área externa (quintal, corredor aberto)', h('input', { type: 'checkbox' }), {
           get: () => Boolean(item.outdoor), set: (on) => { if (on) item.outdoor = true; else delete item.outdoor; }, event: 'change' }))),
+      item.outdoor ? roomRoofSection(item) : null,
+      roomPanelSection(item),
+      roomCameraSection(item),
       section('Posição e tamanho, m',
         row(bind('X', number(0.1), { ...at(item, 'rect', 0), parse: parseNum }), bind('Z', number(0.1), { ...at(item, 'rect', 1), parse: parseNum })),
         row(bind('Largura', number(0.1), { ...at(item, 'rect', 2), parse: parseNum }), bind('Profundidade', number(0.1), { ...at(item, 'rect', 3), parse: parseNum })),

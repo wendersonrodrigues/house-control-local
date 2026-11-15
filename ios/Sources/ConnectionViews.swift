@@ -1,12 +1,15 @@
 import SwiftUI
 import HouseCore
 
-/// Connects this iPhone to a Home Assistant server: found on the Wi-Fi by itself or typed
-/// in, plus a long-lived access token. The paired Mac gets the connection too.
+/// Connects this iPhone or iPad to Home Assistant: the address at home (found on the Wi-Fi or
+/// typed in), the external one used when away, and a long-lived access token pasted by the user.
+/// The token goes to the Keychain only.
 struct HomeAssistantView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.insideEditor) private var insideEditor
-    @State private var url = ""
+    // HomeOs: the home's own addresses, offered from the start.
+    @State private var url = HomeOsDefaults.localURL
+    @State private var external = HomeOsDefaults.externalURL
     @State private var token = ""
     @State private var found: [[String: Any]] = []
     @State private var scanning = false
@@ -15,7 +18,7 @@ struct HomeAssistantView: View {
     @State private var confirmDisconnect = false
     @FocusState private var focus: Field?
 
-    private enum Field { case url, token }
+    private enum Field { case url, external, token }
 
     var body: some View {
         ScrollView {
@@ -23,8 +26,8 @@ struct HomeAssistantView: View {
                 if let name = model.homeAssistantName {
                     connected(name)
                 } else {
-                    discovery
                     form
+                    discovery
                 }
             }
             .padding(.horizontal, 18)
@@ -45,18 +48,18 @@ struct HomeAssistantView: View {
 
     private var discovery: some View {
         VStack(spacing: 10) {
-            SectionTitle("On this Wi-Fi")
+            SectionTitle("Nesta rede Wi-Fi")
             Card {
                 if scanning {
                     HStack(spacing: 12) {
                         ProgressView().tint(Theme.muted)
-                        Text("Looking for Home Assistant…").font(.system(size: 15)).foregroundStyle(Theme.muted)
+                        Text("Procurando o Home Assistant…").font(.system(size: 15)).foregroundStyle(Theme.muted)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
                     .frame(minHeight: 60)
                 } else if found.isEmpty {
-                    Text("None found by itself. Type its address below.")
+                    Text("Nenhum encontrado sozinho. Use o endereço acima.")
                         .font(.system(size: 15)).foregroundStyle(Theme.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(16)
@@ -88,7 +91,7 @@ struct HomeAssistantView: View {
                 }
             }
             if !scanning {
-                Button { Task { await scan() } } label: { Label("Look again", systemImage: "dot.radiowaves.left.and.right") }
+                Button { Task { await scan() } } label: { Label("Procurar de novo", systemImage: "dot.radiowaves.left.and.right") }
                     .font(.system(size: 15, weight: .semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 6)
@@ -98,18 +101,27 @@ struct HomeAssistantView: View {
 
     private var form: some View {
         VStack(spacing: 10) {
-            SectionTitle("Connect")
+            SectionTitle("Conectar")
             Card(padding: 16) {
                 VStack(alignment: .leading, spacing: 14) {
-                    InputField(title: "Address", text: $url, prompt: "http://homeassistant.local:8123", focused: focus == .url) {
+                    InputField(title: "Endereço em casa", text: $url, prompt: HomeOsDefaults.localURL, focused: focus == .url) {
                         TextField("", text: $url)
                             .keyboardType(.URL)
                             .textContentType(.URL)
                             .focused($focus, equals: .url)
                             .submitLabel(.next)
+                            .onSubmit { focus = .external }
+                    }
+                    InputField(title: "Endereço externo (reserva, opcional)", text: $external, prompt: HomeOsDefaults.externalURL,
+                               focused: focus == .external) {
+                        TextField("", text: $external)
+                            .keyboardType(.URL)
+                            .textContentType(.URL)
+                            .focused($focus, equals: .external)
+                            .submitLabel(.next)
                             .onSubmit { focus = .token }
                     }
-                    InputField(title: "Long-lived access token", text: $token, prompt: "Paste it here", focused: focus == .token) {
+                    InputField(title: "Token de acesso de longa duração", text: $token, prompt: "Cole aqui", focused: focus == .token) {
                         SecureField("", text: $token)
                             .focused($focus, equals: .token)
                             .submitLabel(.go)
@@ -121,7 +133,7 @@ struct HomeAssistantView: View {
                 ProblemLabel(text: problem)
             }
             Button(action: connect) {
-                if busy { ProgressView().tint(.white) } else { Text("Connect") }
+                if busy { ProgressView().tint(.white) } else { Text("Conectar") }
             }
             .buttonStyle(PrimaryButtonStyle())
             .disabled(busy || url.trimmingCharacters(in: .whitespaces).isEmpty || token.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -129,14 +141,14 @@ struct HomeAssistantView: View {
 
             Card(padding: 16) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Where is the token?", systemImage: "questionmark.circle")
+                    Label("Onde está o token?", systemImage: "questionmark.circle")
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.text)
-                    Text("In Home Assistant open your profile (your name at the bottom of the sidebar) → **Security**. Under **Long-lived access tokens** tap **Create token**, name it “House Control” and copy it.")
+                    Text("No Home Assistant, abra o seu perfil (seu nome no pé da barra lateral) → **Segurança**. Em **Tokens de acesso de longa duração**, toque em **Criar token**, dê o nome “HomeOs iPad” e copie.")
                         .font(.system(size: 14)).foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Footnote(text: "The token stays on this iPhone, in the Keychain, and goes to the computer you paired, over your encrypted link. Lights, switches, climate devices and temperature sensors can then be linked to your plan.")
+            Footnote(text: "O token fica só neste aparelho, no Keychain. Em casa o app usa o endereço local; quando ele não responde, passa sozinho para o externo.")
         }
     }
 
@@ -144,7 +156,6 @@ struct HomeAssistantView: View {
         scanning = true
         found = await ServiceDiscovery.homeAssistants()
         scanning = false
-        if url.isEmpty, found.count == 1 { url = found[0]["url"] as? String ?? "" }
     }
 
     private func connect() {
@@ -154,7 +165,8 @@ struct HomeAssistantView: View {
         Task {
             defer { busy = false }
             do {
-                try await model.connectHomeAssistant(url: url, token: token)
+                try await model.connectHomeAssistant(url: url, token: token.trimmingCharacters(in: .whitespacesAndNewlines),
+                                                     external: external)
                 token = ""
             } catch {
                 problem = error.localizedDescription
@@ -167,7 +179,7 @@ struct HomeAssistantView: View {
 
     private func connected(_ name: String) -> some View {
         VStack(spacing: 10) {
-            SectionTitle("Server")
+            SectionTitle("Servidor")
             Card {
                 HStack(spacing: 14) {
                     IconBadge(symbol: "server.rack", tint: ConnectionLook.homeAssistant)
@@ -177,36 +189,45 @@ struct HomeAssistantView: View {
                             StatusDot(color: Theme.green)
                             Text(serverLine).font(.system(size: 13.5)).foregroundStyle(Theme.muted).lineLimit(1)
                         }
+                        if let reserve = reserveLine {
+                            Text(reserve).font(.system(size: 13.5)).foregroundStyle(Theme.faint).lineLimit(1)
+                        }
                     }
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 14)
                 .frame(minHeight: 70)
             }
-            if !insideEditor {
-                NavigationLink(value: SettingsRoute.devices) {
-                    Label("Link devices to your plan", systemImage: "link")
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .padding(.top, 6)
-            }
-            Button { confirmDisconnect = true } label: { Text("Disconnect") }
+            Button { confirmDisconnect = true } label: { Text("Desconectar") }
                 .buttonStyle(SecondaryButtonStyle(tint: Theme.red))
-                .confirmationDialog("Disconnect Home Assistant?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
-                    Button("Disconnect", role: .destructive) { model.disconnect(service: "homeassistant") }
+                .confirmationDialog("Desconectar o Home Assistant?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
+                    Button("Desconectar", role: .destructive) { model.disconnect(service: "homeassistant") }
                 } message: {
-                    Text("Its devices go back to being simulated, here and on your paired computer.")
+                    Text("O token é apagado deste aparelho e a casa volta a ser simulada.")
                 }
-            Footnote(text: "Connected on this iPhone or on your paired computer, it works on both: they share the connection over their encrypted link.")
+            Footnote(text: "Para trocar o endereço ou o token, desconecte e conecte de novo.")
         }
         .transition(.opacity)
     }
 
     private var serverLine: String {
         let info = model.homeAssistantInfo
-        return [info["url"] as? String, (info["version"] as? String).flatMap { $0.isEmpty ? nil : "version \($0)" }]
+        return [info["active"] as? String ?? info["url"] as? String,
+                (info["version"] as? String).flatMap { $0.isEmpty ? nil : "versão \($0)" }]
             .compactMap { $0 }.joined(separator: " · ")
     }
+
+    private var reserveLine: String? {
+        let info = model.homeAssistantInfo
+        guard let external = info["external"] as? String, !external.isEmpty else { return nil }
+        return "Reserva: \(external)"
+    }
+}
+
+/// The addresses of the home's Home Assistant (CLAUDE.md), offered on the connection screen.
+enum HomeOsDefaults {
+    static let localURL = "http://192.168.0.11:8123"
+    static let externalURL = "https://homeassistant.kacto.net"
 }
 
 /// Pairs this iPhone with a Philips Hue Bridge: pick it, press its round button.

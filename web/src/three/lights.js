@@ -133,14 +133,9 @@ const fixtures = {
     const glow = xs.map((x) => at(cyl(0.055, 0.045, 0.1, glowMaterial(), 20), x, y - 0.06, 0));
     const railed = gap <= 0.45 && n > 1;
     const span = (n - 1) * gap;
-    const lights = railed || n === 1 ? [spot(cfg.intensity ?? 20, y - 0.08)]
-      : xs.map((x, i) => {
-        const l = spot((cfg.intensity ?? 20) / n * 1.4, y - 0.08);
-        l.position.x = x;
-        l.target.position.x = x;
-        if (i > 0) { l.castShadow = false; l.userData.canShadow = false; } // one shadow per fixture is plenty
-        return l;
-      });
+    // One real light for the whole fixture, however many heads it has: every light costs each
+    // pixel of the model, lit or not. Spread-out heads share it, a little brighter.
+    const lights = [spot((cfg.intensity ?? 20) * (railed || n === 1 ? 1 : 1.25), y - 0.08)];
     return {
       parts: railed ? [at(box(span + 0.31, 0.03, 0.05, mat(DARK, { rough: 0.5 }), { r: 0.01 }), 0, y + 0.05, 0)] : [],
       glow,
@@ -215,20 +210,18 @@ const fixtures = {
     const total = length + corner;
     const room = cfg.use === 'ceiling';
     const strength = cfg.intensity ?? (room ? 2.6 * total : 1.6);
-    const lights = [];
-    const spread = (from, to, n) => {
-      for (let i = 0; i < n; i++) {
-        const t = (i + 0.5) / n;
-        lights.push(point(strength / Math.max(1, Math.round(total)), y,
-          { shadow: false, distance: room ? 6 : 3.2, x: from[0] + (to[0] - from[0]) * t, z: from[1] + (to[1] - from[1]) * t + 0.05 }));
-      }
-    };
-    spread([-length / 2, 0], [length / 2, 0], Math.max(1, Math.round(length)));
+    // One real light per strip (it used to be one per metre): at the middle of its run, or of
+    // both legs of an L, reaching as far as its ends.
+    // Centre of the two legs, weighted by length: the first is centred on 0, the second on
+    // (length / 2, side * corner / 2).
+    const cx = (corner * length / 2) / total;
+    const cz = (corner * side * corner / 2) / total;
+    const reach = Math.max(length, corner) / 2;
+    const lights = [point(strength, y, { shadow: false, distance: (room ? 6 : 3.2) + reach, x: cx, z: cz + 0.05 })];
     const glow = [at(box(length, 0.022, 0.022, glowMaterial(), { r: 0.008 }), 0, y - 0.011, 0)];
     const hit = [length + 0.2, 0.4, 0.4, y];
     const more = [];
     if (corner > 0) {
-      spread([length / 2, 0], [length / 2, side * corner], Math.max(1, Math.round(corner)));
       glow.push(at(box(0.022, 0.022, corner + 0.011, glowMaterial(), { r: 0.008 }), length / 2, y - 0.011, side * corner / 2));
       more.push([0.4, 0.4, corner + 0.2, y, length / 2, side * corner / 2]);
     }

@@ -11,4 +11,8 @@ public enum Edition {
     public static let aiAccess = false
     /// Pairing an iPhone or an Android phone with the Mac.
     public static let phones = false
+    /// The island in the middle of the menu bar (a second 3D view of the home). Off: it is never
+    /// created, so it costs no GPU or memory, and its switches are not shown. HOUSE_ISLAND=1
+    /// still brings it up for one run.
+    public static let island = false
 }

@@ -191,6 +191,7 @@ public final class DeviceHub {
         guard fromTuya != nil || fromServices != nil else { return nil }
         var merged: [String: Any] = [:]
         if let sun = fromServices?["sun"] { merged["sun"] = sun }
+        if let changed = fromServices?["changed"] { merged["changed"] = changed }
         for key in ["lights", "acs", "features", "gates", "toggles", "tvs"] {
             var section = fromTuya?[key] as? [String: Any] ?? [:]
             for (id, value) in fromServices?[key] as? [String: Any] ?? [:] {
@@ -227,8 +228,10 @@ public final class DeviceHub {
         guard answered else { return nil }
         var lights: [String: Any] = [:], acs: [String: Any] = [:], features: [String: Any] = [:]
         var gates: [String: Any] = [:], toggles: [String: Any] = [:], tvs: [String: Any] = [:]
+        var changed: [String: Any] = [:]
         for (id, link) in serviceLinks {
             let reading = readings[link.service]?[link.id]
+            if let at = reading?.changedAt, reading?.online == true { changed[id] = at }
             if link.kind == .gate, let reading {
                 var gate: [String: Any] = reading.online ? ["state": reading.gate ?? "closed", "online": true] : ["online": false]
                 if let p = reading.gatePosition { gate["position"] = p }
@@ -251,7 +254,8 @@ public final class DeviceHub {
         for (id, sensor) in tuyaSensors {
             if let t = readings[sensor.service]?[sensor.id]?.temperature { acs[id] = ["roomTemp": t] }
         }
-        var out: [String: Any] = ["lights": lights, "acs": acs, "features": features, "gates": gates, "toggles": toggles, "tvs": tvs]
+        var out: [String: Any] = ["lights": lights, "acs": acs, "features": features, "gates": gates, "toggles": toggles, "tvs": tvs,
+                                  "changed": changed]
         if let e = readings[homeAssistant.id]?["sun.sun"]?.sunElevation { out["sun"] = ["elevation": e] }
         return out
     }

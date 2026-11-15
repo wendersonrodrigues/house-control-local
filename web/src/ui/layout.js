@@ -15,7 +15,10 @@ const PANEL_MIN = 360;
 const PANEL_MAX = 480;
 const TALL_WIDE = 600;          // an upright screen this wide is a Duo's inner one: stack on its crease
 
-export function phoneLayout(width, height, fold) {
+// A tablet on the wall (the Home Assistant edition) gives the controls a bit more room.
+const TABLET = { min: 420, max: 560, share: 0.42 };
+
+export function phoneLayout(width, height, fold, { tablet = false } = {}) {
   if (fold && fold.width > 0 && fold.height > fold.width) {
     return { kind: 'split', start: fold.x, end: fold.x + fold.width };
   }
@@ -23,7 +26,9 @@ export function phoneLayout(width, height, fold) {
     return { kind: 'table', start: fold.y, end: fold.y + fold.height };
   }
   if (width >= SPLIT_MIN_WIDTH && width > height * 1.15) {
-    const panel = Math.min(PANEL_MAX, Math.max(PANEL_MIN, width / 2));
+    const panel = tablet
+      ? Math.round(Math.min(TABLET.max, Math.max(TABLET.min, width * TABLET.share)))
+      : Math.min(PANEL_MAX, Math.max(PANEL_MIN, width / 2));
     return { kind: 'split', start: width - panel, end: width - panel };
   }
   if (width >= TALL_WIDE && height > width) {
