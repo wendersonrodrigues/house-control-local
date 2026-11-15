@@ -24,6 +24,22 @@ const app = document.getElementById('app');
 if (isNative) document.documentElement.classList.add('native');
 if (isTouch) document.documentElement.classList.add('ios');
 if (isHA) document.documentElement.classList.add('ha');
+
+// Added to the Home Screen (iPhone, iPad), iOS can make the page shorter than the screen
+// (100% stops short by about the status bar), which leaves a band under the room tabs. When
+// the window spans the screen's width it is full screen: its height is the screen's.
+function fitStandalone() {
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  if (!standalone) return;
+  const portrait = innerHeight >= innerWidth;
+  const [sw, sh] = portrait ? [Math.min(screen.width, screen.height), Math.max(screen.width, screen.height)]
+    : [Math.max(screen.width, screen.height), Math.min(screen.width, screen.height)];
+  const full = Math.abs(innerWidth - sw) < 2; // not Split View or a Stage Manager window
+  document.documentElement.style.setProperty('--app-h', `${full ? Math.max(innerHeight, sh) : innerHeight}px`);
+}
+fitStandalone();
+addEventListener('resize', fitStandalone);
+addEventListener('orientationchange', () => setTimeout(fitStandalone, 300));
 if (isTablet) document.documentElement.classList.add('tablet');
 
 // ?safeTop=62&safeBottom=34 stands in for a phone's safe areas when its layout is looked at in a browser.

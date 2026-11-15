@@ -797,6 +797,9 @@ html.native .card { width: auto; height: auto; box-shadow:
 html.ios, html.ios body { background: var(--bg); }
 html.ios * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
 html.ios #app { padding: 0; place-items: stretch; }
+/* a Home Screen web app: the screen's height, measured by main.js (iOS can leave a band
+   under the tabs otherwise); in Safari itself, 100% as before (its toolbars come and go) */
+html.ios, html.ios body, html.ios #app { height: var(--app-h, 100%); }
 html.ios .card {
   --stage-h: var(--split-start, min(470px, 52%));
   --safe-top: var(--safe-top-preview, env(safe-area-inset-top, 0px));
