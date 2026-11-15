@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { h, clamp, createSlider, createColorPad, openMenu } from './dom.js';
 import { icon, roomIcon } from './icons.js';
-import { brandOf, brandLogo } from './brands.js';
+import { brandOf, brandLogo, TV_MARK } from './brands.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { AC_SWINGS } from '../store.js';
@@ -924,15 +924,18 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
         el.classList.toggle('offline', t.online === false);
         el.style.setProperty('--c', TV_BLUE);
         sub.textContent = tvStatus(t);
+        // a known app or system's logo, else Home Assistant's picture, else (a TV channel, an
+        // input without a logo) the TV symbol: never an empty corner while it is on
         const brand = brandOf(t);
-        const want = brand ? `brand:${brand.id}` : t.on && t.picture ? `pic:${t.picture}` : '';
+        const want = brand ? `brand:${brand.id}` : t.on && t.picture ? `pic:${t.picture}` : t.on ? 'tv' : '';
         if (want !== shown) {
           shown = want;
           bubble.hidden = !want;
           if (brand) bubble.replaceChildren(brandLogo(brand));
+          else if (want === 'tv') bubble.replaceChildren(brandLogo(TV_MARK));
           else if (want) {
             const img = h('img.bubble-art', { alt: '', src: t.picture });
-            img.addEventListener('error', () => { shown = ''; bubble.hidden = true; });
+            img.addEventListener('error', () => { shown = 'tv'; bubble.replaceChildren(brandLogo(TV_MARK)); });
             bubble.replaceChildren(img);
           } else bubble.replaceChildren();
         }
@@ -1004,14 +1007,16 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
         npSub.hidden = !npSub.textContent;
         npState.textContent = tv.state === 'playing' ? 'tocando' : tv.state === 'paused' ? 'pausado' : '';
         // A known app or system shows its own logo; anything else, Home Assistant's picture.
-        const brand = brandOf(tv);
+        // No logo and no picture (a TV channel, an input): the TV symbol.
+        const picOk = Boolean(tv.picture) && art.dataset.bad !== tv.picture;
+        const brand = brandOf(tv) || (picOk ? null : TV_MARK);
         if (brand && artBrand.dataset.id !== brand.id) { artBrand.dataset.id = brand.id; artBrand.replaceChildren(brandLogo(brand)); }
         artBrand.hidden = !brand;
         if (brand) art.hidden = true;
-        else if (tv.picture) {
+        else {
           if (art.dataset.src !== tv.picture) { art.dataset.src = tv.picture; art.src = tv.picture; }
-          art.hidden = art.dataset.bad === tv.picture;
-        } else art.hidden = true;
+          art.hidden = false;
+        }
         // A real TV only shows the controls Home Assistant says it has.
         const has = (name) => !tv.controls || tv.controls.includes(name);
         source.hidden = !has('source') || !(tv.sources || []).length;

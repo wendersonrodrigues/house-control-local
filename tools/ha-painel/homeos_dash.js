@@ -70,12 +70,34 @@ const acCard = (e, n) => ({ type: 'tile', entity: e, name: n, color: BLUE, verti
   left: 47.25%; top: 46%; width: 19.8%; height: 10.1%; display: grid; place-items: center; border-radius: 3px; background: #03121c;
   font: 600 6.6cqw/1 ui-monospace, 'SF Mono', Menlo, monospace; color: #6ff0ff; letter-spacing: 0.04em; text-shadow: 0 0 6px rgba(111,240,255,0.9);
   transform: skewY(-4deg); opacity: {{ 1 if on else 0 }}; }`) });
-// A TV: a tela que acende, como no app.
+// A TV: a tela que acende, como no app; embaixo, à esquerda, o selo do que está passando: o logo
+// do app ou sistema (web/src/ui/brands.js), senão a imagem do HA, senão o símbolo de TV (um canal,
+// uma entrada sem logo). Em cima, o que está passando: o título, senão o app ou a entrada.
 const TV_ON = "states(config.entity) not in ['off', 'standby', 'unavailable', 'unknown']";
+const svgUrl = (inner) => `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>${inner}</svg>`)}")`;
+const TV_BRANDS = [
+  ['netflix', '#000', svgUrl("<path fill='#e50914' d='M6 2h3.6l2.4 7.2V2h3.6v20c-1.2-.2-2.4-.3-3.6-.3L9.6 14.4V21.6c-1.2.1-2.4.3-3.6.5z'/>")],
+  ['youtube', '#fff', svgUrl("<rect x='2' y='5.5' width='20' height='13' rx='4' fill='#ff0000'/><path fill='#fff' d='M10 9v6l5.2-3z'/>")],
+  ['spotify', '#121212', svgUrl("<circle cx='12' cy='12' r='10' fill='#1ed760'/><g fill='none' stroke='#121212' stroke-linecap='round'><path stroke-width='1.9' d='M6.6 9.3c3.6-1 7.8-.7 11 1'/><path stroke-width='1.6' d='M7.2 12.4c3-.8 6.3-.5 9 .9'/><path stroke-width='1.3' d='M7.8 15.3c2.4-.6 4.8-.4 6.9.7'/></g>")],
+  ['playstation', '#0b3fa8', svgUrl("<path fill='#fff' d='M9.2 3.6v15.6l3.4 1.1V7.2c0-.7.3-1.1.8-.9.6.2.8.8.8 1.4v5.2c2.2 1 3.9 0 3.9-2.8 0-2.9-1-4.2-4-5.2-1.2-.4-3.4-1-4.9-1.3z'/>")],
+];
+const TV_MARK = svgUrl("<g fill='none' stroke='#8ccbe9' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><rect x='2.5' y='7' width='19' height='13' rx='2'/><path d='m16.5 2.5-4.5 4.5-4.5-4.5'/></g>");
+const TV_BADGE = `{% set said = [state_attr(config.entity, 'app_name'), state_attr(config.entity, 'source'), state_attr(config.entity, 'media_title')] | select('string') | join(' ') | lower %}
+{% set pic = state_attr(config.entity, 'entity_picture') %}
+ha-card::after { content: ''; position: absolute; z-index: 0; pointer-events: none; left: 14px; bottom: 62px; width: 40px; height: 40px;
+  border-radius: 11px; box-shadow: 0 4px 14px -4px rgba(0,0,0,0.7); display: {{ 'grid' if on else 'none' }}; place-items: center;
+  font: 26px/1 -apple-system, BlinkMacSystemFont, sans-serif; color: #000;
+  {% if not on %}background: none;
+${TV_BRANDS.map(([k, bg, url]) => `  {% elif '${k}' in said %}background: ${bg} ${url} center / 66% no-repeat;`).join('\n')}
+  {% elif said is search('(^| )(mac|macos|macbook|imac|apple|airplay)( |$)') %}background: #f2f2f4; content: '\\F8FF';
+  {% elif pic %}background: #0b1826 url('{{ pic }}') center / cover no-repeat;
+  {% else %}background: #0b1826 ${TV_MARK} center / 62% no-repeat; box-shadow: 0 4px 14px -4px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(145,204,255,0.18);
+  {% endif %} }`;
 const tvCard = (e, n, i) => ({ type: 'tile', entity: e, name: n, icon: i, color: BLUE, vertical: false,
   tap_action: { action: 'more-info' }, icon_tap_action: { action: 'toggle' },
+  state_content: ['media_title', 'source'],
   grid_options: { columns: 12, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }],
-  ...sceneStyle(TV_ON, '#6fa8ff', { name: 'tv', box: 'width: 118%; aspect-ratio: 1; left: -4%; top: 12%;' }) });
+  ...sceneStyle(TV_ON, '#6fa8ff', { name: 'tv', box: 'width: 118%; aspect-ratio: 1; left: -4%; top: 12%;' }, TV_BADGE) });
 
 const section = (title, cards, icon, span = 1) => ({ type: 'grid', column_span: span, cards: [heading(title, icon), ...cards] });
 

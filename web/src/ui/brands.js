@@ -47,6 +47,12 @@ export function brandOf(tv) {
   return null;
 }
 
+/** What is on when it has no logo of its own (a TV channel, an input): the TV itself. */
+export const TV_MARK = {
+  id: 'tv', name: 'TV', bg: '#0b1826',
+  mark: () => svg('<g fill="none" stroke="#8ccbe9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="13" rx="2"/><path d="m16.5 2.5-4.5 4.5-4.5-4.5"/></g>'),
+};
+
 /** A square logo tile for `brand`, sized by its container (CSS .brand-logo). */
 export function brandLogo(brand) {
   return h('span.brand-logo', { vars: { '--brand-bg': brand.bg }, title: brand.name }, brand.mark());
