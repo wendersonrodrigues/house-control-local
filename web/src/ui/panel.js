@@ -623,11 +623,12 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     if (ui.editing || !camsHere || camBox.isOpen) return;
     const gate = config.gates.find((g) => g.id === gateId);
     const cams = gate?.room ? camerasOf(tabOf(gate.room)) : [];
-    // The plan's gate view (`gateView` on cameras: which half of each to show, top first),
-    // else the camera of the gate's room whole.
+    // The plan's gate view (`gateView` on cameras: which half of each to show; `gateSlot`: its
+    // place from the top), else the camera of the gate's room whole.
     const order = { top: 0, full: 1, bottom: 2 };
+    const slot = (c) => c.gateSlot ?? order[c.gateView];
     const view = (config.cameras || []).filter((c) => order[c.gateView] != null)
-      .sort((a, b) => order[a.gateView] - order[b.gateView]).map((c) => ({ camera: c, part: c.gateView }));
+      .sort((a, b) => slot(a) - slot(b)).map((c) => ({ camera: c, part: c.gateView }));
     const cam = cams.find((c) => c.room === gate.room) || cams[0];
     if (view.length) camBox.openView(view);
     else if (cam) camBox.open([cam]);

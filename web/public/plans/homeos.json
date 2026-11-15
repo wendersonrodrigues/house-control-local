@@ -46,6 +46,7 @@
   },
   "cameras": [
     {
+      "gateSlot": 2,
       "gateView": "top",
       "id": "cam.garagem",
       "link": {
@@ -56,6 +57,7 @@
       "room": "garagem"
     },
     {
+      "gateSlot": 1,
       "gateView": "bottom",
       "id": "cam.frente",
       "link": {
