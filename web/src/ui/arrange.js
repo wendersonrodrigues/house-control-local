@@ -42,6 +42,8 @@ export function loadArrangement(home) {
     // the start page sideways keeps its own order ("side:" groups), sizes and sides;
     // sideSeeded: copied from the start page the first time
     sideSeeded: Boolean(a.sideSeeded), sideSizes: a.sideSizes || {}, sideFlip: new Set(a.sideFlip || []),
+    // autoCam: rooms (tabs) that open with a camera on, and which one: { [tab]: camera id }
+    autoCam: a.autoCam || {},
   };
 }
 
@@ -55,6 +57,7 @@ export function saveArrangement(home, a) {
     homeOwn: a.homeOwn, homeSeeded: a.homeSeeded, homeSizes: a.homeSizes, homeFlip: [...a.homeFlip],
     secCols: a.secCols, secBelow: a.secBelow,
     sideSeeded: a.sideSeeded, sideSizes: a.sideSizes, sideFlip: [...a.sideFlip],
+    autoCam: a.autoCam,
   };
   try { localStorage.setItem(KEY, JSON.stringify(all)); } catch { /* kept for this session only */ }
 }

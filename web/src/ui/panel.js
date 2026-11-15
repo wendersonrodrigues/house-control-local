@@ -89,7 +89,11 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   const mapBtn = h('button.round.map-btn', { title: 'Mostrar ou ocultar o mapa', 'aria-label': 'Mostrar ou ocultar o mapa', onclick: () => toggleMap() }, icon('map', 17));
   // A room with a security camera: its live picture over the model, only while asked for
   // (camera/view.js). Red while off, like a lamp; blue while the camera is on screen.
-  const camerasOf = (tab) => (tab === 'all' ? [] : (config.cameras || []).filter((c) => tabOf(c.room) === tab));
+  // "Câmeras": a tab of its own at the end of the room tabs with every camera's button (one
+  // plays at a time, as in a room). Not a room of the plan: nothing else is listed there.
+  const CAM_TAB = 'cameras';
+  const camsHere = Boolean(cameraAccess?.available && config.cameras?.length);
+  const camerasOf = (tab) => (tab === 'all' ? [] : (config.cameras || []).filter((c) => tab === CAM_TAB || tabOf(c.room) === tab));
   const camBox = createCameraBox({
     access: cameraAccess || { use: () => Promise.reject(new Error('indisponível')), release() {}, warm() {} },
     // the cards below the box start where it ends (style.css: --cam-h)
@@ -109,7 +113,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
       return;
     }
     haptic('light');
-    if (tabOf(cam.room) !== ui.room) selectRoom(cam.room);
+    if (ui.room !== CAM_TAB && tabOf(cam.room) !== ui.room) selectRoom(cam.room);
     camBox.open([cam]);
     update();
   }
@@ -257,6 +261,14 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
       h('span.room-icon', icon(r.id === 'all' ? 'home' : roomIcon(r), 16, 2)), h('span.room-name', r.name), count);
     roomButtons.set(r.id, { b, count });
   }
+  if (camsHere) {
+    const b = h('button.room.cam-tab', { title: 'Câmeras', 'aria-label': 'Câmeras', onclick: () => { haptic('tick'); selectRoom(CAM_TAB); } },
+      h('span.room-icon', icon('cctv', 16, 2)), h('span.room-name', 'Câmeras'), h('span.count.zero', '0'));
+    roomButtons.set(CAM_TAB, { b, count: b.lastElementChild });
+    tabName.set(CAM_TAB, 'Câmeras');
+  }
+  /** The tabs in their order: Todos, the rooms (as arranged), then Câmeras. */
+  const tabOrder = () => ['all', ...visible(withDevices, arr, 'rooms').map((r) => r.id), ...(camsHere ? [CAM_TAB] : [])];
   function renderRooms() {
     rooms.dataset.style = arr.chips;
     // Above the list, or at the foot of the panel like a phone app's tab bar (Organizar).
@@ -264,7 +276,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     panel.classList.toggle('rooms-bottom', bottom);
     if (bottom && panel.lastElementChild !== rooms) panel.append(rooms);
     if (!bottom && rooms.nextElementSibling !== listHead) panel.insertBefore(rooms, listHead);
-    rooms.replaceChildren(roomButtons.get('all').b, ...visible(withDevices, arr, 'rooms').map((r) => roomButtons.get(r.id).b));
+    rooms.replaceChildren(...tabOrder().map((id) => roomButtons.get(id).b));
   }
   renderRooms();
 
@@ -296,7 +308,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     if (ev.cancelable) ev.preventDefault();
     if (Math.abs(dx) < 70 || ui.editing || ui.sheet) return;
     s.done = true;
-    const order = ['all', ...visible(withDevices, arr, 'rooms').map((r) => r.id)];
+    const order = tabOrder();
     const at = order.indexOf(ui.room);
     const next = order[at + (dx < 0 ? 1 : -1)];
     if (at < 0 || !next) return; // the first or last tab: nothing past it
@@ -357,7 +369,11 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     layoutTiles();
     update();
     showTab(id);
-    onFocus(id === 'all' ? null : { kind: 'room', id });
+    onFocus(id === 'all' || id === CAM_TAB ? null : { kind: 'room', id });
+    if (ui.editing) renderEditBar(); // the room's own options (its camera)
+    // A room set to open with a camera (Editar): that camera comes on by itself.
+    const auto = !ui.editing && arr.autoCam[id] && camerasOf(id).find((c) => c.id === arr.autoCam[id]);
+    if (auto && camsHere) { camBox.open([auto]); update(); }
   }
 
   function inScope(cfg) {
@@ -367,7 +383,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   /** What the power button at the top switches: the room in view (unless set to the whole
    *  home in Organizar), or the whole home on the start page. */
   function powerScope() {
-    const tab = arr.powerScope !== 'home' && ui.room !== 'all' ? ui.room : null;
+    const tab = arr.powerScope !== 'home' && ui.room !== 'all' && ui.room !== CAM_TAB ? ui.room : null;
     const mine = (d) => !tab || tabOf(d.room) === tab;
     return { tab, lights: config.lights.filter(mine), acs: config.acs.filter(mine) };
   }
@@ -986,7 +1002,8 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   // cameras only where they can play (the apps and the Home Assistant edition), in the strip
   const camTiles = cameraAccess?.available ? (config.cameras || []).map(cameraTile) : [];
   function renderCamStrip() {
-    const list = ui.room === 'all' ? [] : camTiles.filter((t) => tabOf(t.cfg.room) === ui.room);
+    const ids = new Set(camerasOf(ui.room).map((c) => c.id));
+    const list = camTiles.filter((t) => ids.has(t.cfg.id));
     camStrip.replaceChildren(...list.map((t) => t.el));
     camStrip.hidden = !list.length;
   }
@@ -1160,6 +1177,19 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
         : ui.room === 'all'
         ? (arr.homeOwn ? 'Mexendo na organização da tela inicial; os cômodos não mudam.' : 'Mexendo aqui, os cômodos mudam junto.')
         : (arr.homeOwn ? 'Mexendo neste cômodo; a tela inicial tem a sua.' : 'Mexendo neste cômodo, a tela inicial muda junto.');
+      // This room opening with a camera on, and which one (only where there are cameras).
+      const cams = ui.room !== 'all' && camsHere ? camerasOf(ui.room) : [];
+      const pickCam = (id) => {
+        if (id) arr.autoCam[ui.room] = id; else delete arr.autoCam[ui.room];
+        haptic('tick');
+        saveArr();
+        renderEditBar();
+      };
+      const chosen = cams.some((c) => c.id === arr.autoCam[ui.room]) ? arr.autoCam[ui.room] : null;
+      const autoRow = cams.length ? h('div.edit-autocam',
+        h('div.edit-check', icon('cctv', 13), h('span', 'Abrir este cômodo com a câmera')),
+        h('div.org-seg.edit-sizes', [[null, 'Não'], ...cams.map((c) => [c.id, c.name])].map(([id, label]) =>
+          h(`button${id === chosen ? '.on' : ''}`, { onclick: () => pickCam(id) }, label)))) : null;
       editBar.replaceChildren(
         h('div.edit-row', h('div.edit-hint', laidSideways
           ? 'Arraste para mover. Puxe o canto para mudar o tamanho. Tela deitada sem o mapa: embaixo do título de cada cômodo, escolha a largura e se ele fica ao lado ou embaixo do anterior.'
@@ -1167,7 +1197,8 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
         h('label.edit-check', labels, 'Mostrar as etiquetas das luzes'),
         laidSideways
           ? h('div.edit-check', icon('layout', 13), h('span.edit-check-note', ownNote))
-          : h('label.edit-check', own, 'Tela inicial com organização própria', h('span.edit-check-note', ` · ${ownNote}`)));
+          : h('label.edit-check', own, 'Tela inicial com organização própria', h('span.edit-check-note', ` · ${ownNote}`)),
+        autoRow);
       return;
     }
     const size = sizeOf(t);
@@ -1441,7 +1472,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     if (home && !isPhone && !editing) {
       nodes.push(h('button.organize-link', { onclick: () => openSheet({ kind: 'organize' }) }, icon('list', 14), 'Organizar o painel'));
     }
-    if (!nodes.length) nodes.push(h('div.group-label', 'Nenhum dispositivo neste cômodo ainda'));
+    if (!nodes.length && ui.room !== CAM_TAB) nodes.push(h('div.group-label', 'Nenhum dispositivo neste cômodo ainda'));
     else if (isTouch && config.lights.some((l) => l.capabilities.length && inScope(l))) {
       nodes.push(h('div.grid-hint', 'Toque e segure uma luz para brilho e cor'));
     }
@@ -1875,8 +1906,9 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     if (badgeFor !== badgeShown) {
       badgeShown = badgeFor;
       const r = config.rooms.find((x) => x.id === badgeFor);
-      badgeRoom.replaceChildren(r ? icon(roomIcon(r), 17) : logo());
-      homeBadge.classList.toggle('in-room', Boolean(r));
+      const cams = badgeFor === CAM_TAB;
+      badgeRoom.replaceChildren(r ? icon(roomIcon(r), 17) : cams ? icon('cctv', 17) : logo());
+      homeBadge.classList.toggle('in-room', Boolean(r) || cams);
     }
 
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);

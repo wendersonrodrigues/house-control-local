@@ -1818,3 +1818,6 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
 }
 .cam-ptz { position: absolute; inset: 0; pointer-events: none; }
 .cam-ptz[hidden] { display: none; }
+/* Editar, in a room with cameras: whether it opens with one on, and which */
+.edit-autocam { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.edit-autocam .edit-check { gap: 6px; }
