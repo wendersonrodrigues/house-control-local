@@ -597,12 +597,28 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     const disarm = () => { clearTimeout(armed); armed = 0; render(); };
     return {
       get armed() { return Boolean(armed); },
-      press() {
+      /** `el`: the button pressed. The camera opening above pushes the cards down: the button
+       *  comes back into view, and the time for the second press starts again once it is there. */
+      press(el) {
         // Safety: from the first touch (the one that arms the button) the gate's camera is on
         // screen, and stays until the page changes.
-        showGateCamera(id);
+        const moved = showGateCamera(id);
         const next = store.gateNext(id);
-        if (next !== 'stop' && !armed) { haptic('light'); armed = setTimeout(disarm, 3500); render(); return; }
+        if (next !== 'stop' && !armed) {
+          haptic('light');
+          armed = setTimeout(disarm, 3500);
+          render();
+          if (moved && el) {
+            // after the panel's slide down (style.css: .panel top 460ms)
+            setTimeout(() => {
+              if (!armed) return;
+              bringIntoView(el);
+              clearTimeout(armed);
+              armed = setTimeout(disarm, 3500);
+            }, 480);
+          }
+          return;
+        }
         clearTimeout(armed); armed = 0;
         haptic(next === 'stop' ? 'medium' : 'heavy');
         store.gatePress(id);
@@ -616,11 +632,25 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
       },
     };
   }
+  /** Scrolls `el` into the part of its list left visible: below the camera box, above the
+   *  room tabs at the foot (a phone, an iPad), which lie over the list. */
+  function bringIntoView(el) {
+    let list = el.parentElement;
+    while (list && !/(auto|scroll)/.test(getComputedStyle(list).overflowY)) list = list.parentElement;
+    if (!list) return;
+    const box = list.getBoundingClientRect();
+    const tabs = card.querySelector('.panel.rooms-bottom:not(.hidden) .rooms');
+    const bottom = Math.min(box.bottom, tabs ? tabs.getBoundingClientRect().top : Infinity) - 8;
+    const top = box.top + 8;
+    const r = el.getBoundingClientRect();
+    const dy = r.bottom > bottom ? r.bottom - bottom : r.top < top ? r.top - top : 0;
+    if (dy) list.scrollBy({ top: dy, behavior: 'smooth' });
+  }
   /** The camera of the gate's room (the garage) on screen, unless a camera already is. It goes
    *  away with the page: another room, the start page, or leaving the gate's sheet. */
   let gateCamOn = false;
   function showGateCamera(gateId) {
-    if (ui.editing || !camsHere) return;
+    if (ui.editing || !camsHere) return false;
     const gate = config.gates.find((g) => g.id === gateId);
     const cams = gate?.room ? camerasOf(tabOf(gate.room)) : [];
     // The plan's gate view (`gateView` on cameras: which half of each to show; `gateSlot`: its
@@ -634,13 +664,14 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     // it is when it already shows the gate's view, or another camera chosen on purpose.
     if (camBox.isOpen) {
       const own = view.length ? view.map((p) => p.camera.id) : cam ? [cam.id] : [];
-      if (!camBox.currentId || !own.includes(camBox.currentId) || !view.length) return;
+      if (!camBox.currentId || !own.includes(camBox.currentId) || !view.length) return false;
     }
     if (view.length) camBox.openView(view);
     else if (cam) camBox.open([cam]);
-    else return;
+    else return false;
     gateCamOn = true;
     update();
+    return true;
   }
 
   // While a gate moves, its percentage and the bar follow it.
@@ -652,7 +683,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     const sub = h('div.tile-sub');
     const label = h('span');
     const button = gateButton(cfg.id, () => update());
-    const action = h('button.gate-action', { onclick: (e) => { e.stopPropagation(); button.press(); } }, label);
+    const action = h('button.gate-action', { onclick: (e) => { e.stopPropagation(); button.press(action); } }, label);
     // since when (the medium and long cards have room for it)
     const since = h('div.card-since');
     const el = h('div.tile.gate.card', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'gate', id: cfg.id }) },
@@ -816,7 +847,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     const bar = h('div.gate-bar', h('i'));
     const label = h('span');
     const button = gateButton(id, () => update());
-    const main = h('button.gate-main', { onclick: () => button.press() }, label);
+    const main = h('button.gate-main', { onclick: () => button.press(main) }, label);
     const travelNote = () => {
       const t = store.gateTravel(id);
       return `${g().state === 'open' ? 'fecha' : 'abre'} em ~${Math.round(t.seconds)} s${t.measured ? ' (medido)' : t.mode === 'auto' ? ' (ainda sem medição)' : ''}`;
