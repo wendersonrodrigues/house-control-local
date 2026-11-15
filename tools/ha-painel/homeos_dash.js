@@ -51,7 +51,7 @@ const gate = () => ({ type: 'tile', entity: 'cover.portao_garagem', name: 'Port�
   tap_action: { action: 'perform-action', perform_action: 'cover.toggle', target: { entity_id: 'cover.portao_garagem' },
     confirmation: { text: 'Acionar o portão da garagem?' } },
   hold_action: { action: 'more-info' }, icon_tap_action: { action: 'more-info' },
-  grid_options: { columns: 12, rows: 'auto' },
+  grid_options: { columns: 6, rows: 'auto' },
   ...sceneStyle(GATE_ON, '#c88a3a', { name: 'gate', on: 'gate-open', off: 'gate-closed', fade: GATE_FADE, box: 'width: 118%; aspect-ratio: 1; left: -9%; top: -13%;' },
     `ha-tile-icon { display: none !important; }
 ha-card::after { content: '{{ "Parar" if states(config.entity) in ["opening", "closing"] else "Fechar" if is_state(config.entity, "open") else "Abrir" }}';
@@ -118,7 +118,7 @@ ${extra}`,
 const AC_ON = "not is_state(config.entity, 'off') and not is_state(config.entity, 'unavailable')";
 const acCard = (e, n) => ({ type: 'tile', entity: e, name: n, color: BLUE, vertical: false,
   tap_action: { action: 'more-info' }, icon_tap_action: { action: 'perform-action', perform_action: 'climate.toggle', target: { entity_id: e } },
-  grid_options: { columns: 12, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'target-temperature' }],
+  grid_options: { columns: 6, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'target-temperature' }],
   ...sceneStyle(AC_ON, '#2fa8ff', { name: 'ac', box: 'width: 150%; aspect-ratio: 640 / 478; left: -42%; top: 5%;' },
     `ha-card::after { content: '{{ state_attr(config.entity, "temperature") | int if on else "" }}'; position: absolute; z-index: 0; pointer-events: none;
   left: 47.25%; top: 46%; width: 19.8%; height: 10.1%; display: grid; place-items: center; border-radius: 3px; background: #03121c;
@@ -153,29 +153,21 @@ const APPLE_TV_PICTURE = { name: 'appletv', box: 'width: 112%; aspect-ratio: 1; 
 const tvCard = (e, n, i, picture = TV_PICTURE) => ({ type: 'tile', entity: e, name: n, icon: i, color: BLUE, vertical: false,
   tap_action: { action: 'more-info' }, icon_tap_action: { action: 'toggle' },
   state_content: ['media_title', 'source'],
-  grid_options: { columns: 12, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }],
+  grid_options: { columns: 6, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }],
   ...sceneStyle(TV_ON, '#6fa8ff', picture, TV_BADGE) });
 
 const section = (title, cards, icon, span = 1) => ({ type: 'grid', column_span: span, cards: [heading(title, icon), ...cards] });
 
-const CAMS = { frente: 'Frente', garagem: 'Garagem', quintal: 'Quintal', corredor: 'Corredor', sala: 'Sala' };
+const CAMS = { garagem: 'Garagem', frente: 'Frente', sala: 'Sala', cozinha: 'Cozinha', corredor: 'Corredor', quintal: 'Quintal' };
+const PTZ = ['frente', 'sala'];
 const camCard = (ids, grid = false) => ({ type: 'custom:advanced-camera-card',
   cameras: ids.map((id) => ({ camera_entity: `camera.${id}`, title: CAMS[id] })), view: { default: 'live' },
   live: { zoomable: true, lazy_unload: ['hidden'],
     ...(grid && { display: { mode: 'grid', grid_selected_width_factor: 1, grid_max_columns: 3 } }),
-    controls: { thumbnails: { mode: ids.length > 1 && !grid ? 'below' : 'none' }, ptz: { mode: 'off' },
+    controls: { thumbnails: { mode: grid ? 'none' : 'below' }, ptz: ids.length === 1 && PTZ.includes(ids[0]) ? { mode: 'auto', hide_zoom: false, position: 'bottom-right' } : { mode: 'off' },
       ...(grid && { next_previous: { style: 'none' } }) } },
   grid_options: { columns: 'full' }, ...mod(GLASS + ' ha-card { overflow: hidden; }') });
 const half = { grid_options: { columns: 6 } };
-const camSettings = (id) => section(CAMS[id], [camCard([id]),
-  tile(`switch.${id}_detect`, 'Detecção', 'mdi:motion-sensor', BLUE, half),
-  tile(`input_boolean.notificar_${id}`, 'Notificar', 'mdi:bell-ring', BLUE, half),
-  info(`input_number.confianca_${id}`, 'Confiança mínima', null, { grid_options: { columns: 12 },
-    features: [{ type: 'numeric-input', style: 'slider' }], features_position: 'bottom' }),
-  info(`input_select.intervalo_${id}`, 'Intervalo mínimo', 'mdi:timer-outline', { grid_options: { columns: 6 },
-    features: [{ type: 'select-options' }], features_position: 'bottom' }),
-  tile(`input_boolean.exigir_zona_${id}`, 'Só na zona', 'mdi:vector-polygon', BLUE, half)], 'mdi:cctv', 2);
-const camRoom = (id) => ['Câmera', [camCard([id])], 2];
 const appleTv = () => tvCard('media_player.apple_tv', 'Apple TV', 'mdi:apple', APPLE_TV_PICTURE);
 
 // A Alexa (Echo Show do Home Office), como no app (web/src/ui/panel.js alexaTile): a foto do
@@ -200,7 +192,7 @@ const alexaCard = () => ({ type: 'tile', entity: ECHO, name: 'Alexa', icon: 'mdi
   tap_action: { action: 'more-info' },
   icon_tap_action: ALEXA_DND ? { action: 'perform-action', perform_action: 'switch.toggle', target: { entity_id: ALEXA_DND } } : { action: 'more-info' },
   state_content: ['media_title', 'state'],
-  grid_options: { columns: 12, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }],
+  grid_options: { columns: 6, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }],
   ...sceneStyle(ALEXA_ON, '#2fa8ff', ECHO_PICTURE, `{% set dnd = ${ALEXA_DND ? `is_state('${ALEXA_DND}', 'on')` : 'false'} %}
 {% set said = ${ALEXA_VOICE ? `state_attr('${ALEXA_VOICE}', 'voice_command')` : 'none'} %}
 ha-tile-icon { --tile-icon-color: {{ '#06162c' if dnd else 'rgba(233,237,242,0.72)' }}; }
@@ -219,14 +211,14 @@ const alexaRoutines = () => ALEXA_ROUTINES.map(([e, n]) => ({ ...script(e, n, /n
 // Cômodos com aparelhos, na ordem do app.
 const ROOMS = [
   ['garagem', 'garagem', 'Garagem', 'mdi:garage', [
-    ['Portão', [gate()]], ['Luzes', [light('light.garagem', 'Luz da Garagem')]], camRoom('garagem')]],
+    ['Portão', [gate()]], ['Luzes', [light('light.garagem', 'Luz da Garagem')]]]],
   ['sala', 'sala_de_estar', 'Sala de estar', 'mdi:sofa', [
     ['Luzes', [light('light.sala_principal', 'Principal', 'Luz Led'), light('light.sala_cortina', 'Cortina', 'Luz Led'),
       light('light.sala_de_estar_luz_central_1', 'Central 1'), light('light.sala_de_estar_luz_central_2', 'Central 2'),
       light('light.sala_de_estar_spots_da_sala', 'Spots'), light('light.sala_de_estar_luz_do_movel', 'Móvel', 'Led')]],
     ['Ar-condicionado', [acCard('climate.central_sala', 'Ar da Sala')]],
     ['TV', [tvCard('media_player.tv_lg', 'TV LG', 'mdi:television'),
-      tile('switch.sala_de_estar_tv_lg_screen', 'Tela da TV', 'mdi:monitor'), appleTv()]], camRoom('sala')]],
+      tile('switch.sala_de_estar_tv_lg_screen', 'Tela da TV', 'mdi:monitor'), appleTv()]]]],
   ['office', 'home_office', 'Home Office', 'mdi:chair-rolling', [
     ['Luzes', [light('light.home_office_centro', 'Centro'), light('light.home_office_spots', 'Spots'),
       light('light.home_office_led', 'LED')]],
@@ -241,8 +233,8 @@ const ROOMS = [
   ['suite', 'quarto', 'Suíte', 'mdi:bed-king', [
     ['Luzes', [light('light.suite_centro', 'Centro'), light('light.suite_led', 'LED')]],
     ['Ar-condicionado', [acCard('climate.central_quarto', 'Ar do Quarto')]]]],
-  ['corredor', 'corredor', 'Corredor', 'mdi:road-variant', [['Luzes', [light('light.corredor', 'Luz do Corredor')]], camRoom('corredor')]],
-  ['quintal', 'quintal', 'Quintal', 'mdi:pine-tree-variant-outline', [['Luzes', [light('light.quintal', 'Luz do Quintal')]], camRoom('quintal')]],
+  ['corredor', 'corredor', 'Corredor', 'mdi:road-variant', [['Luzes', [light('light.corredor', 'Luz do Corredor')]]]],
+  ['quintal', 'quintal', 'Quintal', 'mdi:pine-tree-variant-outline', [['Luzes', [light('light.quintal', 'Luz do Quintal')]]]],
 ];
 
 const GREETING = `{% set h = now().hour %}{% set luzes = states.light | selectattr('state','eq','on') | rejectattr('entity_id','search','luz_de_fundo') | list | count %}
@@ -298,18 +290,25 @@ ha-domain-icon { display: block; width: 18px; height: 18px; background: currentC
 const view = (title, path, icon, sections, extra = {}) => ({ title, path, icon, type: 'sections', max_columns: 4,
   dense_section_placement: true, background: BG, sections, ...extra });
 
+const WIDE = '(min-width: 870px)';
+const NARROW = '(max-width: 869px)';
+const greetCard = (cols, mq) => ({ type: 'markdown', content: GREETING, text_only: true, grid_options: { columns: cols },
+  visibility: [{ condition: 'screen', media_query: mq }],
+  card_mod: { style: { '.': 'ha-card { background: none !important; border: 0 !important; box-shadow: none !important; padding: 4px 4px 0 !important; }', 'ha-markdown$': 'h2 { font-size: 30px; font-weight: 700; letter-spacing: -0.6px; margin: 0 0 4px; color: #e9edf2; } p { color: rgba(233,237,242,0.64); margin: 0; font-size: 15px; }' } } });
+// O tempo como o widget do app (web/src/ui/weather.js): compacto, no vidro escuro, os próximos dias.
+const weatherCard = (cols, mq) => ({ type: 'weather-forecast', entity: 'weather.forecast_casa', forecast_type: 'daily', show_current: true, show_forecast: true,
+  forecast_slots: 5, name: 'Tempo', grid_options: { columns: cols }, visibility: [{ condition: 'screen', media_query: mq }],
+  ...mod(GLASS + ' ha-card { padding: 12px 14px !important; } .name-state .name { display: none; } .name-state .state { white-space: normal !important; overflow: visible !important; line-height: 1.2; } .temp { font-size: 30px !important; } .forecast .temp { font-size: 13px !important; } .forecast .day { font-size: 12px; }') });
 const home = view('Casa', 'casa', 'mdi:home', [
-  { type: 'grid', column_span: 4, cards: [{ type: 'markdown', content: GREETING, text_only: true, card_mod: { style: { '.': 'ha-card { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 4px !important; }', 'ha-markdown$': 'h2 { font-size: 32px; font-weight: 700; letter-spacing: -0.6px; margin: 0 0 4px; color: #e9edf2; } p { color: rgba(233,237,242,0.64); margin: 0; font-size: 15px; }' } } }] },
-  section('Atalhos', [gate(),
+  { type: 'grid', column_span: 4, cards: [greetCard(5, WIDE), weatherCard(7, WIDE), greetCard(12, NARROW), weatherCard(12, NARROW)] },
+  section('Atalhos', [
     script('script.apagar_todas_as_luzes', 'Apagar todas', 'mdi:lightbulb-group-off-outline'),
     script('script.ligar_todas_as_luzes', 'Ligar todas', 'mdi:lightbulb-group-outline'),
     script('script.ligar_luzes_externas', 'Externas: ligar', 'mdi:outdoor-lamp'),
     script('script.apagar_luzes_externas', 'Externas: apagar', 'mdi:coach-lamp')], 'mdi:lightning-bolt'),
   section('Cômodos', ROOMS.map(([p, a, n]) => area(p, a, n, 6)), 'mdi:floor-plan', 2),
-  { type: 'grid', column_span: 2, cards: [heading('Câmeras', 'mdi:cctv', `${BASE}/cameras`), camCard(Object.keys(CAMS))] },
-  section('Clima', [acCard('climate.central_sala', 'Ar da Sala'), acCard('climate.central_quarto', 'Ar do Quarto'),
-    { type: 'weather-forecast', entity: 'weather.forecast_casa', forecast_type: 'daily', show_forecast: true, name: 'Tempo', ...mod() }],
-    'mdi:thermometer'),
+  // o portão e os ares: os cards com foto, do mesmo tamanho, dois por linha
+  section('Portão e ar', [gate(), acCard('climate.central_sala', 'Ar da Sala'), acCard('climate.central_quarto', 'Ar do Quarto')], 'mdi:home-thermometer-outline'),
   section('Mídia', [tvCard('media_player.tv_lg', 'TV LG', 'mdi:television'), appleTv(),
     tvCard('media_player.home_office_monitor_lg_webos', 'Monitor LG', 'mdi:monitor'),
     alexa()], 'mdi:play-circle-outline'),
@@ -323,17 +322,55 @@ const home = view('Casa', 'casa', 'mdi:home', [
     info('binary_sensor.ex511_status_da_wan', 'Internet', 'mdi:web'),
     info('sensor.ex511_download_speed', 'Download', 'mdi:download', { grid_options: { columns: 6 } }),
     info('sensor.ex511_upload_speed', 'Upload', 'mdi:upload', { grid_options: { columns: 6 } })], 'mdi:home-heart'),
-], { badges: ['weather.forecast_casa', 'person.wenderson'].map((entity) => ({ type: 'entity', entity, show_name: false, show_icon: true, show_state: true })) });
+], { badges: ['person.wenderson'].map((entity) => ({ type: 'entity', entity, show_name: false, show_icon: true, show_state: true })) });
 
 const rooms = ROOMS.map(([p, a, n, i, groups]) => view(n, p, i, [
   { type: 'grid', column_span: 4, cards: [area(null, a, n, 'full', p)] },
   ...groups.map(([t, cards, span]) => section(t, cards, null, span))]));
 
-const cameras = view('Câmeras', 'cameras', 'mdi:cctv', [
-  { type: 'grid', column_span: 4, cards: [camCard(Object.keys(CAMS), true)] },
-  ...Object.keys(CAMS).map(camSettings)]);
+// ---------- o painel Câmeras (/homeos-cameras, um item no menu lateral) ----------
+// Como a página de câmeras do app: uma aba por câmera no alto, cada uma com o vídeo (ao vivo,
+// galeria, linha do tempo, tela cheia e PTZ do próprio card do Frigate) e todos os ajustes dela;
+// a primeira aba, Todas, com as seis câmeras e os controles gerais.
+const CAM_EXTRA = {   // controles que são de uma câmera só (no app: `cameras` em cameraControls)
+  sala: [['input_boolean.vigilancia_da_sala', 'Vigilância (Sala + Cozinha)', 'mdi:shield-home']],
+  cozinha: [['input_boolean.vigilancia_da_sala', 'Vigilância (Sala + Cozinha)', 'mdi:shield-home']],
+  garagem: [['input_boolean.automacoes_do_portao', 'Automações do portão', 'mdi:garage-alert']],
+  frente: [['input_boolean.automacoes_do_portao', 'Automações do portão', 'mdi:garage-alert']],
+};
+const has = (e) => Boolean(document.querySelector('home-assistant').hass.states[e]);
+const camAjustes = (id) => [
+  tile(`switch.${id}_detect`, 'Detecção', 'mdi:motion-sensor', BLUE, half),
+  tile(`input_boolean.notificar_${id}`, 'Notificar', 'mdi:bell-ring', BLUE, half),
+  tile(`input_boolean.exigir_zona_${id}`, 'Só na zona', 'mdi:vector-polygon', BLUE, half),
+  ...(has(`switch.${id}_improve_contrast`) ? [tile(`switch.${id}_improve_contrast`, 'Contraste noturno', 'mdi:contrast-box', BLUE, half)] : []),
+  ...(CAM_EXTRA[id] || []).map(([e, n, i]) => tile(e, n, i, BLUE, half)),
+  info(`input_number.confianca_${id}`, 'Confiança mínima', 'mdi:account-check', { grid_options: { columns: 12 },
+    features: [{ type: 'numeric-input', style: 'slider' }], features_position: 'bottom' }),
+  info(`input_select.intervalo_${id}`, 'Intervalo mínimo', 'mdi:timer-outline', { grid_options: { columns: 12 },
+    features: [{ type: 'select-options' }], features_position: 'bottom' }),
+];
+const camView = (id) => ({ title: CAMS[id], path: id, type: 'sections', max_columns: 3, dense_section_placement: true, background: BG,
+  sections: [
+    { type: 'grid', column_span: 2, cards: [camCard([id])] },
+    section(`Ajustes da câmera`, camAjustes(id), 'mdi:tune-variant'),
+  ] });
+const geral = section('Controles gerais', [
+  script('script.ligar_deteccao_cameras', 'Ligar detecção em todas', 'mdi:cctv'),
+  script('script.desligar_deteccao_cameras', 'Desligar detecção em todas', 'mdi:cctv-off'),
+  tile('input_boolean.vigilancia_da_sala', 'Vigilância (Sala + Cozinha)', 'mdi:shield-home', BLUE, half),
+  tile('automation.cameras_pessoa_detectada_notificar_com_foto', 'Notificações', 'mdi:bell-ring', BLUE, half),
+  tile('input_boolean.luzes_por_presenca', 'Luzes por presença', 'mdi:motion-sensor', BLUE, half),
+  tile('input_boolean.automacoes_do_portao', 'Automações do portão', 'mdi:garage-alert', BLUE, half),
+  info('input_select.pessoas_conhecidas', 'Pessoas conhecidas', 'mdi:face-recognition', { grid_options: { columns: 12 },
+    features: [{ type: 'select-options' }], features_position: 'bottom' }),
+], 'mdi:tune-variant');
+const camerasConfig = { title: 'Câmeras', views: [
+  { title: 'Todas', path: 'todas', type: 'sections', max_columns: 3, dense_section_placement: true, background: BG,
+    sections: [{ type: 'grid', column_span: 2, cards: [camCard(Object.keys(CAMS), true)] }, geral] },
+  ...Object.keys(CAMS).map(camView)] };
 
-const config = { title: 'HomeOs', views: [home, cameras, ...rooms] };
+const config = { title: 'HomeOs', views: [home, ...rooms] };
 const hass = document.querySelector('home-assistant').hass;
 const list = await hass.callWS({ type: 'lovelace/dashboards/list' });
 if (!list.some((d) => d.url_path === 'home-os')) {
@@ -341,4 +378,9 @@ if (!list.some((d) => d.url_path === 'home-os')) {
     show_in_sidebar: true, require_admin: false, mode: 'storage' });
 }
 await hass.callWS({ type: 'lovelace/config/save', url_path: 'home-os', config });
-'ok: ' + config.views.length + ' abas';
+if (!list.some((d) => d.url_path === 'homeos-cameras')) {
+  await hass.callWS({ type: 'lovelace/dashboards/create', url_path: 'homeos-cameras', title: 'Câmeras', icon: 'mdi:cctv',
+    show_in_sidebar: true, require_admin: false, mode: 'storage' });
+}
+await hass.callWS({ type: 'lovelace/config/save', url_path: 'homeos-cameras', config: camerasConfig });
+'ok: ' + config.views.length + ' abas no HomeOs, ' + camerasConfig.views.length + ' no Câmeras';
