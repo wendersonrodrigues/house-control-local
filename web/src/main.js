@@ -115,6 +115,13 @@ async function boot() {
   splashSays('Montando a casa…');
   try {
     raw = synced?.plan || await loadRawConfig();
+    // A plan sent from the Mac before the gate's camera view existed: taken from the bundled plan.
+    if (synced?.plan && raw.cameras?.length && !raw.cameras.some((c) => c.gateView)) {
+      try {
+        const views = new Map(((await loadRawConfig()).cameras || []).filter((c) => c.gateView).map((c) => [c.id, c.gateView]));
+        raw = { ...raw, cameras: raw.cameras.map((c) => (views.has(c.id) ? { ...c, gateView: views.get(c.id) } : c)) };
+      } catch { /* the gate shows its room's camera then */ }
+    }
     // A plan sent from the Mac before the cameras existed: they come from the bundled plan.
     if (synced?.plan && !raw.cameras) {
       try {

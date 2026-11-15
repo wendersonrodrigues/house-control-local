@@ -12,23 +12,29 @@ import { playCamera } from './live.js';
 const MAX_ZOOM = 8;
 
 export function createCameraBox({ access, onSize = () => {} }) {
-  const frame = h('div.cam-frame');
-  // A new <video> for each play: a late answer for an older one can only clear its own.
-  let video = null;
-  const takeAspect = (v) => {
-    if (v !== video || !v.videoWidth || !v.videoHeight) return;
-    aspect = Math.min(2.4, Math.max(0.75, v.videoWidth / v.videoHeight));
+  // The picture: one camera whole, or a custom view made of parts of several, one above the
+  // other (the gate: the top half of the garage's dual-lens stream, then the bottom half of the
+  // front's). The zoom moves the whole stage.
+  const stage = h('div.cam-stage');
+  const frame = h('div.cam-frame', stage);
+  // New <video>s for each play: a late answer for an older one can only clear its own.
+  let shown = [];        // [{ camera, part: 'full' | 'top' | 'bottom', video, pane }]
+  const partAspect = (p) => (p.video?.videoWidth && p.video.videoHeight
+    ? p.video.videoWidth / (p.part === 'full' ? p.video.videoHeight : p.video.videoHeight / 2)
+    : p.part === 'full' ? 16 / 9 : 16 / 9);
+  /** The box's proportions from its parts' (stacked parts: their heights add up). */
+  function takeAspect() {
+    if (!shown.length) return;
+    const inv = shown.reduce((sum, p) => sum + 1 / partAspect(p), 0);
+    for (const p of shown) if (p.pane) p.pane.style.flexGrow = String(1 / partAspect(p));
+    aspect = Math.min(2.4, Math.max(0.6, 1 / inv));
     fit();
-  };
+  }
   function freshVideo() {
     const v = h('video.cam-video', { muted: true, autoplay: true, playsInline: true, disablePictureInPicture: true });
     v.muted = true;
     v.setAttribute('playsinline', '');
-    v.addEventListener('loadedmetadata', () => takeAspect(v));
-    v.addEventListener('resize', () => takeAspect(v));
-    v.addEventListener('loadeddata', () => takeAspect(v));
-    video = v;
-    frame.replaceChildren(v);
+    for (const ev of ['loadedmetadata', 'resize', 'loadeddata']) v.addEventListener(ev, () => { if (shown.some((p) => p.video === v)) takeAspect(); });
     return v;
   }
   const ptzLayer = h('div.cam-ptz', { hidden: true }); // camera/ptz.js: the arrows go here
@@ -42,7 +48,7 @@ export function createCameraBox({ access, onSize = () => {} }) {
 
   let cameras = [];
   let current = null;
-  let playing = null;    // { stop }
+  let playing = [];      // [{ stop }], one per video
   let serial = 0;        // each play; a late answer for an older one is dropped
   let aspect = 16 / 9;
 
@@ -91,8 +97,7 @@ export function createCameraBox({ access, onSize = () => {} }) {
     view.y = Math.min(0, Math.max(hgt - hgt * view.s, view.y));
   }
   function apply() {
-    if (!video) return;
-    video.style.transform = view.s === 1 ? '' : `translate(${view.x}px, ${view.y}px) scale(${view.s})`;
+    stage.style.transform = view.s === 1 ? '' : `translate(${view.x}px, ${view.y}px) scale(${view.s})`;
     zoomTag.hidden = view.s < 1.05;
     zoomTag.textContent = `${view.s.toFixed(1).replace('.', ',')}×`;
     box.classList.toggle('zoomed', view.s > 1.01);
@@ -166,7 +171,7 @@ export function createCameraBox({ access, onSize = () => {} }) {
     status.replaceChildren(...(text ? [
       retry ? icon('cameraOff', 22, 1.8) : h('span.cam-spin'),
       h('span', text),
-      retry ? h('button.cam-retry', { onclick: () => play(current) }, 'Tentar de novo') : null,
+      retry ? h('button.cam-retry', { onclick: () => play(lastView) }, 'Tentar de novo') : null,
     ] : []));
     status.hidden = !text;
     box.classList.toggle('waiting', Boolean(text));
@@ -174,64 +179,92 @@ export function createCameraBox({ access, onSize = () => {} }) {
 
   function renderChips() {
     chips.replaceChildren(...(cameras.length > 1 ? cameras.map((c) => h(`button.cam-chip${c === current ? '.on' : ''}`,
-      { onclick: () => { if (c !== current) play(c); } }, c.name)) : []));
+      { onclick: () => { if (c !== current) play([{ camera: c, part: 'full' }]); } }, c.name)) : []));
   }
 
-  async function play(camera) {
+  let lastView = [];
+  /** Plays `view`: [{ camera, part }], one camera whole or parts of several stacked. */
+  async function play(view) {
     const mine = ++serial;
-    playing?.stop();
-    playing = null;
-    current = camera;
-    name.textContent = camera.name;
+    for (const p of playing) p.stop();
+    playing = [];
+    lastView = view;
+    current = view.length === 1 && view[0].part === 'full' ? view[0].camera : null;
+    name.textContent = view.map((p) => p.camera.name).join(' + ');
     renderChips();
     resetZoom();
     say('Conectando à câmera…');
-    aspect = 16 / 9;
-    fit();
+    shown = view.map((p) => {
+      const video = freshVideo();
+      const pane = p.part === 'full' ? null : h('div.cam-pane', { 'data-part': p.part }, video);
+      return { ...p, video, pane };
+    });
+    stage.replaceChildren(...shown.map((p) => p.pane || p.video));
+    stage.classList.toggle('stacked', shown.length > 1 || shown.some((p) => p.pane));
+    takeAspect();
+    let ha;
     try {
-      const ha = await access.use();
-      if (mine !== serial) return;
-      const p = await playCamera(ha, camera.link.id, freshVideo(), {
-        onState: (s) => { if (mine === serial && s === 'fallback') say('Conectando (modo alternativo)…'); },
-        isCancelled: () => mine !== serial,
-      });
-      if (mine !== serial) { p.stop(); return; }
-      playing = p;
-      say('');
-      // WebKit may report the picture's size a little after the first frame, without an event
-      const v = video;
-      for (let i = 0; i < 30 && v === video && !v.videoWidth; i++) await new Promise((r) => setTimeout(r, 100));
-      takeAspect(v);
+      ha = await access.use();
     } catch (e) {
-      if (mine !== serial) return;
+      if (mine === serial) say(`Sem imagem da câmera${e?.message ? ` (${e.message})` : ''}`, true);
+      return;
+    }
+    if (mine !== serial) return;
+    const results = await Promise.allSettled(shown.map((p) => playCamera(ha, p.camera.link.id, p.video, {
+      onState: (st) => { if (mine === serial && st === 'fallback') say('Conectando (modo alternativo)…'); },
+      isCancelled: () => mine !== serial,
+    })));
+    const ok = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+    if (mine !== serial) { for (const p of ok) p.stop(); return; }
+    playing = ok;
+    if (!ok.length) {
+      const e = results[0].reason;
       console.warn('[câmera]', e);
       const why = { 'Camera not found': 'câmera não encontrada no Home Assistant' }[e?.message] || e?.message;
       say(`Sem imagem da câmera${why ? ` (${why})` : ''}`, true);
+      return;
     }
+    say('');
+    // a part that did not come: its name over the empty place
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') (shown[i].pane || stage).append(h('div.cam-part-off', `${shown[i].camera.name}: sem imagem`));
+    });
+    // WebKit may report the picture's size a little after the first frame, without an event
+    for (let i = 0; i < 30 && mine === serial && shown.some((p) => !p.video.videoWidth); i++) await new Promise((r) => setTimeout(r, 100));
+    if (mine === serial) takeAspect();
   }
 
   return {
     el: dock,
     ptzLayer,
     get isOpen() { return !dock.hidden; },
-    /** The plan id of the camera on screen, or null. */
+    /** The plan id of the camera on screen whole, or null (closed, or a custom view). */
     get currentId() { return dock.hidden ? null : current?.id ?? null; },
+    /** True when camera `id` is on screen, whole or as part of a custom view. */
+    shows(id) { return !dock.hidden && shown.some((p) => p.camera.id === id); },
     /** Shows the first of `list` (the cameras of the room in view). */
     open(list) {
       cameras = list;
       dock.hidden = false;
       fit();
-      play(list[0]);
+      play([{ camera: list[0], part: 'full' }]);
+    },
+    /** A custom view: parts of cameras stacked, [{ camera, part: 'top' | 'bottom' | 'full' }]. */
+    openView(view) {
+      cameras = [];
+      dock.hidden = false;
+      fit();
+      play(view);
     },
     /** Stops the video and Home Assistant's stream, and hides the box. */
     close() {
       if (dock.hidden) return;
       serial++;
-      playing?.stop();
-      playing = null;
+      for (const p of playing) p.stop();
+      playing = [];
       current = null;
-      frame.replaceChildren();
-      video = null;
+      stage.replaceChildren();
+      shown = [];
       dock.hidden = true;
       say('');
       access.release();

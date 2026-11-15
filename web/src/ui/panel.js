@@ -623,9 +623,15 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     if (ui.editing || !camsHere || camBox.isOpen) return;
     const gate = config.gates.find((g) => g.id === gateId);
     const cams = gate?.room ? camerasOf(tabOf(gate.room)) : [];
+    // The plan's gate view (`gateView` on cameras: which half of each to show, top first),
+    // else the camera of the gate's room whole.
+    const order = { top: 0, full: 1, bottom: 2 };
+    const view = (config.cameras || []).filter((c) => order[c.gateView] != null)
+      .sort((a, b) => order[a.gateView] - order[b.gateView]).map((c) => ({ camera: c, part: c.gateView }));
     const cam = cams.find((c) => c.room === gate.room) || cams[0];
-    if (!cam) return;
-    camBox.open([cam]);
+    if (view.length) camBox.openView(view);
+    else if (cam) camBox.open([cam]);
+    else return;
     gateCamOn = true;
     update();
   }
@@ -874,7 +880,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     return {
       el, cfg, kind: 'camera',
       update() {
-        const on = camBox.currentId === cfg.id;
+        const on = camBox.shows(cfg.id);
         el.classList.toggle('on', on);
         sub.textContent = on ? 'Ao vivo' : '';
         // "Câmera" over the name unless given a tag of its own (a lamp may share the name)

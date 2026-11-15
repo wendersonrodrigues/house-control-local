@@ -192,7 +192,8 @@ export function normalize(raw) {
   });
 
   // Security cameras (Frigate, through Home Assistant): not drawn, each belongs to a room,
-  // whose header gets the camera button. `ptz: true` marks one that can move (camera/ptz.js).
+  // whose strip of camera cards it shows. `ptz: true` marks one that can move (camera/ptz.js);
+  // `gateView: "top" | "bottom" | "full"`: its part in the view the gate brings up (panel.js).
   // (`camera`, singular, is the view of the model: a different thing.)
   const cameras = (raw.cameras || []).map((c) => {
     unique(c.id, 'Uma câmera');
