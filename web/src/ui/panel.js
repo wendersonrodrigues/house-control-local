@@ -11,6 +11,9 @@ import { haptic, isPhone, isTouch, isTablet, isNative, post } from '../bridge.js
 import { loadArrangement, saveArrangement, ordered, visible, move } from './arrange.js';
 import { createLastSeen, ago, span, when } from '../lastseen.js';
 import { createCameraBox } from '../camera/view.js';
+import { createWeather } from './weather.js';
+import { createAlexaLive } from './alexa.js';
+import { whileVisible } from '../ha/live.js';
 
 const MODE_LABEL = { cool: 'Gelar', heat: 'Aquecer', dry: 'Desumidificar', fan: 'Ventilar', auto: 'Automático' };
 const FAN_LABEL = { auto: 'Automático', silent: 'Silencioso', low: 'Baixo', medium: 'Médio', high: 'Alto', turbo: 'Máximo' };
@@ -99,6 +102,11 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     // the cards below the box start where it ends (style.css: --cam-h)
     onSize: (px) => card.style.setProperty('--cam-h', `${px}px`),
   });
+  // The weather on the start page and the Alexa's extras come over the same line to Home
+  // Assistant (camera/access.js): only in the app and on the HA edition, not in a plain browser.
+  const haLine = cameraAccess?.available ? cameraAccess : null;
+  const weather = haLine ? createWeather({ access: haLine, entity: config.weather, night: () => (state.sun?.elevation ?? 10) < 0 }) : null;
+  const alexaLive = haLine ? createAlexaLive(haLine) : null;
   /** A camera card's switch: `id` on (another one in view switches to it), or off when it is
    *  the one on screen. Without `id`: closes whatever is on. From the start page, the card
    *  first goes to its room (the box belongs to the room in view). */
@@ -150,7 +158,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   const panel = h('section.panel',
     scenes, rooms,
     listHead, editBar, camStrip,
-    h('div.devices', grid));
+    h('div.devices', weather?.el, grid));
   const sheet = h('section.sheet.hidden');
   sheet.inert = true;
   // The stage above grows into whatever the open sheet leaves free.
@@ -936,7 +944,48 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   const tvStatus = (t, cfg) => (t.online === false ? 'Indisponível' : !t.on ? (masculine(cfg) ? 'Desligado' : 'Desligada')
     : t.title || t.app || t.source || (t.state === 'playing' ? 'Reproduzindo' : t.state === 'paused' ? (masculine(cfg) ? 'Pausado' : 'Pausada') : masculine(cfg) ? 'Ligado' : 'Ligada'));
 
+  // The Alexa (an Echo Show) never switches off: it waits, plays, or keeps quiet.
+  const alexaStatus = (t, x) => (t.online === false ? 'Indisponível' : t.state === 'playing' ? t.title || 'Tocando'
+    : t.state === 'paused' ? 'Pausada' : x?.dnd ? 'Não perturbe' : 'Em espera');
+  const routineIcon = (label) => (/noite|dormir/i.test(label) ? 'moon' : /dia|acordar/i.test(label) ? 'sun' : 'sparkles');
+  /** "“ligar central do quarto”", with when it was said. */
+  const saidLine = (x) => (x?.voice ? `“${x.voice}”${x.when ? ` · ${ago(x.when)}` : ''}` : '');
+
+  function alexaTile(cfg) {
+    const sub = h('div.tile-sub');
+    let extras = null;
+    // the head's round button: "Não perturbe" (lit while it is on)
+    const dnd = h('button.mini-power.dnd', { 'aria-label': 'Não perturbe', title: 'Não perturbe', hidden: true, onclick: (e) => {
+      e.stopPropagation();
+      if (!extras || extras.dnd == null) return;
+      haptic('medium');
+      alexaLive.setDnd(cfg.id, !extras.dnd).catch((err) => store.onDeviceError?.(cfg.id, err.message));
+      update();
+    } }, icon('bellOff', 16, 2.2));
+    const said = h('span');
+    const saidEl = h('div.alexa-said', { hidden: true }, icon('mic', 13, 2.2), said);
+    const el = h('div.tile.tv.alexa.card', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'tv', id: cfg.id }) },
+      scene(`tv.${cfg.picture}`, `./img/${cfg.picture}-off.jpg`, `./img/${cfg.picture}-on.jpg`),
+      h('div.card-head', h('div.tile-text', h('div.tile-name', cfg.name), sub), dnd),
+      h('div.card-foot', saidEl));
+    el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') openSheet({ kind: 'tv', id: cfg.id }); });
+    if (alexaLive) whileVisible(el, () => alexaLive.watch(cfg, (x) => { extras = x; update(); }));
+    function update() {
+      const t = state.tvs[cfg.id];
+      el.classList.toggle('on', t.online !== false && t.on);
+      el.classList.toggle('offline', t.online === false);
+      el.style.setProperty('--c', TV_BLUE);
+      sub.textContent = alexaStatus(t, extras);
+      dnd.hidden = extras?.dnd == null;
+      dnd.classList.toggle('on', Boolean(extras?.dnd));
+      said.textContent = saidLine(extras);
+      saidEl.hidden = !said.textContent;
+    }
+    return { el, cfg, kind: 'tv', update };
+  }
+
   function tvTile(cfg) {
+    if (cfg.alexa) return alexaTile(cfg);
     const sub = h('div.tile-sub');
     const power = h('button.mini-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: (e) => {
       e.stopPropagation(); haptic('medium'); store.setTV(cfg.id, { on: !state.tvs[cfg.id].on });
@@ -977,12 +1026,69 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     };
   }
 
+  /** The Alexa's page, below the volume: what was last said to it, its routines, "Não
+   *  perturbe" and a message to announce on it. */
+  function alexaBlock(cfg, refresh) {
+    let x = null;
+    const said = h('div.alexa-quote');
+    const reply = h('div.alexa-reply');
+    const last = h('div.alexa-last', h('div.alexa-mic', icon('mic', 20, 2)), h('div', h('div.np-label', 'Último comando'), said, reply));
+    const routines = h('div.options.alexa-routines');
+    const dnd = h('button.toggle-chip', { onclick: () => {
+      if (x?.dnd == null) return;
+      haptic('light');
+      alexaLive.setDnd(cfg.id, !x.dnd).catch((e) => store.onDeviceError?.(cfg.id, e.message));
+      refresh();
+    } }, icon('bellOff', 17), 'Não perturbe', h('span.switch'));
+    const input = h('input.alexa-input', { type: 'text', placeholder: 'Escreva um aviso para a Alexa falar', enterKeyHint: 'send', maxLength: 200 });
+    const sendBtn = h('button.alexa-send', { type: 'submit', 'aria-label': 'Anunciar' }, icon('megaphone', 17, 2), h('span', 'Anunciar'));
+    const say = h('form.alexa-say', { onsubmit: (ev) => {
+      ev.preventDefault();
+      const text = input.value.trim();
+      if (!text) { input.focus(); return; }
+      haptic('medium');
+      sendBtn.disabled = true;
+      alexaLive.announce(cfg.id, text)
+        .then(() => { input.value = ''; showToast('Aviso enviado para a Alexa', null, 'info'); })
+        .catch((e) => store.onDeviceError?.(cfg.id, e.message))
+        .finally(() => { sendBtn.disabled = false; });
+    } }, input, sendBtn);
+    let shownRoutines = '';
+    const stop = alexaLive.watch(cfg, (v) => { x = v; refresh(); });
+    return {
+      nodes: [last, h('div.alexa-row', dnd), routines, say],
+      extras: () => x,
+      stop,
+      update() {
+        said.textContent = x?.voice ? `“${x.voice}”` : 'Nada ainda';
+        reply.textContent = [x?.reply ? `Alexa: ${x.reply}` : null, x?.who, x?.when ? ago(x.when) : null].filter(Boolean).join(' · ');
+        reply.hidden = !reply.textContent;
+        last.classList.toggle('empty', !x?.voice);
+        dnd.hidden = x?.dnd == null;
+        dnd.classList.toggle('on', Boolean(x?.dnd));
+        say.hidden = !(x?.ids?.announce || x?.ids?.speak);
+        const key = (x?.routines || []).map((r) => r.entity).join();
+        if (key !== shownRoutines) {
+          shownRoutines = key;
+          routines.replaceChildren(...(x?.routines || []).map((r) => h('button.option', { onclick: () => {
+            haptic('medium');
+            alexaLive.runRoutine(cfg.id, r.entity).then(() => showToast(`Rotina “${r.label}” iniciada`, null, 'info'), (e) => store.onDeviceError?.(cfg.id, e.message));
+          } }, icon(routineIcon(r.label), 24, 1.6), h('div.option-label', r.label))));
+          routines.style.gridTemplateColumns = `repeat(${Math.max(1, Math.min(4, x?.routines?.length || 1))}, 1fr)`;
+        }
+        routines.hidden = !x?.routines?.length;
+      },
+    };
+  }
+
   function tvSheet(id) {
     const cfg = store.tvCfg.get(id);
     const t = () => state.tvs[id];
     const set = (patch) => store.setTV(id, patch);
     const sub = h('div.sheet-sub');
-    const powerBtn = h('button.round.power', { 'aria-label': 'Ligar ou desligar', onclick: () => { haptic('medium'); set({ on: !t().on }); } }, icon('power', 21, 2.2));
+    const powerBtn = cfg.alexa ? null
+      : h('button.round.power', { 'aria-label': 'Ligar ou desligar', onclick: () => { haptic('medium'); set({ on: !t().on }); } }, icon('power', 21, 2.2));
+    const alexa = cfg.alexa && alexaLive ? alexaBlock(cfg, () => sheetView?.update()) : null;
     const big = bigNumber('%');
     const slider = createSlider({
       min: 0, max: 100, value: Math.round(t().volume * 100), gradient: 'linear-gradient(90deg, #26365e 0%, #6fa8ff 100%)', detent: 5,
@@ -1024,11 +1130,14 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
         readout,
         volumeRow,
         options,
+        ...(alexa ? alexa.nodes : []),
       ],
+      close: () => alexa?.stop(),
       update() {
         const tv = t();
-        powerBtn.classList.toggle('on', tv.on);
-        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', tvStatus(tv, cfg)));
+        powerBtn?.classList.toggle('on', tv.on);
+        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', cfg.alexa ? alexaStatus(tv, alexa?.extras()) : tvStatus(tv, cfg)));
+        alexa?.update();
         big.set(Math.round(tv.volume * 100), !tv.on || tv.muted);
         slider.set(Math.round(tv.volume * 100));
         mute.classList.toggle('on', Boolean(tv.muted));
@@ -2000,6 +2109,8 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     mapBtn.hidden = ui.room !== 'all' || Boolean(ui.sheet);
     mapBtn.classList.toggle('on', !arr.mapHidden);
     card.classList.toggle('cam-open', camBox.isOpen);
+    // the weather: on the start page only, not while the cards are being arranged
+    if (weather) weather.el.hidden = ui.room !== 'all' || ui.editing;
     // the start page laid sideways without the map, and a camera opening or closing over it
     if (sideways() !== laidSideways) layoutTiles(true);
 

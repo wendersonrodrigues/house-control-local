@@ -10,6 +10,10 @@ homeassistant:
   latitude: 51.5
   longitude: -0.12
   elevation: 10
+  # the Alexa (Echo Show Família): the device's own entities begin with this name (ui/alexa.js)
+  customize:
+    media_player.home_office_echo_show_familia:
+      friendly_name: Echo Show Familia
 
 http:
   server_port: 8123
@@ -72,8 +76,24 @@ input_boolean:
     name: Automações do portão
   vigilancia_da_sala:
     name: Vigilância da sala
+  lab_echo_dnd:
+    name: lab Echo Não perturbe
 
 template:
+  # A Alexa de mentira: o "Não perturbe" e duas rotinas da conta ("<conta> Alexa, bom dia").
+  - switch:
+      - name: Echo Show Familia Do not disturb
+        unique_id: lab_echo_dnd
+        state: "{{ is_state('input_boolean.lab_echo_dnd', 'on') }}"
+        turn_on: { action: input_boolean.turn_on, target: { entity_id: input_boolean.lab_echo_dnd } }
+        turn_off: { action: input_boolean.turn_off, target: { entity_id: input_boolean.lab_echo_dnd } }
+  - button:
+      - name: lab Alexa, bom dia
+        unique_id: lab_alexa_bom_dia
+        press: { action: persistent_notification.create, data: { message: "Rotina: bom dia" } }
+      - name: lab Alexa, boa noite
+        unique_id: lab_alexa_boa_noite
+        press: { action: persistent_notification.create, data: { message: "Rotina: boa noite" } }
   - light:
       - name: Sala Principal
         unique_id: lab_light_sala_principal
@@ -189,6 +209,10 @@ media_player:
     name: Home Office Monitor LG webOS
     unique_id: lab_monitor_lg
     children: [media_player.bedroom]
+  - platform: universal
+    name: Home Office Echo Show Familia
+    unique_id: lab_echo_show
+    children: [media_player.kitchen]
 
 script:
   lab_portao_abrir:

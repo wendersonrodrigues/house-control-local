@@ -189,9 +189,11 @@ export function normalize(raw) {
     need(isPoint(t.pos), `A TV "${t.id}" precisa de "pos": [x, z]`);
     // mount "desk": a monitor standing on a desk placed at the same spot, instead of a TV on a rack;
     // "box": a streaming box (Apple TV) on the rack of the TV placed at the same spot, `offset`
-    // metres to the side along it. `picture`: the card's photos (img/<picture>-off/-on.jpg).
+    // metres to the side along it; "echo": an Echo Show standing on the desk placed at the same
+    // spot, `offset` metres to the side. `picture`: the card's photos (img/<picture>-off/-on.jpg).
+    // `alexa`: an Alexa (ui/alexa.js), true or the entities of its extras.
     return { ...t, name: t.name || t.id, rot: t.rot || 0, width: t.width ?? 1.6,
-      mount: ['desk', 'box'].includes(t.mount) ? t.mount : undefined, offset: t.offset ?? 0.62, picture: t.picture || 'tv' };
+      mount: ['desk', 'box', 'echo'].includes(t.mount) ? t.mount : undefined, offset: t.offset ?? 0.62, picture: t.picture || 'tv' };
   });
 
   // Security cameras (Frigate, through Home Assistant): not drawn, each belongs to a room,
@@ -234,6 +236,8 @@ export function normalize(raw) {
     toggles,
     tvs,
     cameras,
+    // the weather entity of the start page's card (ui/weather.js); else the first one found
+    weather: typeof raw.weather === 'string' ? raw.weather : null,
     bounds: { minX, minZ, maxX, maxZ },
   };
 }

@@ -107,6 +107,20 @@ const builders = {
         Object.assign(at(box(0.008, 0.005, 0.002, led, { r: 0 }), offset, 0.475, 0.101), { name: 'screen' }),
       );
     }
+    // An Echo Show on a desk (placed like the desk): a small tilted screen on a round speaker
+    // base, beside the monitor.
+    if (mount === 'echo') {
+      const top = 0.76;
+      const face = new THREE.MeshStandardMaterial({ color: '#05070c', roughness: 0.25, emissive: '#27407a', emissiveIntensity: 0.35 });
+      const body = mat('#1b1d22', { rough: 0.8 });
+      const head = group(
+        at(box(0.2, 0.13, 0.05, body, { r: 0.02 }), 0, 0, 0),
+        Object.assign(at(box(0.17, 0.1, 0.005, face, { r: 0 }), 0, 0.005, 0.026), { name: 'screen' }),
+      );
+      head.position.set(offset, top + 0.085, -0.12);
+      head.rotation.x = -0.18;
+      return group(at(box(0.16, 0.05, 0.11, body, { r: 0.025 }), offset, top, -0.14), head);
+    }
     const sw = width * 0.84;
     const sh = sw * 0.5625;
     const screen = new THREE.MeshStandardMaterial({

@@ -9,6 +9,8 @@ import {
   List, Trash2, Scan, Redo2, Map as MapIcon, DoorClosed, Armchair,
   LightbulbOff, EyeOff, Car, CookingPot, Bath, ShowerHead, Shirt, Baby, BedSingle, WashingMachine, Dumbbell, Gamepad2, Flower2, Briefcase, Utensils, Trees, ToggleRight, Bot, Footprints, Eye, ArrowUp, ArrowDown,
   Pencil, ArrowLeftRight, LayoutGrid, Cctv, CameraOff,
+  Cloud, CloudSun, CloudMoon, CloudRain, CloudDrizzle, CloudLightning, CloudSnow, CloudFog, CloudHail, MoonStar,
+  Mic, Megaphone, BellOff, Speaker, Umbrella,
 } from 'lucide';
 
 // A sliding gate on its rail against the post it closes on, shut and slid open (drawn for
@@ -98,6 +100,10 @@ const ICONS = {
   gate: GateClosed, gateOpen: GateOpen, lightsOff: LightbulbOff, outside: Trees, toggle: ToggleRight, automation: Bot,
   presence: Footprints, eye: Eye, eyeOff: EyeOff, up: ArrowUp, downArrow: ArrowDown,
   edit: Pencil, swap: ArrowLeftRight, layout: LayoutGrid, info: Info, pin: Pin, pinOff: PinOff,
+  // the weather (ui/weather.js) and the Alexa
+  cloud: Cloud, cloudSun: CloudSun, cloudMoon: CloudMoon, rain: CloudRain, drizzle: CloudDrizzle,
+  storm: CloudLightning, snow: CloudSnow, fog: CloudFog, hail: CloudHail, clearNight: MoonStar,
+  mic: Mic, megaphone: Megaphone, bellOff: BellOff, speaker: Speaker, umbrella: Umbrella,
 };
 
 // Filled glyphs made for HomeOs Bar in Magnific (vector), on their own grid: switch every

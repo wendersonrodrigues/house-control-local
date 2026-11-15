@@ -6,6 +6,8 @@
 //     ('camera.access'); the page then opens a socket of its own just for the video, and
 //     closes it a minute after the last camera closes.
 // In a plain browser (vite dev) there is no Home Assistant: cameras are unavailable.
+// The weather (ui/weather.js) and the Alexa card (ui/alexa.js) borrow the same line: each user
+// holds it under its own name, and the socket closes a minute after the last one lets go.
 
 import { call, isNative } from '../bridge.js';
 import { connectWithToken } from '../ha/connection.js';
@@ -15,12 +17,12 @@ const IDLE_MS = 60_000;
 export function createCameraAccess({ ha = null } = {}) {
   let own = null;      // Promise of our own socket (native apps)
   let idle = 0;
-  let inUse = false;   // a camera is on screen
+  const holders = new Set(); // who needs the line now ('camera', 'weather', 'alexa')
 
   function later() {
     clearTimeout(idle);
     idle = setTimeout(() => {
-      if (inUse || !own) return;
+      if (holders.size || !own) return;
       const p = own;
       own = null;
       p.then((c) => c.close(), () => {});
@@ -45,16 +47,16 @@ export function createCameraAccess({ ha = null } = {}) {
   return {
     available: Boolean(ha) || isNative,
     /** The connection for a camera going on screen, opened if needed. */
-    use() { inUse = true; return open(); },
+    use(who = 'camera') { holders.add(who); return open(); },
     /** Opened ahead of a click (a room with a camera came into view): the click is quicker. */
     warm() {
       if (!this.available || ha) return;
-      open().then(() => { if (!inUse) later(); }, () => {});
+      open().then(() => { if (!holders.size) later(); }, () => {});
     },
     /** No camera on screen any more: our own socket closes after a while. */
-    release() {
-      inUse = false;
-      if (!ha && own) later();
+    release(who = 'camera') {
+      holders.delete(who);
+      if (!ha && own && !holders.size) later();
     },
   };
 }

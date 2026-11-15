@@ -157,7 +157,7 @@ export async function bootIsland(root) {
   }
 
   for (const cfg of config.tvs) {
-    if (arr.hidden.has(cfg.id)) continue;
+    if (arr.hidden.has(cfg.id) || cfg.alexa) continue; // the Alexa has no power switch
     const sub = h('div.chip-sub');
     const el = h('div.chip.tv', h('span.chip-bubble', icon('tv', 15)), h('div.chip-text', h('div.chip-name', cfg.name), sub),
       h('button.chip-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: () => store.setTV(cfg.id, { on: !state.tvs[cfg.id].on }) }, icon('power', 13, 2.4)));

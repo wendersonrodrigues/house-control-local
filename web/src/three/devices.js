@@ -12,22 +12,25 @@ export class TVUnit {
     this.cfg = cfg;
     this.group = buildPiece({ type: 'tv', pos: cfg.pos, rot: cfg.rot, width: cfg.width, mount: cfg.mount, offset: cfg.offset });
     this.screen = this.group.getObjectByName('screen');
+    const echo = cfg.mount === 'echo';
     this.screen.material = this.screen.material.clone();
     const desk = cfg.mount === 'desk';
     const streamBox = cfg.mount === 'box';
     // The room in front of the screen takes on its glow (a monitor's, nearer and softer; a
     // streaming box only a faint light around itself).
-    this.glow = new THREE.PointLight('#7fb0ff', 0, streamBox ? 0.6 : desk ? 2.5 : 4.5, 1.6);
-    this.glow.position.set(streamBox ? cfg.offset : 0, streamBox ? 0.5 : desk ? 1.05 : 0.8, streamBox ? 0.12 : desk ? 0.2 : 0.5);
-    this.glowScale = streamBox ? 0.15 : desk ? 0.6 : 1;
+    this.glow = new THREE.PointLight('#7fb0ff', 0, streamBox ? 0.6 : echo ? 1.2 : desk ? 2.5 : 4.5, 1.6);
+    if (echo) this.glow.position.set(cfg.offset, 0.9, 0.05);
+    else this.glow.position.set(streamBox ? cfg.offset : 0, streamBox ? 0.5 : desk ? 1.05 : 0.8, streamBox ? 0.12 : desk ? 0.2 : 0.5);
+    this.glowScale = streamBox ? 0.15 : echo ? 0.3 : desk ? 0.6 : 1;
     this.group.add(this.glow);
 
     const sw = cfg.width * 0.84;
     const tall = sw * 0.5625 + (desk ? 0.2 : 0.5);
-    this.hit = streamBox
-      ? new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.2), new THREE.MeshBasicMaterial())
+    this.hit = streamBox || echo
+      ? new THREE.Mesh(new THREE.BoxGeometry(echo ? 0.26 : 0.2, echo ? 0.24 : 0.12, 0.2), new THREE.MeshBasicMaterial())
       : new THREE.Mesh(new THREE.BoxGeometry(cfg.width + (desk ? 0.1 : 0), tall, desk ? 0.35 : 0.6), new THREE.MeshBasicMaterial());
     if (streamBox) this.hit.position.set(cfg.offset, 0.5, 0.05);
+    else if (echo) this.hit.position.set(cfg.offset, 0.86, -0.12);
     else this.hit.position.set(0, desk ? 0.76 + tall / 2 - 0.05 : 0.6, desk ? -0.15 : 0);
     this.hit.visible = false;
     this.hit.userData = { kind: 'tv', id: cfg.id };
@@ -43,6 +46,7 @@ export class TVUnit {
 
   anchor(out) {
     if (this.cfg.mount === 'box') return out.set(this.cfg.offset, 0.6, 0.05).applyMatrix4(this.group.matrixWorld);
+    if (this.cfg.mount === 'echo') return out.set(this.cfg.offset, 1.0, -0.12).applyMatrix4(this.group.matrixWorld);
     return out.set(0, this.cfg.mount === 'desk' ? 1.35 : 1.15, 0).applyMatrix4(this.group.matrixWorld);
   }
 

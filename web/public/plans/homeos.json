@@ -1367,8 +1367,28 @@
       "room": "sala",
       "rot": -90,
       "width": 0.2
+    },
+    {
+      "id": "office.alexa",
+      "name": "Alexa",
+      "link": {
+        "id": "media_player.home_office_echo_show_familia",
+        "service": "homeassistant"
+      },
+      "mount": "echo",
+      "picture": "echo",
+      "alexa": true,
+      "pos": [
+        12.9,
+        1.7
+      ],
+      "rot": 90,
+      "room": "office",
+      "width": 0.2,
+      "offset": 0.62
     }
   ],
   "version": 1,
-  "wallHeight": 2.8
+  "wallHeight": 2.8,
+  "weather": "weather.forecast_casa"
 }

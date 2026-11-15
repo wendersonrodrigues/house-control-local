@@ -67,8 +67,9 @@ const script = (e, n, i) => {
     ? 'border: 2px solid #ff5a5a; color: #ffd6d6; box-shadow: 0 0 10px rgba(255,70,70,0.6), inset 0 0 6px rgba(255,70,70,0.35);'
     : 'border: 2px solid #9fd2ff; color: #e3f3ff; box-shadow: 0 0 10px rgba(120,190,255,0.65), inset 0 0 6px rgba(145,204,255,0.4);';
   return { type: 'tile', entity: e, name: n, icon: i, color: BLUE, vertical: true,
-    tap_action: { action: 'perform-action', perform_action: 'script.turn_on', target: { entity_id: e } },
-    hold_action: { action: 'more-info' }, icon_tap_action: { action: 'perform-action', perform_action: 'script.turn_on', target: { entity_id: e } },
+    // a script runs; a button (as the Alexa's routines) is pressed
+    tap_action: { action: 'perform-action', perform_action: e.startsWith('button.') ? 'button.press' : 'script.turn_on', target: { entity_id: e } },
+    hold_action: { action: 'more-info' }, icon_tap_action: { action: 'perform-action', perform_action: e.startsWith('button.') ? 'button.press' : 'script.turn_on', target: { entity_id: e } },
     card_mod: { style: {
       '.': `ha-card { border-radius: 18px !important; background: rgba(145,204,255,0.07) !important; border: 1px solid rgba(145,204,255,0.15) !important; box-shadow: none !important; }
 ha-tile-icon { --tile-icon-color: ${off ? '#ffd6d6' : '#e3f3ff'}; --tile-icon-size: 16px; }
@@ -177,6 +178,44 @@ const camSettings = (id) => section(CAMS[id], [camCard([id]),
 const camRoom = (id) => ['Câmera', [camCard([id])], 2];
 const appleTv = () => tvCard('media_player.apple_tv', 'Apple TV', 'mdi:apple', APPLE_TV_PICTURE);
 
+// A Alexa (Echo Show do Home Office), como no app (web/src/ui/panel.js alexaTile): a foto do
+// aparelho, o que está tocando (senão "Ocioso"), embaixo o último comando de voz e o volume;
+// o ícone à direita é o "Não perturbe" (aceso enquanto ligado; um toque liga/desliga). As
+// entidades da Alexa Devices são achadas pelo nome do aparelho (as rotinas da conta têm o e-mail
+// no id e não entram no repositório): "<aparelho> Do not disturb", "<aparelho> Voice event", e
+// os botões "<conta> Alexa, bom dia" viram atalhos.
+const ECHO = 'media_player.home_office_echo_show_familia';
+const HA_STATES = document.querySelector('home-assistant').hass.states;
+const fname = (k) => (HA_STATES[k]?.attributes?.friendly_name || '');
+const ECHO_NAME = fname(ECHO).toLowerCase();
+const echoOwn = (domain, re) => Object.keys(HA_STATES).find((k) => k.startsWith(`${domain}.`) && ECHO_NAME
+  && fname(k).toLowerCase().startsWith(ECHO_NAME) && re.test(k));
+const ALEXA_VOICE = echoOwn('event', /voice/);
+const ALEXA_DND = echoOwn('switch', /do_not_disturb/);
+const ALEXA_ROUTINES = Object.keys(HA_STATES).filter((k) => k.startsWith('button.') && /\bAlexa,\s*/i.test(fname(k)))
+  .map((k) => { const r = fname(k).replace(/^.*\bAlexa,\s*/i, ''); return [k, r.charAt(0).toUpperCase() + r.slice(1)]; });
+const ECHO_PICTURE = { name: 'echo', box: 'width: 112%; aspect-ratio: 1; left: -6%; top: 4%;' };
+const ALEXA_ON = "states(config.entity) not in ['off', 'unavailable', 'unknown']";
+const alexaCard = () => ({ type: 'tile', entity: ECHO, name: 'Alexa', icon: 'mdi:bell-sleep-outline', color: BLUE, vertical: false,
+  tap_action: { action: 'more-info' },
+  icon_tap_action: ALEXA_DND ? { action: 'perform-action', perform_action: 'switch.toggle', target: { entity_id: ALEXA_DND } } : { action: 'more-info' },
+  state_content: ['media_title', 'state'],
+  grid_options: { columns: 12, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }],
+  ...sceneStyle(ALEXA_ON, '#2fa8ff', ECHO_PICTURE, `{% set dnd = ${ALEXA_DND ? `is_state('${ALEXA_DND}', 'on')` : 'false'} %}
+{% set said = ${ALEXA_VOICE ? `state_attr('${ALEXA_VOICE}', 'voice_command')` : 'none'} %}
+ha-tile-icon { --tile-icon-color: {{ '#06162c' if dnd else 'rgba(233,237,242,0.72)' }}; }
+ha-card::after { content: '{{ ("“" ~ said ~ "”") if said else "" }}'; position: absolute; z-index: 1; pointer-events: none;
+  left: 12px; right: 12px; bottom: 62px; display: {{ 'block' if said else 'none' }}; padding: 7px 12px 7px 30px; border-radius: 12px;
+  font: 500 12px/1.2 var(--ha-font-family-body); color: #dcecff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: rgba(4,13,23,0.62) ${svgUrl("<g fill='none' stroke='#8ccbe9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z'/><path d='M19 10v2a7 7 0 0 1-14 0v-2'/><path d='M12 19v3'/></g>")} 10px center / 13px no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(145,204,255,0.2); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }`),
+});
+// o "Não perturbe" aceso: o círculo do ícone em azul claro, como o botão do card do app
+const ALEXA_ICON = { 'ha-tile-icon $': `.container { background: {{ '#8fb4ff' if dnd else 'rgba(4,13,23,0.55)' }} !important; box-shadow: {{ '0 0 18px -4px #8fb4ff' if dnd else 'none' }}; }
+.container::before, .container::after { display: none !important; }` };
+const alexa = () => { const c = alexaCard(); Object.assign(c.card_mod.style, { 'ha-tile-icon $': `{% set dnd = ${ALEXA_DND ? `is_state('${ALEXA_DND}', 'on')` : 'false'} %}\n${ALEXA_ICON['ha-tile-icon $']}` }); return c; };
+const alexaRoutines = () => ALEXA_ROUTINES.map(([e, n]) => ({ ...script(e, n, /noite/i.test(n) ? 'mdi:weather-night' : /dia/i.test(n) ? 'mdi:weather-sunny' : 'mdi:account-voice'), grid_options: { columns: 6 } }));
+
 // Cômodos com aparelhos, na ordem do app.
 const ROOMS = [
   ['garagem', 'garagem', 'Garagem', 'mdi:garage', [
@@ -193,7 +232,7 @@ const ROOMS = [
       light('light.home_office_led', 'LED')]],
     ['Monitor e Alexa', [tvCard('media_player.home_office_monitor_lg_webos', 'Monitor LG', 'mdi:monitor'),
       tile('switch.lg_webos_u701sb_screen', 'Tela do monitor', 'mdi:monitor'),
-      media('media_player.home_office_echo_show_familia', 'Echo Show', 'mdi:speaker-message')]]]],
+      alexa(), ...alexaRoutines()]]]],
   ['cozinha', 'cozinha', 'Cozinha', 'mdi:stove', [
     ['Luzes', [light('light.cozinha_mesa', 'Mesa'), light('light.cozinha_bancada', 'LED da Bancada'),
       light('light.cozinha_spots', 'Spots')]]]],
@@ -273,7 +312,7 @@ const home = view('Casa', 'casa', 'mdi:home', [
     'mdi:thermometer'),
   section('Mídia', [tvCard('media_player.tv_lg', 'TV LG', 'mdi:television'), appleTv(),
     tvCard('media_player.home_office_monitor_lg_webos', 'Monitor LG', 'mdi:monitor'),
-    media('media_player.home_office_echo_show_familia', 'Echo Show', 'mdi:speaker-message')], 'mdi:play-circle-outline'),
+    alexa()], 'mdi:play-circle-outline'),
   section('Automações', [
     tile('input_boolean.luzes_por_presenca', 'Luzes por presença', 'mdi:motion-sensor'),
     tile('input_boolean.automacoes_do_portao', 'Automações do portão', 'mdi:garage-alert'),
