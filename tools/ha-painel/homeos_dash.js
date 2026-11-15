@@ -17,7 +17,28 @@ const tile = (entity, name, icon, color = BLUE, kw = {}) => ({
   tap_action: { action: 'toggle' }, icon_tap_action: { action: 'more-info' },
   ...(name && { name }), ...(icon && { icon }), ...kw, ...mod(color === WARM ? GLASS_ON : GLASS),
 });
-const light = (e, n) => tile(e, n, null, WARM);
+// A lâmpada como no app (web/src/style.css .tile.lamp): a etiqueta pequena acima do nome ("LUZ",
+// "LUZ LED", as do Mac), o anel à direita como o interruptor da parede: vermelho apagada, azul
+// brilhando acesa, com o card em degradê azul. Toque liga/desliga; segurar abre os detalhes.
+const LAMP_ON = "is_state(config.entity, 'on')";
+const light = (e, n, tag = 'Luz') => ({ type: 'tile', entity: e, name: n, color: WARM, vertical: false,
+  tap_action: { action: 'toggle' }, hold_action: { action: 'more-info' }, icon_tap_action: { action: 'toggle' },
+  card_mod: { style: {
+    '.': `{% set on = ${LAMP_ON} %}
+ha-card { position: relative; overflow: hidden; border-radius: 18px !important; color: #e9edf2; --primary-text-color: {{ '#fff' if on else '#e9edf2' }};
+  background: {{ 'radial-gradient(120% 90% at 50% 120%, #0a78c8 0%, #00508d 38%, #0b2741 72%, #0d1e2f 100%)' if on else 'linear-gradient(165deg, #0d1e2f 0%, #07131f 100%)' }} !important;
+  border: 1px solid {{ 'rgba(145,204,255,0.38)' if on else 'rgba(145,204,255,0.13)' }} !important;
+  box-shadow: {{ '0 16px 30px -20px #0a78c8, inset 0 1px 0 rgba(233,237,242,0.1)' if on else 'none' }} !important; }
+ha-card::after { content: ''; position: absolute; right: 16px; top: 50%; width: 24px; height: 24px; margin-top: -12px; box-sizing: border-box; border-radius: 50%; pointer-events: none;
+  border: 2.5px solid {{ '#bfe3ff' if on else '#ff4d4d' }};
+  box-shadow: {{ '0 0 12px 2px rgba(120,190,255,0.95), 0 0 3px rgba(233,245,255,0.9), inset 0 0 6px rgba(145,204,255,0.8)' if on else '0 0 10px 0 rgba(255,70,70,0.75), inset 0 0 6px rgba(255,70,70,0.5)' }}; }
+ha-tile-icon { display: none !important; }
+ha-tile-info { padding-right: 34px; }
+ha-tile-info::before { content: '${tag.toUpperCase()}'; display: block; font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; color: #8ccbe9; opacity: 0.9; margin-bottom: 1px; }
+ha-tile-info [slot=secondary] { display: none; }`,
+    'ha-tile-container $': '.background { background: none !important; } /* transparent, not hidden: it takes the tap */',
+    'ha-tile-container ha-tile-info $': '.primary { font-size: 14px; font-weight: 600; }',
+  } } });
 const info = (e, n, i, kw = {}) => tile(e, n, i, BLUE, { tap_action: { action: 'more-info' }, ...kw });
 const heading = (text, icon, nav) => ({ type: 'heading', heading: text, heading_style: 'subtitle',
   ...(icon && { icon }), ...(nav && { tap_action: { action: 'navigate', navigation_path: nav } }) });
@@ -126,9 +147,9 @@ const ROOMS = [
   ['garagem', 'garagem', 'Garagem', 'mdi:garage', [
     ['Portão', [gate()]], ['Luzes', [light('light.garagem', 'Luz da Garagem')]], camRoom('garagem')]],
   ['sala', 'sala_de_estar', 'Sala de estar', 'mdi:sofa', [
-    ['Luzes', [light('light.sala_principal', 'Principal'), light('light.sala_cortina', 'Cortina'),
+    ['Luzes', [light('light.sala_principal', 'Principal', 'Luz Led'), light('light.sala_cortina', 'Cortina', 'Luz Led'),
       light('light.sala_de_estar_luz_central_1', 'Central 1'), light('light.sala_de_estar_luz_central_2', 'Central 2'),
-      light('light.sala_de_estar_spots_da_sala', 'Spots'), light('light.sala_de_estar_luz_do_movel', 'Móvel')]],
+      light('light.sala_de_estar_spots_da_sala', 'Spots'), light('light.sala_de_estar_luz_do_movel', 'Móvel', 'Led')]],
     ['Ar-condicionado', [acCard('climate.central_sala', 'Ar da Sala')]],
     ['TV', [tvCard('media_player.tv_lg', 'TV LG', 'mdi:television'),
       tile('switch.sala_de_estar_tv_lg_screen', 'Tela da TV', 'mdi:monitor'), appleTv()]], camRoom('sala')]],
