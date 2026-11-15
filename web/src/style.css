@@ -1747,7 +1747,8 @@ html.ios:not(.tablet) .card { --cam-top: calc(var(--safe-top) + 4px + var(--head
 }
 .cam-dock[hidden] { display: none; }
 html.ios .cam-dock { left: max(12px, var(--safe-left)); right: max(12px, var(--safe-right)); }
-html:not(.split) .card.cam-open .panel { top: calc(var(--cam-top) + var(--cam-h, 0px) + 10px); }
+html:not(.split) .card.cam-open .panel,
+html:not(.split) .card.cam-open .sheet { top: calc(var(--cam-top) + var(--cam-h, 0px) + 10px); }
 /* the iPad lying down: the model's side, below the header and above the room tabs */
 html.split .cam-dock {
   left: max(16px, calc(var(--safe-left) + 8px)); right: auto;

@@ -105,6 +105,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   function toggleCamera(id = null) {
     if (ui.editing) { nudge(); return; }
     const cam = id && (config.cameras || []).find((c) => c.id === id);
+    gateCamOn = false; // a camera chosen by hand stays as any other
     if (!cam || camBox.currentId === id) {
       if (!camBox.isOpen) return;
       haptic('light');
@@ -597,6 +598,9 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     return {
       get armed() { return Boolean(armed); },
       press() {
+        // Safety: from the first touch (the one that arms the button) the gate's camera is on
+        // screen, and stays until the page changes.
+        showGateCamera(id);
         const next = store.gateNext(id);
         if (next !== 'stop' && !armed) { haptic('light'); armed = setTimeout(disarm, 3500); render(); return; }
         clearTimeout(armed); armed = 0;
@@ -612,6 +616,20 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
       },
     };
   }
+  /** The camera of the gate's room (the garage) on screen, unless a camera already is. It goes
+   *  away with the page: another room, the start page, or leaving the gate's sheet. */
+  let gateCamOn = false;
+  function showGateCamera(gateId) {
+    if (ui.editing || !camsHere || camBox.isOpen) return;
+    const gate = config.gates.find((g) => g.id === gateId);
+    const cams = gate?.room ? camerasOf(tabOf(gate.room)) : [];
+    const cam = cams.find((c) => c.room === gate.room) || cams[0];
+    if (!cam) return;
+    camBox.open([cam]);
+    gateCamOn = true;
+    update();
+  }
+
   // While a gate moves, its percentage and the bar follow it.
   setInterval(() => { if (Object.values(state.gates).some((g) => g.motion)) { for (const t of gateTiles) t.update(); sheetView?.update(); } }, 250);
 
@@ -1592,6 +1610,9 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     panel.inert = false;
     sheet.inert = true;
     card.classList.remove('detail');
+    // the camera the gate brought up belongs to the gate's sheet: it leaves with it
+    if (gateCamOn && camBox.isOpen) camBox.close();
+    gateCamOn = false;
     onFocus(ui.room === 'all' ? null : { kind: 'room', id: ui.room });
     update();
     world?.pin(null);
