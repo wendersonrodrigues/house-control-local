@@ -85,7 +85,9 @@ export function createCameraBox({ access, onSize = () => {}, reserve = () => 190
   const clipLayer = h('div.cam-clip', { hidden: true }, clipVideo,
     h('div.cam-clip-bar', icon('video', 14, 2.2), clipName,
       h('button.cam-clip-back', { onclick: () => closeClip() }, h('i'), 'Ao vivo')));
+  let onClipClose = null;
   function closeClip() {
+    if (!clipLayer.hidden) { const f = onClipClose; onClipClose = null; f?.(); }
     clipLayer.hidden = true;
     clipVideo.pause();
     clipVideo.removeAttribute('src');
@@ -117,7 +119,13 @@ export function createCameraBox({ access, onSize = () => {}, reserve = () => 190
     if (!w || dock.hidden) return;
     let bw;
     let bh;
-    if (document.documentElement.classList.contains('split')) {
+    if (dock.classList.contains('inline')) {
+      // inside the cameras' page (camera/console.js): as wide as its place, up to most of the screen
+      bw = w;
+      bh = bw / aspect;
+      const max = Math.max(200, innerHeight * 0.62);
+      if (bh > max) { bh = max; bw = bh * aspect; }
+    } else if (document.documentElement.classList.contains('split')) {
       const hgt = dock.clientHeight;
       if (!hgt) return;
       bw = Math.min(w, hgt * aspect);
@@ -320,13 +328,26 @@ export function createCameraBox({ access, onSize = () => {}, reserve = () => 190
     },
     /** Stops the video and Home Assistant's stream, and hides the box. */
     /** Plays a recorded clip (a detection) over the live picture. */
-    playClip(url, title) {
+    playClip(url, title, onClose = null) {
       if (dock.hidden) return;
+      if (!clipLayer.hidden) closeClip();
+      onClipClose = onClose;
       clipName.textContent = title;
       clipLayer.hidden = false;
       clipVideo.src = url;
       clipVideo.play().catch(() => {});
     },
+    /** The picture full screen (the box; on an iPhone, the video itself). */
+    fullscreen() {
+      if (dock.hidden) return;
+      const target = box;
+      const req = target.requestFullscreen || target.webkitRequestFullscreen;
+      if (req) { req.call(target).catch?.(() => {}); return; }
+      const v = !clipLayer.hidden ? clipVideo : shown[0]?.video;
+      v?.webkitEnterFullscreen?.();
+    },
+    /** Inside the cameras' page (true) or over the model (false). */
+    setInline(on) { dock.classList.toggle('inline', on); requestAnimationFrame(fit); },
     close() {
       if (dock.hidden) return;
       closeClip();

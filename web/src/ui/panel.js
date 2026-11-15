@@ -389,6 +389,11 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     // A room set to open with a camera (Editar): that camera comes on by itself.
     const auto = !ui.editing && arr.autoCam[id] && camerasOf(id).find((c) => c.id === arr.autoCam[id]);
     if (auto && camsHere) { camBox.open([auto]); update(); }
+    // the cameras' page opens on a camera (the last one seen there, else the first)
+    if (id === CAM_TAB && camConsole && !ui.editing) {
+      const first = (config.cameras || []).find((c) => c.id === camConsole.firstCamera());
+      if (first) { camBox.open([first]); update(); }
+    }
   }
 
   function inScope(cfg) {
@@ -2118,11 +2123,16 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
 
     // The start page without the model, if it was put away (remembered); a room always shows it.
     // (a camera on screen brings the model's side back while it is open: the box sits there)
-    const mapOff = arr.mapHidden && ui.room === 'all' && !ui.sheet && !camBox.isOpen;
+    // The cameras' page has no model: the picture sits in the page, under the camera chips.
+    const camPage = Boolean(camConsole) && ui.room === CAM_TAB && !ui.editing;
+    const mapOff = camPage || (arr.mapHidden && ui.room === 'all' && !ui.sheet && !camBox.isOpen);
     card.classList.toggle('map-off', mapOff);
+    card.classList.toggle('cam-page', camPage);
+    if (camPage && camBox.el.parentElement !== camConsole.videoSlot) { camConsole.videoSlot.append(camBox.el); camBox.setInline(true); }
+    else if (!camPage && camBox.el.parentElement !== clip) { clip.insertBefore(camBox.el, clip.querySelector('header.top')); camBox.setInline(false); }
     mapBtn.hidden = ui.room !== 'all' || Boolean(ui.sheet);
     mapBtn.classList.toggle('on', !arr.mapHidden);
-    card.classList.toggle('cam-open', camBox.isOpen);
+    card.classList.toggle('cam-open', camBox.isOpen && !camPage);
     // the weather: on the start page only, not while the cards are being arranged
     if (weather) weather.el.hidden = ui.room !== 'all' || ui.editing;
     if (camConsole) {

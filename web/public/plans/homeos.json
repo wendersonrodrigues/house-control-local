@@ -66,7 +66,17 @@
       },
       "name": "Frente",
       "ptz": true,
-      "room": "garagem"
+      "room": "garagem",
+      "zones": [
+        [
+          "calcada_cima",
+          "Calçada (cima)"
+        ],
+        [
+          "calcada_baixo",
+          "Calçada (baixo)"
+        ]
+      ]
     },
     {
       "id": "cam.sala",
@@ -1408,7 +1418,11 @@
       {
         "entity": "input_boolean.vigilancia_da_sala",
         "name": "Vigilância (Sala + Cozinha)",
-        "icon": "shield"
+        "icon": "shield",
+        "cameras": [
+          "cam.sala",
+          "cam.cozinha"
+        ]
       },
       {
         "entity": "automation.cameras_pessoa_detectada_notificar_com_foto",
@@ -1423,7 +1437,11 @@
       {
         "entity": "input_boolean.automacoes_do_portao",
         "name": "Automações do portão",
-        "icon": "gate"
+        "icon": "gate",
+        "cameras": [
+          "cam.garagem",
+          "cam.frente"
+        ]
       }
     ],
     "selects": [

@@ -124,7 +124,12 @@ async function boot() {
         const extra = (bundled.tvs || []).filter((t) => !have.has(t.id) && rooms.has(t.room));
         if (extra.length) raw = { ...raw, tvs: [...(raw.tvs || []), ...extra] };
         if (!raw.weather && bundled.weather) raw = { ...raw, weather: bundled.weather };
-        if (!raw.cameraControls && bundled.cameraControls) raw = { ...raw, cameraControls: bundled.cameraControls };
+        // the cameras' page: its controls and the cameras' zones follow the bundled plan
+        if (bundled.cameraControls) raw = { ...raw, cameraControls: bundled.cameraControls };
+        if (raw.cameras?.length) {
+          const zones = new Map((bundled.cameras || []).filter((c) => c.zones).map((c) => [c.id, c.zones]));
+          raw = { ...raw, cameras: raw.cameras.map((c) => (!c.zones && zones.has(c.id) ? { ...c, zones: zones.get(c.id) } : c)) };
+        }
       } catch { /* the plan as sent */ }
     }
     // A plan sent from the Mac before the gate's camera view existed: taken from the bundled plan.
