@@ -240,14 +240,20 @@ ${ROOM_ICON[room] ? `ha-icon { display: block; width: 20px; height: 20px; color:
   -webkit-mask: ${svgMask(ROOM_ICON[room])} center / 20px no-repeat; mask: ${svgMask(ROOM_ICON[room])} center / 20px no-repeat; }` : ''}`,
     ...(ROOM_ICON[room] && { 'ha-tile-icon $ ha-icon $': 'ha-svg-icon { visibility: hidden; }' }),
     'hui-card-features $ hui-card-feature $ hui-area-controls-card-feature $': `${AREA_LIT}
-ha-control-button { --control-button-border-radius: 50%; --control-button-padding: 0; width: 38px; height: 38px; box-sizing: border-box; border-radius: 50%;
-  --control-button-background-color: {{ 'rgba(0,80,141,0.38)' if on else 'rgba(4,13,23,0.55)' }}; --control-button-background-opacity: 1;
+ha-control-button-group { --control-button-group-thickness: 36px; --control-button-group-spacing: 0; width: auto !important; flex: none !important; }
+ha-control-button { --control-button-border-radius: 50%; --control-button-padding: 0;
+  flex: 0 0 36px !important; width: 36px !important; min-width: 36px !important; max-width: 36px !important; height: 36px !important; aspect-ratio: 1;
+  box-sizing: border-box; border-radius: 50%; overflow: hidden;
+  background: {{ 'rgba(0,80,141,0.38)' if on else 'rgba(4,13,23,0.55)' }};
+  --control-button-background-color: transparent; --control-button-background-opacity: 0;
   --control-button-icon-color: {{ '#eaf6ff' if on else '#ff9a9a' }}; color: {{ '#eaf6ff' if on else '#ff9a9a' }};
   border: 2px solid {{ '#bfe3ff' if on else '#ff4d4d' }};
   box-shadow: {{ '0 0 14px 2px rgba(120,190,255,0.85), inset 0 0 8px rgba(145,204,255,0.55)' if on else '0 0 12px rgba(255,70,70,0.55), inset 0 0 8px rgba(255,70,70,0.3)' }}; }
 ha-domain-icon { display: block; width: 18px; height: 18px; background: currentColor; filter: drop-shadow(0 0 3px currentColor);
   -webkit-mask: ${POWER_MASK} center / 18px no-repeat; mask: ${POWER_MASK} center / 18px no-repeat; }`,
     'hui-card-features $ hui-card-feature $ hui-area-controls-card-feature $ ha-domain-icon $': 'ha-icon { visibility: hidden; }',
+    // the button's own surface goes: one round layer, the ring above
+    'hui-card-features $ hui-card-feature $ hui-area-controls-card-feature $ ha-control-button $': '.button { background: none !important; border-radius: 50% !important; padding: 0 !important; width: 100%; height: 100%; } .button::before { display: none !important; }',
   } } });
 
 const view = (title, path, icon, sections, extra = {}) => ({ title, path, icon, type: 'sections', max_columns: 4,
