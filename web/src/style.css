@@ -470,7 +470,6 @@ html.native .card { width: auto; height: auto; box-shadow:
 /* The gate (60% of a row, opens on a second press) and the automation switches. */
 .tile.gate { gap: 9px; padding-right: 10px; }
 :where(html:not(.ios) .grid) > .tile.gate { grid-column: span 6; }
-:where(html:not(.ios) .grid) > .tile.gate + .tile:not(.ac):not(.tv):not(.toggle):not(.gate) { grid-column: span 4; }
 .tile.toggle { grid-column: 1 / -1; cursor: pointer; }
 .tile.offline { opacity: 0.55; }
 .gate-action {
@@ -978,3 +977,820 @@ html.ios .card.relayout .panel:not(.hidden), html.ios .card.relayout .sheet:not(
 .org-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); }
 .org-seg button { height: 30px; border-radius: 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .org-seg button.on { background: rgba(70, 130, 255, 0.32); color: #fff; }
+
+/* ---------- rooms as a tab bar at the foot of the panel (Organizar: Menu inferior) ---------- */
+.panel.rooms-bottom .devices { margin-bottom: 0; padding-bottom: 10px; }
+.panel.rooms-bottom .rooms {
+  margin: 6px -16px -16px;
+  padding: 6px 8px calc(8px + var(--safe-bottom, 0px));
+  gap: 2px;
+  border-top: 1px solid var(--line);
+  background: rgba(10, 13, 22, 0.72);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+}
+.panel.rooms-bottom .rooms .room {
+  flex: 1 0 64px;
+  max-width: 96px;
+  height: auto;
+  min-height: 50px;
+  padding: 5px 4px 4px;
+  border-radius: 14px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  position: relative;
+  font-size: 10px;
+  font-weight: 600;
+  border: 0;
+  background: transparent;
+}
+.panel.rooms-bottom .rooms .room .room-icon { display: inline-grid; }
+.panel.rooms-bottom .rooms .room .room-name {
+  display: block; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.panel.rooms-bottom .rooms[data-style='icon'] .room .room-name { display: none; }
+.panel.rooms-bottom .rooms .room.active { color: #a9cbff; background: rgba(111, 168, 255, 0.12); }
+.panel.rooms-bottom .rooms .room .count {
+  position: absolute; top: 2px; left: calc(50% + 6px);
+  min-width: 15px; height: 15px; font-size: 9.5px; padding: 0 4px;
+}
+.panel.rooms-bottom .rooms .room .count.zero { margin-left: 0; }
+
+/* ---------- logos of what a TV or monitor is showing ---------- */
+.brand-logo {
+  width: 100%; height: 100%;
+  display: grid; place-items: center;
+  border-radius: inherit;
+  background: var(--brand-bg, #000);
+  overflow: hidden;
+}
+.brand-logo svg { width: 66%; height: 66%; }
+.brand-glyph {
+  font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
+  font-size: 22px; line-height: 1; color: #111;
+  transform: translateY(-1px);
+}
+.bubble.logo { padding: 0; overflow: hidden; background: transparent; box-shadow: none; }
+.tile.on .bubble.logo { background: transparent; box-shadow: 0 0 18px -6px var(--c); }
+.bubble-art { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.np-brand { overflow: hidden; }
+.np-brand .brand-glyph { font-size: 32px; }
+/* On a phone the panel has no bottom padding: the bar runs to the edge, over the home indicator. */
+html.ios .panel.rooms-bottom .devices { padding-bottom: 12px; }
+html.ios .panel.rooms-bottom .rooms { margin-bottom: 0; padding-bottom: calc(var(--safe-bottom) + 6px); }
+html.ios .panel.rooms-bottom .rooms .room { min-height: 54px; font-size: 10.5px; }
+
+/* ===================================================================================
+   Blue redesign (11/11/2026): deeper navy everywhere, tiles as in the Photoshop sample:
+   a navy card with a ringed icon when off, a blue gradient with a glowing ring and a
+   warm bar at the edge when lit. Text keeps at least 4.5:1 on every background.
+   =================================================================================== */
+:root {
+  --bg: #060b1c;
+  --text: #f2f6ff;
+  --muted: rgba(208, 222, 255, 0.66);
+  --faint: rgba(208, 222, 255, 0.4);
+  --glass: rgba(112, 150, 255, 0.07);
+  --glass-hi: rgba(130, 168, 255, 0.14);
+  --line: rgba(130, 168, 255, 0.14);
+  --tile-off: linear-gradient(135deg, #0e1838 0%, #0a1129 100%);
+  --tile-on: linear-gradient(110deg, #0c2a86 0%, #1450cc 58%, #1b7fd8 100%);
+  --ring: rgba(122, 170, 255, 0.45);
+}
+.stage::after { background: linear-gradient(180deg, rgba(6, 11, 28, 0.86) 0%, rgba(6, 11, 28, 0.5) 55%, transparent 100%); }
+
+/* Every tile, off: navy, a fine blue border, the icon in a ring. */
+.tile { background: var(--tile-off); border-color: rgba(110, 155, 255, 0.16); }
+.bubble {
+  border-radius: 50%;
+  background: rgba(70, 120, 255, 0.08);
+  box-shadow: inset 0 0 0 1.5px var(--ring);
+  color: #a9c6ff;
+}
+html.ios .bubble { border-radius: 50%; }
+
+/* A lit lamp: the blue gradient, a glowing cyan ring, the warm bar at the edge. */
+.tile.lamp.on {
+  background: var(--tile-on);
+  border-color: rgba(120, 200, 255, 0.5);
+  box-shadow: 0 14px 30px -18px #1d8bff, inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.tile.lamp.on .bubble {
+  color: #e9f7ff;
+  background: rgba(12, 40, 120, 0.55);
+  box-shadow: inset 0 0 0 1.5px #6fe3ff, 0 0 16px -2px #39c6ff;
+}
+.tile.lamp.on .tile-sub { color: #d4f1ff; }
+.tile-mark {
+  position: absolute; right: 9px; top: 50%;
+  width: 4px; height: 18px; margin-top: -9px; border-radius: 2px;
+  background: rgba(120, 165, 255, 0.35);
+  transition: background 260ms, box-shadow 260ms;
+}
+.tile.lamp.on .tile-mark { background: #ffd24a; box-shadow: 0 0 10px rgba(255, 210, 74, 0.7); }
+.tile.lamp .tile-more { margin-right: 6px; }
+.tile.lamp.on .tile-level { background: #ffd24a; }
+
+/* ACs and TVs keep their own colour when on, over the navy. */
+.tile.ac.on, .tile.tv.on {
+  background: linear-gradient(110deg, color-mix(in srgb, var(--c) 34%, #0a1540) 0%, color-mix(in srgb, var(--c) 14%, #0a1129) 100%);
+}
+.tile.on:not(.lamp) .bubble { box-shadow: 0 0 18px -4px var(--c); }
+
+/* Shortcuts and room chips in the same blue glass. */
+.scene { background: rgba(70, 110, 230, 0.1); border-color: rgba(120, 165, 255, 0.18); }
+@media (hover: hover) { .scene:hover { background: rgba(90, 135, 255, 0.18); } }
+.room.active { background: rgba(80, 130, 255, 0.2); border-color: rgba(130, 175, 255, 0.3); }
+
+/* "Acender / Apagar todas" as icons. */
+.pill.icon-pill { width: 34px; height: 30px; padding: 0; display: grid; place-items: center; color: #b9d1ff; }
+@media (hover: hover) { .pill.icon-pill:hover { color: #fff; background: rgba(90, 135, 255, 0.22); } }
+
+/* The header's badge: the room in view, the house under the pointer (a click goes home). */
+.home-badge { position: relative; }
+.home-badge .badge-room, .home-badge .badge-home { display: grid; place-items: center; transition: opacity 160ms; }
+.home-badge .badge-home { position: absolute; inset: 0; opacity: 0; }
+.home-badge.in-room { color: #9fd0ff; background: rgba(80, 130, 255, 0.18); border-color: rgba(130, 175, 255, 0.3); }
+@media (hover: hover) {
+  .home-badge.in-room:hover .badge-room { opacity: 0; }
+  .home-badge.in-room:hover .badge-home { opacity: 1; }
+}
+
+/* No dark fade at the top of the list: it darkened the first group label and whatever
+   scrolled under it. Only the bottom edge fades, and the list starts a little lower. */
+.devices, html.ios .devices {
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 22px), transparent 100%);
+}
+.grid { padding-top: 4px; }
+.grid > .group-label:first-child { margin-top: 2px; }
+
+/* ===================================================================================
+   Deep Ocean (12/11/2026): the palette of the reference board, digital rather than physical.
+   Deep Ocean #040D17 · accent #8CCBE9 · primary #E9EDF2 · gradient #A1C3E1 → #91CCFF →
+   #00508D → #0D1E2F. Cards are dark glass with a fine light border; a lit one glows blue
+   from below, as in the reference cards.
+   =================================================================================== */
+:root {
+  --bg: #040d17;
+  --text: #e9edf2;
+  --muted: rgba(233, 237, 242, 0.64);
+  --faint: rgba(233, 237, 242, 0.4);
+  --accent: #8ccbe9;
+  --glass: rgba(145, 204, 255, 0.06);
+  --glass-hi: rgba(145, 204, 255, 0.12);
+  --line: rgba(145, 204, 255, 0.13);
+  --ring: rgba(140, 203, 233, 0.45);
+  --ocean-1: #a1c3e1; --ocean-2: #91ccff; --ocean-3: #00508d; --ocean-4: #0d1e2f;
+  --tile-off: linear-gradient(165deg, #0d1e2f 0%, #07131f 100%);
+  --tile-on: radial-gradient(120% 90% at 50% 120%, #0a78c8 0%, #00508d 38%, #0b2741 72%, #0d1e2f 100%);
+}
+.stage::after { background: linear-gradient(180deg, rgba(4, 13, 23, 0.86) 0%, rgba(4, 13, 23, 0.5) 55%, transparent 100%); }
+.scene { background: rgba(145, 204, 255, 0.07); border-color: rgba(145, 204, 255, 0.15); }
+@media (hover: hover) { .scene:hover { background: rgba(145, 204, 255, 0.14); } }
+.room.active { background: rgba(0, 80, 141, 0.45); border-color: rgba(140, 203, 233, 0.35); }
+.pill.icon-pill { color: var(--accent); }
+.home-badge.in-room { color: var(--accent); background: rgba(0, 80, 141, 0.4); border-color: rgba(140, 203, 233, 0.32); }
+.bubble { background: rgba(145, 204, 255, 0.06); box-shadow: inset 0 0 0 1.5px var(--ring); color: var(--ocean-1); }
+.tile { background: var(--tile-off); border: 1px solid var(--line); }
+
+/* ---------- a lamp: the name at the left, a glowing ring at the right ---------- */
+.tile.lamp { gap: 10px; padding: 0 14px 0 14px; border-radius: 18px; }
+.tile.lamp .tile-name { font-size: 13.5px; color: var(--text); }
+html.ios .tile.lamp .tile-name { font-size: 15px; }
+.tile.lamp .tile-sub:empty { display: none; }
+.tile.lamp .tile-sub { color: var(--muted); }
+.tile.lamp .tile-mark { display: none; }
+.tile.lamp .tile-more { margin: 0; }
+.tile.lamp.on {
+  background: var(--tile-on);
+  border-color: rgba(145, 204, 255, 0.38);
+  box-shadow: 0 16px 30px -20px #0a78c8, inset 0 1px 0 rgba(233, 237, 242, 0.1);
+}
+.tile.lamp.on .tile-name { color: #fff; }
+.tile.lamp.on .tile-sub { color: #cfe8ff; }
+.tile.lamp.on .tile-level { background: var(--ocean-2); }
+.tile-dot {
+  flex: none; margin-left: auto;
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 2.5px solid #ff4d4d;
+  box-shadow: 0 0 10px 0 rgba(255, 70, 70, 0.75), inset 0 0 6px rgba(255, 70, 70, 0.5);
+  transition: border-color 240ms, box-shadow 240ms;
+}
+.tile.lamp.on .tile-dot {
+  border-color: #bfe3ff;
+  box-shadow: 0 0 12px 2px rgba(120, 190, 255, 0.95), 0 0 3px rgba(233, 245, 255, 0.9), inset 0 0 6px rgba(145, 204, 255, 0.8);
+}
+html.ios .tile-dot { width: 26px; height: 26px; }
+
+/* ---------- air, TV and gate: square cards with the device's picture ---------- */
+.grid > .tile.card, :where(html:not(.ios) .grid) > .tile.card,
+:where(html:not(.ios) .grid) > .tile.gate.card { grid-column: span 5; }
+:where(html:not(.ios)) .grid { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+html.ios .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tile.card {
+  /* the picture is wider than the card: cut to the card by clip-path, not overflow (hidden
+     lets focus scroll the card; clip makes Chromium skip painting a card whose picture
+     reaches past the screen's edge) */
+  height: auto; aspect-ratio: 1 / 1; min-width: 0; min-height: 0; overflow: visible; clip-path: inset(0 round 20px);
+  padding: 12px; border-radius: 20px;
+  display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 0;
+  cursor: pointer; isolation: isolate;
+  background: radial-gradient(130% 80% at 50% 115%, #0b2741 0%, #07131f 60%, #050e19 100%);
+  border-color: var(--line);
+}
+html.ios .tile.card { height: auto; padding: 13px; }
+.tile.card.on {
+  background: radial-gradient(130% 70% at 50% 118%, color-mix(in srgb, var(--glow, #0a78c8) 85%, transparent) 0%, #00508d 30%, #0b2741 62%, #050e19 100%);
+  border-color: rgba(145, 204, 255, 0.34);
+  box-shadow: 0 18px 34px -22px var(--glow, #0a78c8), inset 0 1px 0 rgba(233, 237, 242, 0.1);
+}
+.tile.card.ac.on.idle { background: radial-gradient(130% 80% at 50% 115%, #0b2741 0%, #07131f 60%, #050e19 100%); box-shadow: none; }
+.card-head, .card-foot { position: relative; z-index: 1; display: flex; align-items: flex-start; gap: 8px; }
+.card-foot { align-items: flex-end; justify-content: space-between; }
+.card-head .tile-text { flex: 1; min-width: 0; }
+.tile.card .tile-name { font-size: 14px; }
+.tile.card .tile-sub { color: var(--muted); }
+.tile.card.on .tile-sub { color: #cfe8ff; }
+.card-note { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; padding-bottom: 6px; text-shadow: 0 1px 6px #040d17; }
+.tile.card .mini-power { flex: none; }
+
+/* the picture: cropped at the card's edge, faded into the card all round */
+.card-scene { position: absolute; z-index: 0; pointer-events: none; }
+.card-art {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: opacity 420ms var(--ease);
+}
+.card-art.lit { opacity: 0; }
+.tile.card.on .card-art.lit { opacity: 1; }
+.card-scene {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14%, #000 86%, transparent 100%), linear-gradient(180deg, transparent 0, #000 16%, #000 80%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent 0, #000 14%, #000 86%, transparent 100%), linear-gradient(180deg, transparent 0, #000 16%, #000 80%, transparent 100%);
+  mask-composite: intersect;
+}
+/* the air: wide, running off the left edge, as in the reference */
+.card-scene.ac { width: 150%; aspect-ratio: 640 / 478; left: -42%; top: 5%; -webkit-mask-image: linear-gradient(90deg, #000 0, #000 86%, transparent 100%), linear-gradient(180deg, transparent 0, #000 22%, #000 78%, transparent 100%); mask-image: linear-gradient(90deg, #000 0, #000 86%, transparent 100%), linear-gradient(180deg, transparent 0, #000 22%, #000 78%, transparent 100%); }
+.ac-display {
+  position: absolute; left: 59.5%; top: 36.6%; width: 13.2%; height: 9%;
+  display: grid; place-items: center;
+  border-radius: 3px; background: #03121c;
+  font: 600 clamp(11px, 4.2cqw, 16px)/1 ui-monospace, 'SF Mono', Menlo, monospace;
+  color: #6ff0ff; letter-spacing: 0.04em;
+  text-shadow: 0 0 6px rgba(111, 240, 255, 0.9);
+  opacity: 0; transition: opacity 300ms;
+  transform: skewY(-4deg);
+}
+.tile.card.ac.on .ac-display { opacity: 1; }
+.tile.card.ac { container-type: inline-size; --glow: #2fa8ff; }
+.tile.card.ac .stepper { display: flex; gap: 6px; padding: 0; background: none; border: 0; }
+.tile.card.ac .stepper button {
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(4, 13, 23, 0.6); color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(145, 204, 255, 0.22);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+@media (hover: hover) { .tile.card.ac .stepper button:hover { background: rgba(0, 80, 141, 0.7); } }
+/* the gate: its opening fills the card */
+.card-scene.gate { width: 118%; aspect-ratio: 1; left: -9%; top: -13%; }
+.tile.card.gate { --glow: #c88a3a; }
+.tile.card.gate .card-foot { justify-content: stretch; }
+.tile.card.gate .gate-action { flex: 1; margin: 0; height: 32px; border-radius: 12px; background: rgba(4, 13, 23, 0.62); color: var(--text); box-shadow: inset 0 0 0 1px rgba(145, 204, 255, 0.24); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.tile.card.gate .gate-action.armed { background: var(--accent); color: #04121c; box-shadow: 0 0 16px -4px var(--accent); }
+.tile.card.gate .gate-action.stop { background: #ff8f5a; color: #1c0b02; }
+/* the TV: on the wall, running off the right edge */
+.card-scene.tv { width: 118%; aspect-ratio: 1; left: -4%; top: 12%; }
+.tile.card.tv { --glow: #3d8bff; }
+.card-logo { width: 34px; height: 34px; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.7); }
+.card-logo[hidden] { display: none; }
+.card-head .tile-name, .card-head .tile-sub { text-shadow: 0 1px 8px rgba(4, 13, 23, 0.9); }
+
+/* ===================================================================================
+   12/11/2026: the rest of the panel in the lamps' language: glowing rings (blue for what
+   switches on, red for what switches off), a glass header, Editar, and the map put away.
+   =================================================================================== */
+
+/* the header on frosted glass, like the shortcut boxes */
+.card .top {
+  inset: 10px 10px auto 10px;
+  padding: 8px 8px 8px 9px;
+  border-radius: 26px;
+  background: rgba(4, 13, 23, 0.36);
+  border: 1px solid rgba(145, 204, 255, 0.14);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+}
+html.ios .card .top { inset: calc(var(--safe-top) + 4px) max(10px, var(--safe-right)) auto max(10px, var(--safe-left)); padding: 8px 8px 8px 9px; }
+.home-badge { overflow: hidden; padding: 0; border: 0; background: transparent; border-radius: 11px; }
+.home-badge .app-logo { width: 100%; height: 100%; display: block; object-fit: cover; }
+.home-badge.in-room { background: rgba(0, 80, 141, 0.35); box-shadow: inset 0 0 0 1px rgba(140, 203, 233, 0.35); color: var(--accent); }
+@media (hover: hover) { .home-badge:hover { background: transparent; } .home-badge.in-room:hover { background: transparent; box-shadow: none; } }
+.top .round {
+  background: rgba(145, 204, 255, 0.06);
+  border: 1px solid rgba(145, 204, 255, 0.22);
+  color: var(--accent);
+  box-shadow: 0 0 14px -8px var(--accent);
+}
+.top .round .icon { filter: drop-shadow(0 0 4px rgba(140, 203, 233, 0.55)); }
+@media (hover: hover) { .top .round:hover { background: rgba(145, 204, 255, 0.14); color: #fff; } }
+.top .map-btn:not(.on) { color: var(--faint); border-color: rgba(145, 204, 255, 0.12); box-shadow: none; }
+.top .map-btn:not(.on) .icon { filter: none; }
+.top .map-btn[hidden] { display: none; }
+/* everything off: a red ring, like a lamp; anything on: the blue one */
+.top .power, .top .power:hover {
+  background: rgba(4, 13, 23, 0.55);
+  border: 2px solid #ff4d4d;
+  color: #ff9a9a;
+  box-shadow: 0 0 12px rgba(255, 70, 70, 0.55), inset 0 0 8px rgba(255, 70, 70, 0.3);
+}
+.top .power.on, .top .power.on:hover {
+  background: rgba(0, 80, 141, 0.38);
+  border-color: #bfe3ff;
+  color: #eaf6ff;
+  box-shadow: 0 0 14px 2px rgba(120, 190, 255, 0.85), inset 0 0 8px rgba(145, 204, 255, 0.55);
+}
+.top .power .icon { filter: drop-shadow(0 0 4px currentColor); }
+
+/* the shortcuts: their icon in a glowing ring */
+.scene { height: 74px; gap: 7px; }
+.glyph-ring {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  border: 2px solid #9fd2ff; color: #e3f3ff;
+  box-shadow: 0 0 10px rgba(120, 190, 255, 0.65), inset 0 0 6px rgba(145, 204, 255, 0.4);
+  transition: box-shadow 220ms, transform 260ms var(--spring);
+}
+.glyph-ring.off { border-color: #ff5a5a; color: #ffd6d6; box-shadow: 0 0 10px rgba(255, 70, 70, 0.6), inset 0 0 6px rgba(255, 70, 70, 0.35); }
+.glyph-ring .icon { filter: drop-shadow(0 0 3px currentColor); }
+@media (hover: hover) { .scene:hover .glyph-ring { transform: scale(1.06); } }
+.scene.active .glyph-ring, .scene.shortcut.active .glyph-ring { box-shadow: 0 0 16px 2px rgba(120, 190, 255, 0.9), inset 0 0 8px rgba(145, 204, 255, 0.6); }
+
+/* the room tabs: the same rings, lit for the room in view; counts in the accent */
+.room-icon { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid rgba(140, 203, 233, 0.32); color: var(--ocean-1); }
+.room.active .room-icon { border-color: #bfe3ff; color: #fff; box-shadow: 0 0 10px rgba(120, 190, 255, 0.8), inset 0 0 5px rgba(145, 204, 255, 0.5); }
+.room.active .room-icon .icon { filter: drop-shadow(0 0 3px rgba(190, 230, 255, 0.9)); }
+.panel.rooms-bottom .rooms .room.active { color: var(--accent); background: rgba(0, 80, 141, 0.28); }
+.room .count { color: #04121c; background: var(--accent); box-shadow: 0 0 10px -2px var(--accent); }
+.panel.rooms-bottom .rooms { background: rgba(4, 13, 23, 0.55); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+
+/* the row over the list: Editar, and a room's two switches as rings */
+.list-head { margin: 10px 2px 8px; }
+.pill { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.edit-pill { color: var(--accent); border-color: rgba(145, 204, 255, 0.22); }
+.edit-pill.on, .edit-done { background: var(--accent); color: #04121c; border-color: transparent; box-shadow: 0 0 14px -4px var(--accent); }
+.pill.icon-pill.ring-on, .pill.icon-pill.ring-off { width: 30px; height: 30px; border-radius: 50%; background: rgba(4, 13, 23, 0.5); }
+.pill.icon-pill.ring-on { border: 2px solid #9fd2ff; color: #e3f3ff; box-shadow: 0 0 10px rgba(120, 190, 255, 0.6); }
+.pill.icon-pill.ring-off { border: 2px solid #ff5a5a; color: #ffd6d6; box-shadow: 0 0 10px rgba(255, 70, 70, 0.55); }
+.pill.icon-pill[hidden] { display: none; }
+
+/* the start page without the model: the list rises under the header */
+.panel { transition: opacity 280ms ease, transform 460ms var(--ease), top 460ms var(--ease), visibility 0s; }
+.stage, .tint { transition: opacity 360ms ease; }
+.card.map-off .panel { top: 80px; }
+html.ios .card.map-off .panel { top: calc(var(--safe-top) + 84px); }
+.card.map-off .stage, .card.map-off .tint { opacity: 0; pointer-events: none; }
+
+/* ---------- the grid: four columns; cards small, wide, big or full ---------- */
+.devices { container-type: inline-size; }
+.grid, :where(html:not(.ios)) .grid, html.ios .grid {
+  --col: calc((100cqw - 24px) / 4);
+  --row: calc((var(--col) - 16px) / 3);
+  --rows-small: 3; --rows-wide: 2; --rows-big: 6; --rows-full: 2;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: var(--row);
+  gap: 8px;
+}
+/* on a phone the rows are half a column, so a wide strip is tall enough for a thumb */
+html.ios .grid { --row: calc((var(--col) - 8px) / 2); --rows-small: 2; --rows-wide: 2; --rows-big: 4; --rows-full: 2; }
+.grid > .tile.tile[data-size] { height: auto; aspect-ratio: auto; min-width: 0; grid-column: span 2; grid-row: span var(--rows-wide); }
+.grid > .tile.tile[data-size='small'] { grid-column: span 1; grid-row: span var(--rows-small); }
+.grid > .tile.tile[data-size='big'] { grid-column: span 2; grid-row: span var(--rows-big); }
+.grid > .tile.tile[data-size='full'] { grid-column: 1 / -1; grid-row: span var(--rows-full); }
+
+/* a lamp: wide or full is the strip (name, ring); small and big put the ring on top */
+.tile-label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); opacity: 0.9; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-label[hidden] { display: none; }
+.tile.lamp.flipped { flex-direction: row-reverse; }
+.tile.lamp.flipped .tile-dot { margin-left: 0; }
+.tile.lamp[data-size='small'], .tile.lamp[data-size='big'] {
+  flex-direction: column; align-items: stretch; justify-content: space-between; gap: 6px; padding: 11px 11px 10px;
+}
+.tile.lamp[data-size='small'] .tile-dot, .tile.lamp[data-size='big'] .tile-dot { order: -1; align-self: flex-end; margin: 0; }
+.tile.lamp.flipped[data-size='small'] .tile-dot, .tile.lamp.flipped[data-size='big'] .tile-dot { align-self: flex-start; }
+.tile.lamp[data-size='small'] .tile-text, .tile.lamp[data-size='big'] .tile-text { flex: none; }
+.tile.lamp[data-size='small'] .tile-dot { width: 20px; height: 20px; border-width: 2px; }
+.tile.lamp[data-size='small'] .tile-name { font-size: 12px; line-height: 1.2; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tile.lamp[data-size='small'] .tile-more { display: none; }
+.tile.lamp[data-size='big'] .tile-dot { width: 38px; height: 38px; border-width: 3px; }
+.tile.lamp[data-size='big'] .tile-name { font-size: 16px; }
+.tile.lamp[data-size='big'] .tile-label { font-size: 10.5px; }
+html.ios .tile.lamp[data-size='small'] .tile-name { font-size: 13px; }
+
+/* the air, TV and gate as a strip: no picture, the switch beside the name */
+.tile.card[data-size='wide'] { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; padding: 0 10px 0 13px; }
+.tile.card[data-size='wide'] .card-scene { display: none; }
+.tile.card[data-size='wide'] .card-head { flex: 1; min-width: 0; align-items: center; }
+.tile.card.ac[data-size='wide'] .card-foot, .tile.card.tv[data-size='wide'] .card-foot { display: none; }
+.tile.card.gate[data-size='wide'] .card-foot { flex: none; }
+.tile.card.gate[data-size='wide'] .gate-action { flex: none; height: 30px; padding: 0 14px; }
+.tile.card[data-size='wide'] .tile-name { font-size: 13.5px; }
+
+/* ---------- Editar ---------- */
+.edit-bar {
+  flex: none; margin: 0 0 8px; padding: 10px; border-radius: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  background: rgba(13, 30, 47, 0.72); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.edit-bar[hidden] { display: none; }
+.edit-row { display: flex; align-items: center; gap: 8px; }
+.edit-hint { flex: 1; font-size: 11.5px; line-height: 1.35; color: var(--muted); }
+.edit-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edit-input {
+  flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: 10px;
+  background: rgba(4, 13, 23, 0.6); border: 1px solid rgba(145, 204, 255, 0.22);
+  color: var(--text); font: inherit; font-size: 12px; outline: none;
+}
+.edit-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(140, 203, 233, 0.18); }
+.edit-ideas { display: flex; flex-wrap: wrap; gap: 6px; }
+.edit-ideas .pill { height: 24px; font-size: 11px; }
+.edit-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.edit-check input { accent-color: #8ccbe9; }
+.edit-sizes { margin: 0; }
+.panel.editing .grid > .tile { cursor: grab; outline: 1.5px dashed rgba(140, 203, 233, 0.42); outline-offset: -1.5px; animation: none; }
+.panel.editing .grid > .tile > :not(.edit-ui) { pointer-events: none; }
+.panel.editing .grid > .tile.selected { outline: 2px solid var(--accent); box-shadow: 0 0 18px -6px var(--accent); }
+/* picked or carried, a card shows its outline and shadow: cut by overflow instead */
+.panel.editing .grid > .tile.card:is(.selected, .dragging) { clip-path: none; overflow: hidden; }
+.panel.editing .grid > .tile.dragging { z-index: 20; cursor: grabbing; opacity: 0.94; transition: none; box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.75); }
+.edit-ui { display: none; }
+.panel.editing .edit-ui { display: grid; }
+.edit-handle {
+  position: absolute; right: 4px; bottom: 4px; z-index: 6; width: 18px; height: 18px;
+  border-right: 3px solid var(--accent); border-bottom: 3px solid var(--accent); border-radius: 0 0 9px 0;
+  cursor: nwse-resize; filter: drop-shadow(0 0 4px rgba(140, 203, 233, 0.7));
+}
+.edit-flip {
+  position: absolute; left: 5px; top: 5px; z-index: 6; width: 22px; height: 22px; border-radius: 50%;
+  place-items: center; background: rgba(4, 13, 23, 0.78); color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(140, 203, 233, 0.45);
+}
+.edit-bar { gap: 7px; padding: 8px 9px; }
+.edit-sizes.org-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-columns: none; }
+.edit-sizes.org-seg button { height: 28px; padding: 0 4px; font-size: 11.5px; }
+.edit-ideas { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -9px; padding: 0 9px; }
+.edit-ideas::-webkit-scrollbar { display: none; }
+.edit-ideas .pill { flex: none; }
+
+/* the lamps' mood only tints the top of the scene a little, over the deep blue */
+.tint { opacity: 0.4; }
+/* the header a little darker and bluer, like the cards below */
+.card .top { background: rgba(8, 26, 52, 0.62); border-color: rgba(145, 204, 255, 0.16); }
+.list-head[hidden] { display: none; }
+
+/* the eye (Editar): hide a card or a room's group, faded while editing */
+.edit-eye {
+  position: absolute; right: 5px; top: 5px; z-index: 6; width: 22px; height: 22px; border-radius: 50%;
+  place-items: center; background: rgba(4, 13, 23, 0.78); color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(140, 203, 233, 0.45);
+}
+.panel.editing .grid > .tile.is-hidden { opacity: 0.38; outline-style: dotted; }
+.panel.editing .grid > .tile.is-hidden .edit-eye { color: #ff8a8a; box-shadow: inset 0 0 0 1px rgba(255, 110, 110, 0.5); }
+.group-label { display: flex; align-items: center; gap: 8px; }
+.group-label .edit-eye { position: static; width: 20px; height: 20px; }
+.group-label.is-hidden > span { opacity: 0.45; text-decoration: line-through; }
+.group-label.is-hidden .edit-eye { color: #ff8a8a; }
+/* with the eye at the top right, the lamp's ring keeps clear of it while editing */
+.panel.editing .tile.lamp:not(.flipped) .tile-dot { margin-right: 20px; }
+
+/* the room tabs: no ring, just the icon in the theme's colours, glowing for the room in view */
+.room-icon, .panel.rooms-bottom .rooms .room .room-icon { width: auto; height: auto; border: 0; border-radius: 0; box-shadow: none; color: var(--ocean-1); opacity: 0.8; }
+.room.active .room-icon, .panel.rooms-bottom .rooms .room.active .room-icon { border: 0; box-shadow: none; color: var(--accent); opacity: 1; }
+.room.active .room-icon .icon { filter: drop-shadow(0 0 5px rgba(140, 203, 233, 0.85)); }
+
+/* ---------- tablet: the Home Assistant edition and the iOS app on an iPad (landscape or square) ----------
+   ui/layout.js puts the model on the left and the controls on the right (about 42%), or the
+   model above the controls on a squarish screen. The cards keep the size of a phone's: the
+   grid gains columns as it widens (4 → 6 → 8 → 10) instead of stretching four. */
+html.tablet .grid {
+  --cols: 4;
+  --col: calc((100cqw - (var(--cols) - 1) * 8px) / var(--cols));
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+}
+@container (min-width: 620px) { html.tablet .grid { --cols: 6; } }
+@container (min-width: 840px) { html.tablet .grid { --cols: 8; } }
+@container (min-width: 1080px) { html.tablet .grid { --cols: 10; } }
+/* the shortcuts: a row of buttons the width of two cards at most, from the left */
+html.tablet .scenes { grid-auto-columns: minmax(0, 220px); justify-content: start; }
+/* cards scrolling up fade out before the shortcuts and room chips above them */
+html.tablet .devices {
+  padding-top: 6px;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 30px), transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 14px, #000 calc(100% - 30px), transparent 100%);
+}
+/* Without the map (the map button on Todos) the controls take the whole screen. */
+html.tablet.split .card.map-off .panel { left: 0; padding-left: max(20px, calc(var(--safe-left) + 8px)); }
+
+/* The room tabs at the foot (Ajustes → Cômodos no menu inferior): fixed at the bottom of
+   the screen, the whole width like the bar at the top, even beside the map, with the tabs
+   in the middle (auto margins: still scrollable when there are more than fit). */
+html.tablet .panel.rooms-bottom .rooms {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  margin: 0; padding: 6px max(12px, var(--safe-left)) calc(var(--safe-bottom) + 6px);
+}
+html.tablet .panel.rooms-bottom .rooms > :first-child { margin-left: auto; }
+html.tablet .panel.rooms-bottom .rooms > :last-child { margin-right: auto; }
+html.tablet .panel.rooms-bottom .rooms .room { flex: 0 0 auto; min-width: 84px; max-width: 132px; padding: 5px 10px 4px; }
+html.tablet .panel.rooms-bottom { --tabbar: calc(var(--safe-bottom) + 68px); }
+html.tablet .panel.rooms-bottom .devices { padding-bottom: calc(var(--tabbar) + 12px); }
+html.tablet .card:has(.panel.rooms-bottom:not(.hidden)) .stage { bottom: calc(var(--safe-bottom) + 68px); }
+/* the shortcuts' names stay on one line beside the map (narrow buttons): a bit smaller there */
+html.tablet .scene { padding: 0 6px; line-height: 1.15; text-align: center; }
+html.tablet.split .card:not(.map-off) .scene { font-size: 10.5px; letter-spacing: -0.015em; padding: 0 3px; white-space: nowrap; }
+
+/* below the header, never under it (main.js measures where it ends) */
+html.tablet.split .panel, html.tablet.split .sheet,
+html.tablet .card.map-off .panel { top: calc(var(--head-bottom, 76px) + 10px); }
+
+/* Without the map the shortcuts line up with the cards below: each one as wide as two of
+   them, on the same columns (the panel is the container: same width as the cards' grid). */
+html.tablet .panel { container-type: inline-size; }
+html.tablet .card.map-off .scenes {
+  --cols: 4;
+  grid-auto-flow: row;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-auto-columns: auto;
+}
+html.tablet .card.map-off .scenes > .scene { grid-column: span 2; }
+@container (min-width: 620px) { html.tablet .card.map-off .scenes { --cols: 6; } }
+@container (min-width: 840px) { html.tablet .card.map-off .scenes { --cols: 8; } }
+@container (min-width: 1080px) { html.tablet .card.map-off .scenes { --cols: 10; } }
+
+/* swiping the cards sideways to the next room: the new room's cards slide in from that side */
+.grid.swipe-left { animation: swipe-in-left 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.grid.swipe-right { animation: swipe-in-right 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes swipe-in-left { from { transform: translateX(42px); opacity: 0.35; } }
+@keyframes swipe-in-right { from { transform: translateX(-42px); opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .grid.swipe-left, .grid.swipe-right { animation: none; } }
+/* the cards only scroll up and down: a sideways drag is the swipe to the next room (panel.js) */
+.devices { overflow-x: hidden; touch-action: pan-y; }
+/* where the tablet's header ends: its inset from the top (the status bar on an iPad) plus its
+   height, measured by main.js (--head-h) */
+html.tablet .card { --head-bottom: calc(10px + var(--head-h, 66px)); }
+html.ios.tablet .card { --head-bottom: calc(var(--safe-top) + 4px + var(--head-h, 66px)); }
+
+/* ---------- Confirmação (botão de energia) ---------- */
+.confirm {
+  position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px;
+  background: rgba(2, 6, 14, 0.5); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity 180ms;
+}
+.confirm.show { opacity: 1; }
+.confirm-box {
+  width: min(340px, 100%); padding: 20px 18px 16px; border-radius: 22px;
+  background: rgba(14, 24, 40, 0.96); border: 1px solid var(--line);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+  transform: scale(0.94) translateY(8px); transition: transform 260ms var(--spring);
+}
+.confirm.show .confirm-box { transform: none; }
+.confirm-title { font-size: 17px; font-weight: 650; color: var(--text); }
+.confirm-text { margin-top: 6px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+.confirm-actions { display: flex; gap: 10px; margin-top: 18px; }
+.confirm-actions button {
+  flex: 1; min-height: 44px; border-radius: 14px; font: inherit; font-size: 15px; font-weight: 600;
+  color: var(--text); background: var(--glass-hi); border: 1px solid var(--line); cursor: pointer;
+}
+.confirm-actions .confirm-ok { background: rgba(61, 139, 255, 0.28); border-color: rgba(120, 180, 255, 0.5); }
+.confirm-actions .confirm-ok.danger { background: rgba(255, 80, 70, 0.24); border-color: rgba(255, 120, 110, 0.55); color: #ffe1dc; }
+
+/* Aviso neutro (modo de edição), não um erro. */
+.panel-toast.info { color: #e6f1ff; background: rgba(16, 34, 60, 0.94); border-color: rgba(140, 200, 255, 0.4); }
+
+/* Editando os cartões: atalhos e botão de energia ficam apagados (não acionam nada). */
+.card.editing .scenes, .card.editing .top .power { opacity: 0.38; }
+
+/* ---------- Informação (última mudança de cada aparelho) ---------- */
+.info-link {
+  grid-column: 1 / -1; justify-self: center; margin: 18px 0 8px; display: inline-flex; align-items: center; gap: 8px;
+  min-height: 38px; padding: 0 20px; border-radius: 999px; box-sizing: border-box;
+  font: inherit; font-size: 13px; font-weight: 600; line-height: 1; color: var(--muted);
+  background: var(--glass); border: 1px solid var(--line); cursor: pointer;
+}
+.info-link svg { flex: none; }
+@media (hover: hover) { .info-link:hover { color: var(--text); background: var(--glass-hi); } }
+.info-list { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+.info-row { padding: 16px 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--line); }
+.info-row.active { border-color: rgba(140, 203, 233, 0.4); }
+.info-name { font-size: 15px; font-weight: 650; line-height: 1.25; color: var(--text); display: flex; align-items: baseline; gap: 10px; }
+.info-kind { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.info-main { margin-top: 8px; font-size: 14px; line-height: 1.3; color: var(--text); }
+.info-row.active .info-main { color: var(--accent); }
+.info-sub { margin-top: 4px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.info-list + .sheet-note { margin-top: 20px; }
+.edit-check-note { color: var(--faint); }
+
+/* ---------- O portão em quatro tamanhos: faixa, médio, quadrado e comprido ----------
+   A foto aberta aparece junto com o portão: a opacidade segue quanto ele já abriu (--open,
+   atualizado enquanto se move), nos três tamanhos com foto. */
+.tile.card.gate .card-art.lit { opacity: var(--open, 0); transition: opacity 260ms linear; }
+.tile.card.gate.offline .card-art.lit { opacity: 0; }
+.card-since { display: none; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.grid { --rows-medium: 4; }
+html.ios .grid { --rows-medium: 3; }
+.grid > .tile.tile.gate[data-size='medium'] { grid-column: span 2; grid-row: span var(--rows-medium); }
+/* comprido: o quadrado esticado para o lado, quatro colunas e a altura do quadrado */
+.grid > .tile.tile.gate[data-size='full'] { grid-column: span 4; grid-row: span var(--rows-big); }
+/* médio e comprido: nome e estado à esquerda, a foto do portão ocupando o lado direito */
+.tile.card.gate:is([data-size='medium'], [data-size='full']) .card-scene {
+  width: auto; height: 142%; aspect-ratio: 1; left: auto; right: -10%; top: -21%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 30%, #000 92%, transparent 100%), linear-gradient(180deg, transparent 0, #000 18%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 30%, #000 92%, transparent 100%), linear-gradient(180deg, transparent 0, #000 18%, #000 82%, transparent 100%);
+}
+.tile.card.gate:is([data-size='medium'], [data-size='full']) .card-head .tile-text { flex: none; max-width: 56%; }
+.tile.card.gate:is([data-size='medium'], [data-size='full']) .tile-sub,
+.tile.card.gate:is([data-size='medium'], [data-size='full']) .tile-name { text-shadow: 0 1px 8px #040d17; }
+.tile.card.gate:is([data-size='medium'], [data-size='full']) .card-since { display: block; text-shadow: 0 1px 8px #040d17; }
+.tile.card.gate[data-size='medium'] .card-scene { height: 134%; top: -10%; }
+.tile.card.gate[data-size='medium'] .card-foot { justify-content: flex-start; }
+.tile.card.gate[data-size='medium'] .gate-action { flex: none; width: 50%; }
+/* comprido: a foto maior, centrada na metade direita; o botão com largura de um cartão */
+.tile.card.gate[data-size='full'] .card-scene { height: 150%; right: -2%; top: -25%; }
+.tile.card.gate[data-size='full'] .tile-name { font-size: 16px; }
+.tile.card.gate[data-size='full'] .tile-sub { font-size: 13px; }
+.tile.card.gate[data-size='full'] .card-foot { justify-content: flex-start; }
+.tile.card.gate[data-size='full'] .gate-action { flex: none; width: min(46%, 240px); height: 36px; }
+
+/* ---------- Solto da barra de menu (Mac): sem a pontinha, arrastado pelo topo ---------- */
+.card.detached .notch { display: none; }
+.card.detached header.top { cursor: grab; }
+.card.detached header.top.dragging { cursor: grabbing; }
+.detach-btn.on, .card.detached .detach-btn { color: var(--accent); }
+
+/* ---------- Tela inicial deitada, sem o mapa: seções lado a lado, rolagem para a direita ----------
+   Cada seção é uma grade própria (as mesmas medidas de cartão do tablet), com no máximo
+   --sec-cols colunas; as seções seguem para a direita. */
+.card.sideways .devices {
+  overflow-x: auto; overflow-y: hidden; touch-action: pan-x; overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 36px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 36px), transparent 100%);
+  scrollbar-width: none;
+}
+.card.sideways .devices::-webkit-scrollbar { display: none; }
+.card.sideways .devices.grabbing { cursor: grabbing; user-select: none; }
+.grid.hrow { display: flex; flex-direction: row; align-items: stretch; gap: 0; width: max-content; padding: 0 48px 24px 0; grid-template-columns: none; }
+/* entre um cômodo e o seguinte: só um respiro, sem linha; empilhados, um espaço curto */
+.hcol { flex: none; display: flex; flex-direction: column; gap: 0; }
+.hcol + .hcol { margin-left: 44px; }
+.hcol > .hsec + .hsec { margin-top: 14px; }
+.hsec { flex: none; display: flex; flex-direction: column; gap: 4px; }
+.hsec > .group-label { display: flex; align-items: center; gap: 10px; min-height: 30px; margin: 0; white-space: nowrap; }
+.card.sideways .grid.hgrid {
+  display: grid; width: calc(var(--sec-cols) * var(--col) + (var(--sec-cols) - 1) * 8px);
+  grid-template-columns: repeat(var(--sec-cols), var(--col)); grid-auto-rows: var(--row);
+  grid-auto-flow: row dense; gap: 8px;
+}
+/* a lamp "Faixa" fills its section's width, not the whole page */
+.card.sideways .grid.hgrid > .tile.tile[data-size='full'] { grid-column: 1 / -1; }
+.card.sideways .grid.hgrid > .tile.tile.gate[data-size='full'] { grid-column: span 4; }
+.card.sideways .hrow > .organize-link { align-self: center; }
+
+
+/* editando: embaixo do título, a largura da seção e a posição (ao lado ou embaixo da anterior) */
+.sec-tools { display: none; }
+.panel.editing .sec-tools.edit-ui { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2px 0 8px; }
+.sec-seg { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 10px; background: var(--glass); border: 1px solid var(--line); }
+.sec-seg-name { font-size: 11px; color: var(--faint); padding: 0 6px; }
+.sec-seg button { min-width: 28px; height: 26px; padding: 0 8px; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); background: none; border: 0; cursor: pointer; }
+.sec-seg button.on { color: #04121c; background: var(--accent); }
+
+/* deitada sem o mapa: a medida dos cartões vem da altura (fitSideways no panel.js) */
+.card.sideways .grid.hrow { --side-col-fallback: var(--col); }
+.card.sideways .grid.hgrid[class] { --col: var(--side-col, var(--side-col-fallback)); --row: calc((var(--col) - 8px) / 2); }
+.card.sideways .grid.hrow { padding-bottom: 0; align-items: flex-start; }
+
+/* na tela inicial com o mapa: o nome do cômodo leva a maquete até ele */
+.group-label.peek { cursor: pointer; border-radius: 8px; transition: color 160ms; }
+@media (hover: hover) { .group-label.peek:hover { color: var(--muted); } }
+.group-label.peek.on { color: var(--accent); }
+.group-label.peek.on > span::after { content: ' ·  na maquete'; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--faint); }
+
+/* ===================================================================================
+   15/11/2026: the security cameras (camera/view.js). Each camera is a card of its room,
+   like a lamp's: a red ring while off, blue while its picture is on screen.
+   The box goes over the model: at the top of the Mac's panel (and a phone), on the left
+   of an iPad lying down. One camera at a time, only while the room is in view.
+   =================================================================================== */
+/* the camera's card: a lamp's card with the camera in a filled round badge, like the switch of
+   the air and TV cards: grey and quiet while off, lit blue while its picture is on screen */
+.tile.cam .tile-dot {
+  display: grid; place-items: center;
+  width: 36px; height: 36px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(222, 230, 247, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition: background 240ms, color 240ms, box-shadow 300ms;
+}
+.tile.cam.on .tile-dot {
+  background: linear-gradient(180deg, #5aa2ff, #2f7bf2);
+  color: #fff;
+  box-shadow: 0 0 18px -3px rgba(61, 139, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.tile.cam .tile-dot .icon { width: 20px; height: 20px; }
+.tile.cam.on .tile-dot .icon { filter: drop-shadow(0 1px 2px rgba(6, 22, 44, 0.35)); }
+html.ios .tile.cam .tile-dot { width: 38px; height: 38px; }
+html.ios .tile.cam .tile-dot .icon { width: 21px; height: 21px; }
+.tile.lamp.cam[data-size='small'] .tile-dot { width: 28px; height: 28px; border: 0; }
+.tile.lamp.cam[data-size='small'] .tile-dot .icon { width: 16px; height: 16px; }
+.tile.lamp.cam[data-size='big'] .tile-dot { width: 50px; height: 50px; border: 0; }
+.tile.lamp.cam[data-size='big'] .tile-dot .icon { width: 28px; height: 28px; }
+
+/* while a camera is open the model behind it goes dark and soft, back when it closes */
+.stage canvas { transition: opacity 500ms ease, filter 380ms ease; }
+.card.cam-open .stage canvas { filter: brightness(0.32) saturate(0.6) blur(5px); }
+html.lite .card.cam-open .stage canvas { filter: brightness(0.3); }
+
+.cam-dock {
+  position: absolute;
+  z-index: 3;
+  left: 12px; right: 12px;
+  top: calc(var(--head-bottom, 76px) + 8px);
+  height: calc(var(--stage-h) - var(--head-bottom, 76px) - 46px);
+  display: flex; justify-content: center; align-items: flex-start;
+  pointer-events: none;
+}
+.cam-dock[hidden] { display: none; }
+html.ios .cam-dock { --head-bottom: calc(var(--safe-top) + 4px + var(--head-h, 66px)); left: max(10px, var(--safe-left)); right: max(10px, var(--safe-right)); }
+/* the iPad lying down: the model's side, below the header, as tall as it can be */
+html.split .cam-dock {
+  left: max(16px, calc(var(--safe-left) + 8px)); right: auto;
+  width: calc(var(--split-start) - max(16px, calc(var(--safe-left) + 8px)) - 16px);
+  top: calc(var(--head-bottom, 76px) + 14px);
+  height: auto; bottom: max(16px, var(--safe-bottom));
+  align-items: center;
+}
+html.table .cam-dock { height: calc(var(--split-start) - var(--head-bottom, 76px) - 24px); }
+
+.cam-box {
+  position: relative;
+  pointer-events: auto;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #02070d;
+  border: 1px solid rgba(145, 204, 255, 0.22);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.85), 0 0 22px -8px rgba(120, 190, 255, 0.5);
+  animation: cam-in 280ms var(--ease, ease) both;
+}
+@keyframes cam-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } }
+.cam-frame { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: zoom-in; }
+.cam-box.zoomed .cam-frame { cursor: grab; }
+.cam-box.zoomed .cam-frame:active { cursor: grabbing; }
+.cam-video {
+  width: 100%; height: 100%;
+  display: block;
+  object-fit: contain;
+  transform-origin: 0 0;
+  background: #000;
+  pointer-events: none;
+}
+.cam-bar {
+  position: absolute; left: 8px; right: 8px; top: 8px;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; line-height: 1;
+  pointer-events: none;
+}
+.cam-bar > span, .cam-chip {
+  padding: 4px 8px; border-radius: 999px;
+  background: rgba(4, 13, 23, 0.62);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.cam-live { display: inline-flex; align-items: center; gap: 5px; color: #ff9a9a; font-weight: 700; font-size: 9.5px; letter-spacing: 0.07em; }
+.cam-live i { width: 6px; height: 6px; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 6px #ff4d4d; animation: cam-blink 1.6s ease-in-out infinite; }
+@keyframes cam-blink { 50% { opacity: 0.35; } }
+.cam-box.waiting .cam-live, .cam-box.waiting .cam-zoom { display: none; }
+.cam-name { color: var(--text); font-weight: 600; }
+.cam-zoom { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cam-zoom[hidden] { display: none; }
+.cam-chips { margin-left: auto; display: flex; gap: 4px; pointer-events: auto; }
+.cam-chip { border: 1px solid rgba(145, 204, 255, 0.18); color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+.cam-chip.on { color: #eaf6ff; background: rgba(0, 80, 141, 0.55); border-color: rgba(191, 227, 255, 0.6); }
+.cam-status {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 16px; text-align: center;
+  font-size: 12px; color: var(--muted);
+  background: rgba(2, 7, 13, 0.55);
+}
+.cam-status[hidden] { display: none; }
+.cam-spin { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(145, 204, 255, 0.18); border-top-color: var(--accent); animation: cam-spin 0.8s linear infinite; }
+@keyframes cam-spin { to { transform: rotate(360deg); } }
+.cam-retry {
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid rgba(145, 204, 255, 0.3); background: rgba(145, 204, 255, 0.08);
+  color: var(--accent); font: inherit; font-weight: 600; cursor: pointer;
+}
+.cam-ptz { position: absolute; inset: 0; pointer-events: none; }
+.cam-ptz[hidden] { display: none; }

@@ -6,7 +6,11 @@ import { createAgent } from './agent/tools.js';
 import { h, openMenu } from './ui/dom.js';
 import { phoneLayout, sameLayout } from './ui/layout.js';
 import { icon } from './ui/icons.js';
-import { isNative, isPhone, post, incoming, haptic } from './bridge.js';
+import { isNative, isPhone, isHA, isTouch, isTablet, post, call, incoming, haptic, setTransport } from './bridge.js';
+import { rawArrangement, adoptArrangement } from './ui/arrange.js';
+import { connectHA } from './ha/connection.js';
+import { attachHomeAssistant } from './ha/provider.js';
+import { createCameraAccess } from './camera/access.js';
 import { publishWidgets, runWidgetAction } from './widgets.js';
 
 const DEMO_PLANS = [
@@ -18,12 +22,27 @@ const STAGE_INSETS = [62, 50]; // header above, panel overlap below
 
 const app = document.getElementById('app');
 if (isNative) document.documentElement.classList.add('native');
-if (isPhone) document.documentElement.classList.add('ios');
+if (isTouch) document.documentElement.classList.add('ios');
+if (isHA) document.documentElement.classList.add('ha');
+if (isTablet) document.documentElement.classList.add('tablet');
 
 // ?safeTop=62&safeBottom=34 stands in for a phone's safe areas when its layout is looked at in a browser.
 for (const edge of ['top', 'bottom']) {
   const px = Number(new URLSearchParams(location.search).get(edge === 'top' ? 'safeTop' : 'safeBottom'));
-  if (isPhone && px) document.documentElement.style.setProperty(`--safe-${edge}-preview`, `${px}px`);
+  if (isTouch && px) document.documentElement.style.setProperty(`--safe-${edge}-preview`, `${px}px`);
+}
+
+// Modo leve, for an older iPad: the 3D view drawn at pixel ratio 1 and without the glow
+// (three/world.js). Kept on this device (the menu on a tablet, or ?lite=1).
+const LITE_KEY = 'homeos.lite';
+function liteMode() {
+  if (new URLSearchParams(location.search).get('lite') === '1') return true;
+  try { return localStorage.getItem(LITE_KEY) === '1'; } catch { return false; }
+}
+// (the camera box dims the model without blurring it there: style.css)
+if (liteMode()) document.documentElement.classList.add('lite');
+function setLiteMode(on) {
+  try { if (on) localStorage.setItem(LITE_KEY, '1'); else localStorage.removeItem(LITE_KEY); } catch { /* private mode */ }
 }
 
 // Height of the status bar / Dynamic Island on a phone; 0 everywhere else.
@@ -34,7 +53,31 @@ function safeAreaTop() {
   return top;
 }
 
+// The HA edition's loading screen (put in app.html by scripts/deploy-ha.sh): a line of what
+// it is doing, then it fades out once the panel is on screen.
+const splash = document.getElementById('splash');
+const splashSays = (text) => { const el = splash?.querySelector('.splash-text'); if (el) el.textContent = text; };
+function hideSplash() {
+  if (!splash) return;
+  splash.classList.add('gone');
+  setTimeout(() => splash.remove(), 450);
+}
+
+// The plan the Mac sent to Home Assistant (menu → Enviar para o Home Assistant), kept in the
+// config of a hidden dashboard. None yet, or not reachable: the plan bundled with the app.
+const SYNCED_AT = 'homeos:synced-at';
+async function syncedPlan(ha) {
+  if (new URLSearchParams(location.search).get('plan')) return null; // ?plan= picks a file on purpose
+  try {
+    const data = (await ha.call({ type: 'lovelace/config', url_path: 'homeos-dados' }))?.homeos;
+    return data?.plan?.rooms ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 function fatal(title, error) {
+  hideSplash();
   console.error(error);
   app.replaceChildren(h('div.fatal', h('h1', title),
     'Não foi possível carregar a planta. Corrija o arquivo e recarregue, ou escolha outra planta pelo ícone da barra de menu.',
@@ -45,14 +88,38 @@ function fatal(title, error) {
 async function boot() {
   let config;
   let raw;
+  // The tablet edition reaches Home Assistant by itself (it may first go to HA's login page),
+  // and takes the plan the Mac sent there, if any.
+  splashSays(isHA ? 'Conectando ao Home Assistant…' : 'Carregando…');
+  const haReady = isHA ? connectHA() : null;
+  let synced = null;
+  if (haReady) {
+    try { synced = await syncedPlan(await haReady); } catch { /* the states will say what is wrong */ }
+  }
+  splashSays('Montando a casa…');
   try {
-    raw = await loadRawConfig();
+    raw = synced?.plan || await loadRawConfig();
+    // A plan sent from the Mac before the cameras existed: they come from the bundled plan.
+    if (synced?.plan && !raw.cameras) {
+      try {
+        const rooms = new Set((raw.rooms || []).map((r) => r.id));
+        raw = { ...raw, cameras: ((await loadRawConfig()).cameras || []).filter((c) => rooms.has(c.room)) };
+      } catch { /* no cameras then */ }
+    }
     config = normalize(structuredClone(raw));
   } catch (error) {
     fatal('Não foi possível abrir esta casa', error);
     return;
   }
-
+  if (synced?.arrangement) {
+    // the cards as arranged on the Mac, once per sending (rearranging here still sticks)
+    let seen = 0;
+    try { seen = Number(localStorage.getItem(SYNCED_AT)) || 0; } catch { /* private mode */ }
+    if (synced.savedAt > seen) {
+      adoptArrangement(config.name, synced.arrangement);
+      try { localStorage.setItem(SYNCED_AT, String(synced.savedAt)); } catch { /* private mode */ }
+    }
+  }
   const store = createStore(config);
   const linked = [...config.lights, ...config.acs].some(isLinked);
   // Never invent a starting state for real hardware: it reports its own.
@@ -65,17 +132,20 @@ async function boot() {
 
   let world;
   const panel = createPanel(app, config, store, {
+    // the cameras' line to Home Assistant: the page's own on the HA edition, Swift's token in the apps
+    cameraAccess: createCameraAccess({ ha: haReady }),
     onFocus: (target) => world?.focus(target),
     onMenu: (anchor, reason) => {
       if (reason === 'escape') post('close');
       else if (reason === 'agent') post('openAgent');
-      else if (isPhone) post('openSettings'); // plans, sync and sign-in are native screens there
+      else if (isPhone && !isTablet) post('openSettings'); // plans, sync and sign-in are native screens there
       else planMenu(anchor);
     },
   });
 
   try {
     world = createWorld(panel.canvas, config, store, {
+      lite: liteMode(),
       onHover: panel.showTooltip,
       onPin: panel.placePin,
       onPick(target) {
@@ -90,19 +160,39 @@ async function boot() {
   }
 
   panel.attach(world);
+  hideSplash();
+
+  if (haReady) {
+    // Commands wait for the connection; the states arrive as soon as it is up.
+    const send = haReady.then((ha) => attachHomeAssistant(ha, config, store, {
+      onStatus: (status, error) => { if (status === 'error') panel.toast(`Home Assistant: ${error?.message || error}`); },
+    }));
+    send.catch((error) => panel.toast(`Sem conexão com o Home Assistant: ${error?.message || error}`));
+    setTransport(async (type, payload) => (await send)(type, payload));
+  }
 
   // A phone stacks the stage over the controls; a wide or folded one (iPhone Duo) may put
   // them side by side or break them at the fold (ui/layout.js). The native app reports
   // the fold whenever the hinge moves.
   const root = document.documentElement;
+  // The tablet's header is a floating glass bar whose height follows its text: the controls
+  // and the sheets start just below it. Only its height is measured here (--head-h); where it
+  // sits comes from the safe area in style.css (--head-bottom), so the iPad's status bar
+  // arriving late or a rotation moving the bar never leaves the panel under it.
+  if (isTablet) {
+    const head = app.querySelector('.card .top');
+    const setHead = () => head && root.style.setProperty('--head-h', `${Math.round(head.offsetHeight)}px`);
+    if (head) new ResizeObserver(setHead).observe(head);
+    setHead();
+  }
   // ?fold=455,0,40,669 stands in for a half-folded iPhone Duo's fold (x,y,width,height) in a browser.
   const [fx, fy, fw, fh] = (new URLSearchParams(location.search).get('fold') || '').split(',').map(Number);
   let fold = window.__HOUSE_BOOT__?.fold || (fh ? { x: fx, y: fy, width: fw, height: fh } : null);
   let layout = null;
   let wasWide = innerWidth >= 600;
   function applyLayout() {
-    if (!isPhone) return;
-    const next = phoneLayout(innerWidth, innerHeight, fold);
+    if (!isTouch) return;
+    const next = phoneLayout(innerWidth, innerHeight, fold, { tablet: isTablet });
     const wide = innerWidth >= 600;
     // Opening a Duo replays the sweep the panel plays when it appears.
     if (layout && wide && !wasWide) world.intro();
@@ -125,18 +215,20 @@ async function boot() {
   // On a phone the header sits lower (status bar) but is closer to the model; with the
   // stage to itself (beside the controls, or above the fold) nothing covers its foot.
   function applyInsets() {
-    if (isPhone) world.setInsets(50 + safeAreaTop(), layout?.kind === 'stack' ? 36 : 0);
+    // the tablet's header is a floating glass bar: the model starts below it
+    if (isTouch) world.setInsets((isTablet ? 86 : 50) + safeAreaTop(), layout?.kind === 'stack' ? 36 : 0);
     else world.setInsets(...STAGE_INSETS);
   }
   applyInsets();
-  new ResizeObserver(() => (isPhone ? applyInsets() : world.resize())).observe(panel.canvas);
+  new ResizeObserver(() => (isTouch ? applyInsets() : world.resize())).observe(panel.canvas);
 
   const show = () => { world.setRunning(true); world.intro(); };
   const hide = () => { world.setRunning(false); };
   incoming.shown = show;
   incoming.hidden = () => { hide(); panel.closeSheet(); if (panel.room !== 'all') panel.selectRoom('all'); };
   incoming.setNotch = (x) => panel.setNotch(x);
-  if (isPhone) {
+  incoming.setDetached = (on) => panel.setDetached(on);
+  if (isTouch) {
     // Swiping in from the left edge goes back from a device sheet, as it does everywhere on iOS
     // (beside the 3D stage, from the sheet's own left edge).
     let edge = null;
@@ -202,6 +294,39 @@ async function boot() {
 
   function planMenu(anchor) {
     const current = window.__HOUSE_BOOT__?.plan ?? (new URLSearchParams(location.search).get('plan') || 'homeos');
+    if (isTablet) {
+      const full = document.fullscreenElement || document.webkitFullscreenElement;
+      const canFull = isHA && (document.fullscreenEnabled || document.webkitFullscreenEnabled);
+      openMenu(panel.anchorMenu, anchor, [
+        { label: 'Editar os cartões', icon: icon('edit', 16, 2), action: () => panel.edit() },
+        { label: 'Organizar o painel…', action: () => panel.organize() },
+        {
+          label: 'Cômodos no menu inferior',
+          icon: panel.roomsAt === 'bottom' ? icon('check', 16, 2.4) : null,
+          action: () => panel.setRoomsAt(panel.roomsAt === 'bottom' ? 'top' : 'bottom'),
+        },
+        {
+          label: 'Modo leve (aparelho antigo)',
+          icon: liteMode() ? icon('check', 16, 2.4) : null,
+          action: () => { setLiteMode(!liteMode()); world.setLite(liteMode()); },
+        },
+        // the iOS app: the editor and the connection are native screens
+        isPhone ? '-' : null,
+        isPhone ? { label: 'Editar casa…', action: () => post('openEditor') } : null,
+        isPhone ? { label: 'Ajustes…', action: () => post('openSettings') } : null,
+        canFull ? '-' : null,
+        canFull ? {
+          label: full ? 'Sair da tela cheia' : 'Tela cheia',
+          action: () => {
+            const el = document.documentElement;
+            if (full) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+            else (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+          },
+        } : null,
+        isHA ? { label: 'Recarregar', action: () => location.reload() } : null,
+      ].filter(Boolean));
+      return;
+    }
     const items = DEMO_PLANS.map((p) => ({
       label: p.name,
       selected: p.id === current,
@@ -219,12 +344,20 @@ async function boot() {
         action: () => post('selectPlan', { plan: 'custom' }),
       });
     }
+    // Editar: move, resize, hide and tag the cards (kept here, out of the way).
+    items.push('-', { label: 'Editar os cartões', icon: icon('edit', 16, 2), action: () => panel.edit() });
     if (isNative) {
-      items.push('-',
+      items.push(
         { label: 'Organizar o painel…', action: () => panel.organize() },
+        {
+          label: 'Cômodos no menu inferior',
+          icon: panel.roomsAt === 'bottom' ? icon('check', 16, 2.4) : null,
+          action: () => panel.setRoomsAt(panel.roomsAt === 'bottom' ? 'top' : 'bottom'),
+        },
         { label: 'Editar casa…', action: () => post('openEditor') },
         EDITION.aiAccess ? { label: 'Acesso por IA…', action: () => post('openAgent') } : null,
         { label: 'Carregar planta…', action: () => post('loadPlan') },
+        EDITION.platforms.includes('homeassistant') ? { label: 'Enviar para o Home Assistant…', action: sendToHA } : null,
         { label: 'Mostrar arquivo da planta', action: () => post('revealPlan') },
         '-',
         {
@@ -236,6 +369,24 @@ async function boot() {
         { label: `Sair do ${EDITION.name}`, action: () => post('quit') });
     }
     openMenu(panel.anchorMenu, anchor, items);
+  }
+
+  // The plan in view and how its cards are arranged on this Mac go to Home Assistant, where
+  // the HA edition (the iPad) reads them the next time it opens.
+  function sendToHA() {
+    panel.confirm({
+      title: 'Enviar para o Home Assistant?',
+      text: `A planta “${config.name}” e a organização dos cartões deste Mac vão para o Home Assistant. O painel do iPad passa a usar esta versão quando for aberto de novo.`,
+      ok: 'Enviar',
+    }, async () => {
+      panel.toast('Enviando para o Home Assistant…', null, 'info');
+      try {
+        await call('sendToHA', { plan: raw, arrangement: rawArrangement(config.name) });
+        panel.toast('Enviado. Recarregue o painel no iPad para ver.', null, 'info');
+      } catch (error) {
+        panel.toast(`Não foi possível enviar: ${error.message}`);
+      }
+    });
   }
 
   // ⌘, opens the Mac's Settings window, as in every Mac app (the panel has no menu bar of its own).

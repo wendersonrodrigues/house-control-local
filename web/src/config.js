@@ -28,7 +28,7 @@ export const SERVICES = {
   hue: { name: 'Philips Hue', short: 'Hue' },
   homekit: { name: 'Apple Home', short: 'Apple Home' },
 };
-export const FLOOR_KINDS = ['oak', 'walnut', 'tile', 'stone'];
+export const FLOOR_KINDS = ['oak', 'walnut', 'tile', 'porcelain', 'stone', 'cement'];
 
 // HomeOs Bar shows Home Assistant only; the rest of House Control stays in the code
 // (see core/Sources/HouseCore/Edition.swift, which the Mac passes in the boot payload).
@@ -42,7 +42,8 @@ export async function loadRawConfig() {
   const boot = window.__HOUSE_BOOT__;
   if (boot?.config) return boot.config;
   const plan = (boot?.plan !== 'custom' && boot?.plan) || new URLSearchParams(location.search).get('plan') || 'homeos';
-  const res = await fetch(`./plans/${plan}.json`);
+  // no-cache: checked with the server each time (Home Assistant's /local/ is cached for a month)
+  const res = await fetch(`./plans/${plan}.json`, { cache: 'no-cache' });
   if (!res.ok) throw new ConfigError(`Planta "${plan}" não encontrada (HTTP ${res.status})`);
   try {
     return await res.json();
@@ -78,9 +79,36 @@ export function normalize(raw) {
       `O cômodo "${r.id}" precisa de "rect": [x, z, largura, profundidade]`);
     const [x, z, w, d] = r.rect;
     need(w > 0 && d > 0, `O cômodo "${r.id}" tem "rect" vazio`);
-    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak', outdoor: Boolean(r.outdoor), icon: r.icon };
+    // `camera`: how the view looks at this room when it is opened (else the home's angles).
+    const camera = r.camera && typeof r.camera === 'object' ? {
+      azimuth: Number.isFinite(r.camera.azimuth) ? r.camera.azimuth : undefined,
+      elevation: Number.isFinite(r.camera.elevation) ? r.camera.elevation : undefined,
+      zoom: Number.isFinite(r.camera.zoom) ? r.camera.zoom : undefined,
+      pan: isPoint(r.camera.pan) ? r.camera.pan : undefined,
+    } : null;
+    // `roof`: [x, z, width, depth] of the part of an open area that has a slab over it (a
+    // garage roofed up to a strip before the gate), kept inside the room.
+    let roof;
+    if (Array.isArray(r.roof) && r.roof.length === 4 && r.roof.every(Number.isFinite)) {
+      const x0 = Math.max(x, r.roof[0]);
+      const z0 = Math.max(z, r.roof[1]);
+      const x1 = Math.min(x + w, r.roof[0] + r.roof[2]);
+      const z1 = Math.min(z + d, r.roof[1] + r.roof[3]);
+      if (x1 - x0 > 0.05 && z1 - z0 > 0.05) roof = { x: x0, z: z0, w: x1 - x0, d: z1 - z0 };
+    }
+    return { id: r.id, name: r.name || r.id, x, z, w, d, floor: r.floor || 'oak', outdoor: Boolean(r.outdoor), icon: r.icon,
+      camera, mergeWith: typeof r.mergeWith === 'string' ? r.mergeWith : undefined, roof };
   });
   const roomIds = new Set(rooms.map((r) => r.id));
+  // `mergeWith`: this room shares the other's chip in the panel. Only one level: a room merged
+  // into one that is itself merged (or into itself, or into nothing) stays on its own.
+  const byRoom = new Map(rooms.map((r) => [r.id, r]));
+  for (const r of rooms) {
+    const into = byRoom.get(r.mergeWith);
+    if (!into || into === r || (into.mergeWith && byRoom.has(into.mergeWith) && into.mergeWith !== into.id)) r.mergeWith = undefined;
+  }
+  // The panel chip each room belongs to: its own, or the one it is merged into.
+  for (const r of rooms) r.tab = r.mergeWith || r.id;
 
   const openings = (raw.openings || []).map((o, i) => {
     need(isPoint(o.from) && isPoint(o.to), `A abertura nº ${i + 1} precisa dos pontos "from" e "to"`);
@@ -163,6 +191,16 @@ export function normalize(raw) {
     return { ...t, name: t.name || t.id, rot: t.rot || 0, width: t.width ?? 1.6, mount: t.mount === 'desk' ? 'desk' : undefined };
   });
 
+  // Security cameras (Frigate, through Home Assistant): not drawn, each belongs to a room,
+  // whose header gets the camera button. `ptz: true` marks one that can move (camera/ptz.js).
+  // (`camera`, singular, is the view of the model: a different thing.)
+  const cameras = (raw.cameras || []).map((c) => {
+    unique(c.id, 'Uma câmera');
+    need(roomIds.has(c.room), `A câmera "${c.id}" aponta para o cômodo desconhecido "${c.room}"`);
+    need(c.link?.id, `A câmera "${c.id}" precisa de "link": { "service": "homeassistant", "id": "camera.…" }`);
+    return { ...c, name: c.name || c.id, ptz: Boolean(c.ptz) };
+  });
+
   const minX = Math.min(...rooms.map((r) => r.x));
   const minZ = Math.min(...rooms.map((r) => r.z));
   const maxX = Math.max(...rooms.map((r) => r.x + r.w));
@@ -190,6 +228,7 @@ export function normalize(raw) {
     shortcuts,
     toggles,
     tvs,
+    cameras,
     bounds: { minX, minZ, maxX, maxZ },
   };
 }

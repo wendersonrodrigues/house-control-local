@@ -2,12 +2,15 @@
 // device tiles and the detail sheets for a light or an AC.
 import * as THREE from 'three';
 import { h, clamp, createSlider, createColorPad, openMenu } from './dom.js';
-import { icon, lampIcon, roomIcon } from './icons.js';
+import { icon, roomIcon } from './icons.js';
+import { brandOf, brandLogo } from './brands.js';
 import { lightColor } from '../three/lights.js';
 import { MODE_COLORS } from '../three/ac.js';
 import { AC_SWINGS } from '../store.js';
-import { haptic, isPhone } from '../bridge.js';
+import { haptic, isPhone, isTouch, isTablet, isNative, post } from '../bridge.js';
 import { loadArrangement, saveArrangement, ordered, visible, move } from './arrange.js';
+import { createLastSeen, ago, span, when } from '../lastseen.js';
+import { createCameraBox } from '../camera/view.js';
 
 const MODE_LABEL = { cool: 'Gelar', heat: 'Aquecer', dry: 'Desumidificar', fan: 'Ventilar', auto: 'Automático' };
 const FAN_LABEL = { auto: 'Automático', silent: 'Silencioso', low: 'Baixo', medium: 'Médio', high: 'Alto', turbo: 'Máximo' };
@@ -32,34 +35,109 @@ function acTemperatureColor(target, cfg) {
   return tmp.set('#1c4fc0').lerp(new THREE.Color('#8a3d12'), t).clone();
 }
 
-export function createPanel(root, config, store, { onFocus, onMenu }) {
+export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess = null }) {
   const { state } = store;
-  const ui = { room: 'all', sheet: null, pinned: null };
+  const ui = { room: 'all', sheet: null, pinned: null, editing: false, editSel: null };
+  // Informação: each device's last change (lastseen.js).
+  const seen = createLastSeen(store, config);
+
+  // Editando os cartões, eles são só cartões: nada aciona os aparelhos. Um toque sem querer
+  // numa luz, num atalho, no botão de energia ou na maquete só avisa (uma vez a cada tanto).
+  let nudgedAt = 0;
+  function nudge() {
+    if (Date.now() - nudgedAt < 2500) return;
+    nudgedAt = Date.now();
+    haptic('error');
+    showToast('Editando os cartões: os aparelhos não são acionados. Toque em Concluir para usar.', null, 'info');
+  }
+  for (const name of ['setLight', 'toggleLight', 'setAllLights', 'setAC', 'setTV', 'tvAction', 'gatePress', 'runShortcut', 'setToggle', 'applyScene']) {
+    const real = store[name];
+    if (typeof real !== 'function') continue;
+    store[name] = (...args) => {
+      if (!ui.editing) return real.apply(store, args);
+      nudge();
+      return name === 'runShortcut' ? Promise.resolve(false) : undefined;
+    };
+  }
   let world = null;
   const roomName = new Map(config.rooms.map((r) => [r.id, r.name]));
+  // Rooms merged into another (`mergeWith` on the plan) share its chip: a tab is the room
+  // that gets merged into, listing its own devices and then the others', each under its name.
+  const tabOf = (id) => config.rooms.find((r) => r.id === id)?.tab ?? id;
+  const membersOf = (tab) => config.rooms.filter((r) => r.tab === tab).sort((a, b) => (b.id === tab) - (a.id === tab));
+  const tabName = new Map(config.rooms.filter((r) => r.tab === r.id)
+    .map((r) => [r.id, membersOf(r.id).map((m) => m.name).join(' · ')]));
 
   /* ---------- skeleton ---------- */
 
   const canvas = h('canvas', { tabindex: -1 });
   const tooltip = h('div.tooltip');
   const homeName = h('div.home-name', config.name);
+  // The icon of the room in view (the house on the whole home); hovered, the house: a click
+  // always goes back to the start.
+  // The app's own mark (the house of the app icon) stands for the whole home.
+  const logo = () => h('img.app-logo', { src: './img/logo.png', alt: '', draggable: false });
+  const badgeRoom = h('span.badge-room', logo());
+  const homeBadge = h('button.home-badge', { title: 'Início', 'aria-label': 'Voltar ao início', onclick: goHome },
+    badgeRoom, h('span.badge-home', logo()));
+  let badgeShown = 'all';
   const homeSub = h('div.home-sub');
+  // Ligar / desligar tudo: no cômodo em vista (ou a casa toda no início), com confirmação;
+  // os dois em Organizar o painel.
   const power = h('button.round.power', { title: 'Ligar / desligar tudo', 'aria-label': 'Ligar ou desligar tudo', onclick: toggleEverything }, icon('power', 21, 2.2));
+  // On the start page the model can be put away: the list moves up, and comes back in a room.
+  const mapBtn = h('button.round.map-btn', { title: 'Mostrar ou ocultar o mapa', 'aria-label': 'Mostrar ou ocultar o mapa', onclick: () => toggleMap() }, icon('map', 17));
+  // A room with a security camera: its live picture over the model, only while asked for
+  // (camera/view.js). Red while off, like a lamp; blue while the camera is on screen.
+  const camerasOf = (tab) => (tab === 'all' ? [] : (config.cameras || []).filter((c) => tabOf(c.room) === tab));
+  const camBox = createCameraBox({ access: cameraAccess || { use: () => Promise.reject(new Error('indisponível')), release() {}, warm() {} } });
+  /** A camera card's switch: `id` on (another one in view switches to it), or off when it is
+   *  the one on screen. Without `id`: closes whatever is on. From the start page, the card
+   *  first goes to its room (the box belongs to the room in view). */
+  function toggleCamera(id = null) {
+    if (ui.editing) { nudge(); return; }
+    const cam = id && (config.cameras || []).find((c) => c.id === id);
+    if (!cam || camBox.currentId === id) {
+      if (!camBox.isOpen) return;
+      haptic('light');
+      camBox.close();
+      update();
+      return;
+    }
+    haptic('light');
+    if (tabOf(cam.room) !== ui.room) selectRoom(cam.room);
+    camBox.open([cam]);
+    update();
+  }
   const gear = h('button.round', { title: 'Ajustes e plantas', 'aria-label': 'Ajustes e plantas', onclick: () => onMenu(gear) }, icon('settings', 17));
+  // The Mac: let the panel go from the menu bar (a floating window that stays open), or put it back.
+  let detached = Boolean(window.__HOUSE_BOOT__?.detached);
+  const detachBtn = isNative && !isPhone
+    ? h('button.round.detach-btn', { onclick: () => { post('setDetached', { on: !detached }); } })
+    : null;
+  function showDetached(on) {
+    detached = Boolean(on);
+    card.classList.toggle('detached', detached);
+    if (!detachBtn) return;
+    const label = detached ? 'Prender de volta na barra de menu' : 'Soltar da barra de menu (fica aberto)';
+    detachBtn.title = label;
+    detachBtn.setAttribute('aria-label', label);
+    detachBtn.replaceChildren(icon(detached ? 'pinOff' : 'pin', 16, 2));
+  }
   // Shown while an AI assistant has a link to this home (AI Access on the Mac).
   const aiBadge = h('button.ai-badge', { hidden: true, title: 'Um assistente de IA tem acesso — clique para gerenciar', 'aria-label': 'Acesso por IA',
     onclick: () => onMenu(aiBadge, 'agent') }, icon('sparkles', 13, 2.2), h('span', 'AI'));
 
-  // In a room these switch its lights; for the whole home the shortcuts above already do.
-  const bulkOn = h('button.pill', { onclick: () => bulk(true) }, 'Acender todas');
-  const bulkOff = h('button.pill', { onclick: () => bulk(false) }, 'Apagar todas');
   const scenes = h('div.scenes');
   const rooms = h('div.rooms');
-  const listTitle = h('span.title');
   const grid = h('div.grid');
+  // The count of lit lamps is in the header, and a room's lights switch with the power button
+  // at the top: this row stays empty (kept as the anchor of the room chips above the list).
+  const listHead = h('div.list-head', { hidden: true });
+  const editBar = h('div.edit-bar', { hidden: true });
   const panel = h('section.panel',
     scenes, rooms,
-    h('div.list-head', listTitle, bulkOn, bulkOff),
+    listHead, editBar,
     h('div.devices', grid));
   const sheet = h('section.sheet.hidden');
   sheet.inert = true;
@@ -70,19 +148,64 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   const clip = h('div.card-clip',
     h('div.stage', canvas),
     h('div.tint'),
+    camBox.el,
     h('header.top',
-      h('div.home', h('button.home-badge', { title: 'Início', 'aria-label': 'Voltar ao início', onclick: goHome }, icon('home', 17)),
+      h('div.home', homeBadge,
         h('div', homeName, homeSub)),
-      aiBadge, gear, power),
+      aiBadge, mapBtn, detachBtn, gear, power),
     tooltip, panel, sheet, toastEl);
   const card = h('div.card.booting', h('div.notch'), clip);
   root.replaceChildren(card);
+  showDetached(detached);
+  // Solto, the window is dragged by its header (not by its buttons).
+  {
+    const head = clip.querySelector('header.top');
+    let drag = null;
+    let pending = null;
+    head.addEventListener('pointerdown', (ev) => {
+      if (!detached || ev.button !== 0 || ev.target.closest('button')) return;
+      drag = { x: ev.screenX, y: ev.screenY };
+      head.setPointerCapture(ev.pointerId);
+      head.classList.add('dragging');
+    });
+    head.addEventListener('pointermove', (ev) => {
+      if (!drag) return;
+      const dx = ev.screenX - drag.x;
+      const dy = ev.screenY - drag.y;
+      if (!dx && !dy) return;
+      drag = { x: ev.screenX, y: ev.screenY };
+      // one message a frame, with what moved since the last one
+      if (pending) { pending.dx += dx; pending.dy += dy; return; }
+      pending = { dx, dy };
+      requestAnimationFrame(() => { post('moveWindow', pending); pending = null; });
+    });
+    const end = () => { drag = null; head.classList.remove('dragging'); };
+    head.addEventListener('pointerup', end);
+    head.addEventListener('pointercancel', end);
+  }
+
+  /** `ai`: something an AI assistant did (who, what), instead of an error; `tone` 'info': a
+   *  neutral notice (not an error). */
+  function showToast(text, ai = null, tone = null) {
+    toastEl.replaceChildren(...(ai ? [h('span.toast-ai', icon('sparkles', 13, 2.2), ai), h('span', text)] : [text]));
+    toastEl.classList.toggle('ai', Boolean(ai));
+    toastEl.classList.toggle('info', tone === 'info');
+    toastEl.classList.add('show');
+    clearTimeout(toastEl.timer);
+    toastEl.timer = setTimeout(() => toastEl.classList.remove('show'), 3200);
+  }
 
   /* ---------- scenes ---------- */
 
+  // Like a lamp's ring: blue for what switches on, red for what switches off.
+  const OFF_WORDS = /\b(apagar|desligar|off)\b/i;
+  function glyphRing(name, label) {
+    const off = OFF_WORDS.test(label) || name === 'lightsOff';
+    return h(`span.glyph-ring${off ? '.off' : ''}`, icon(name, 16, 2));
+  }
   const sceneButtons = new Map();
   for (const s of config.scenes) {
-    const b = h('button.scene', { onclick: () => { haptic('medium'); store.applyScene(s.id); } }, icon(s.icon, 19), s.name);
+    const b = h('button.scene', { onclick: () => { haptic('medium'); store.applyScene(s.id); } }, glyphRing(s.icon, s.name), s.name);
     sceneButtons.set(s.id, b);
     scenes.append(b);
   }
@@ -101,7 +224,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       if (!ok) return;
       b.classList.add('active');
       setTimeout(() => b.classList.remove('active'), 1200);
-    } }, icon(sc.icon, 19), sc.name);
+    } }, glyphRing(sc.icon, sc.name), sc.name);
     shortcutButtons.set(sc.id, b);
   }
   function renderScenes() {
@@ -115,22 +238,97 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   const roomButtons = new Map();
   // Rooms without a device stay in the model but not in the chips (a bathroom, a passage).
-  const withDevices = config.rooms.filter((r) => [...config.lights, ...config.acs, ...config.tvs, ...config.gates].some((d) => d.room === r.id));
+  const devicesIn = (id) => [...config.lights, ...config.acs, ...config.tvs, ...config.gates].some((d) => d.room === id);
+  // Every room with something in it (its own devices' group in Organizar o painel)…
+  const roomsWithDevices = config.rooms.filter((r) => devicesIn(r.id));
+  // …and the chips: one per tab, under the merged name.
+  const withDevices = config.rooms.filter((r) => r.tab === r.id && membersOf(r.id).some((m) => devicesIn(m.id)))
+    .map((r) => ({ ...r, name: tabName.get(r.id) }));
   for (const r of [{ id: 'all', name: 'Todos' }, ...withDevices]) {
     const count = h('span.count.zero', '0');
     const b = h('button.room', { title: r.name, 'aria-label': r.name, onclick: () => { haptic('tick'); selectRoom(r.id); } },
-      h('span.room-icon', icon(r.id === 'all' ? 'home' : roomIcon(r), 17)), h('span.room-name', r.name), count);
+      h('span.room-icon', icon(r.id === 'all' ? 'home' : roomIcon(r), 16, 2)), h('span.room-name', r.name), count);
     roomButtons.set(r.id, { b, count });
   }
   function renderRooms() {
     rooms.dataset.style = arr.chips;
+    // Above the list, or at the foot of the panel like a phone app's tab bar (Organizar).
+    const bottom = arr.roomsAt === 'bottom';
+    panel.classList.toggle('rooms-bottom', bottom);
+    if (bottom && panel.lastElementChild !== rooms) panel.append(rooms);
+    if (!bottom && rooms.nextElementSibling !== listHead) panel.insertBefore(rooms, listHead);
     rooms.replaceChildren(roomButtons.get('all').b, ...visible(withDevices, arr, 'rooms').map((r) => roomButtons.get(r.id).b));
   }
   renderRooms();
 
+  // Swiping the cards sideways moves to the next room tab (left) or the one before (right),
+  // in the order of the tabs. Not on what already drags sideways (a dimmable lamp, a slider,
+  // the colour pad), nor while editing the cards or with a sheet open.
+  const devicesEl = grid.parentElement;
+  let swipe = null;
+  devicesEl.addEventListener('touchstart', (ev) => {
+    swipe = null;
+    if (ev.touches.length !== 1 || ui.editing || ui.sheet || sideways()) return;
+    if (ev.target.closest('.dimmable, .slider, .slider-track, .pad, input, textarea, select, .no-swipe')) return;
+    const t = ev.touches[0];
+    swipe = { x: t.clientX, y: t.clientY, side: false, done: false };
+  }, { passive: true });
+  // Decided while the finger moves (WebKit may take the touch for scrolling before it lifts):
+  // once the drag is clearly sideways the page stops scrolling, and past 70 px the room changes.
+  devicesEl.addEventListener('touchmove', (ev) => {
+    const s = swipe;
+    if (!s || s.done) return;
+    const t = ev.touches[0];
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (!s.side) {
+      if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; } // a scroll
+      if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.5) s.side = true;
+    }
+    if (!s.side) return;
+    if (ev.cancelable) ev.preventDefault();
+    if (Math.abs(dx) < 70 || ui.editing || ui.sheet) return;
+    s.done = true;
+    const order = ['all', ...visible(withDevices, arr, 'rooms').map((r) => r.id)];
+    const at = order.indexOf(ui.room);
+    const next = order[at + (dx < 0 ? 1 : -1)];
+    if (at < 0 || !next) return; // the first or last tab: nothing past it
+    haptic('tick');
+    selectRoom(next);
+    grid.classList.remove('swipe-left', 'swipe-right');
+    void grid.offsetWidth; // restart the slide
+    grid.classList.add(dx < 0 ? 'swipe-left' : 'swipe-right');
+    devicesEl.scrollTo({ top: 0 });
+  }, { passive: false });
+  devicesEl.addEventListener('touchend', () => { swipe = null; }, { passive: true });
+  devicesEl.addEventListener('touchcancel', () => { swipe = null; }, { passive: true });
+  grid.addEventListener('animationend', () => grid.classList.remove('swipe-left', 'swipe-right'));
+
+  /** The room's tab centred in the row of tabs. Only that row scrolls: scrollIntoView would
+   *  also scroll the panel (the tabs at the foot sit outside it, so it slid the shortcuts up). */
+  function showTab(id, behavior = 'smooth') {
+    const b = roomButtons.get(id)?.b;
+    if (!b || b.parentElement !== rooms) return;
+    const r = rooms.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const left = rooms.scrollLeft + (br.left - r.left) - (r.width - br.width) / 2;
+    rooms.scrollTo({ left: Math.max(0, left), behavior });
+  }
+
   /** The house icon: back to the start, whatever is open. */
+  /** The model zoomed to a room from the start page, without leaving it (the room's name). */
+  function peekRoom(id) {
+    ui.peek = ui.peek === id ? null : id;
+    haptic('light');
+    onFocus(ui.peek ? { kind: 'room', id: ui.peek } : null);
+    for (const l of grid.querySelectorAll('.group-label.peek')) l.classList.toggle('on', l.dataset.room === ui.peek);
+  }
+
   function goHome() {
     haptic('light');
+    camBox.close();
+    ui.peek = null;
+    for (const l of grid.querySelectorAll('.group-label.peek.on')) l.classList.remove('on');
     closeSheet();
     unpin();
     if (ui.room !== 'all') selectRoom('all');
@@ -139,34 +337,87 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   }
 
   function selectRoom(id) {
+    id = tabOf(id);
+    ui.peek = null;
     if (ui.room === id) id = 'all';
+    // Leaving the room ends its camera: nothing streams in the background.
+    camBox.close();
+    if (camerasOf(id).length) cameraAccess?.warm();
     if (ui.pinned) { ui.pinned = null; world?.pin(null); }
     ui.room = id;
     layoutTiles();
     update();
-    roomButtons.get(id)?.b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    showTab(id);
     onFocus(id === 'all' ? null : { kind: 'room', id });
   }
 
   function inScope(cfg) {
-    return ui.room === 'all' || cfg.room === ui.room;
+    return ui.room === 'all' || tabOf(cfg.room) === ui.room;
   }
 
-  function bulk(on) {
-    haptic('medium');
-    if (ui.room === 'all') { store.setAllLights(on); return; }
-    for (const l of config.lights) if (l.room === ui.room) store.setLight(l.id, { on });
+  /** What the power button at the top switches: the room in view (unless set to the whole
+   *  home in Organizar), or the whole home on the start page. */
+  function powerScope() {
+    const tab = arr.powerScope !== 'home' && ui.room !== 'all' ? ui.room : null;
+    const mine = (d) => !tab || tabOf(d.room) === tab;
+    return { tab, lights: config.lights.filter(mine), acs: config.acs.filter(mine) };
   }
 
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   function toggleEverything() {
-    haptic('heavy');
-    const anyOn = Object.values(state.lights).some((l) => l.on) || Object.values(state.acs).some((a) => a.on);
-    if (anyOn) {
-      store.setAllLights(false);
-      for (const id of Object.keys(state.acs)) store.setAC(id, { on: false });
-    } else {
-      store.setAllLights(true);
-    }
+    if (ui.editing) { nudge(); return; }
+    const { tab, lights, acs } = powerScope();
+    if (!lights.length && !acs.length) return;
+    const lit = lights.filter((l) => state.lights[l.id].on);
+    const acsOn = acs.filter((a) => state.acs[a.id].on);
+    const off = lit.length > 0 || acsOn.length > 0;
+    const where = tab ? tabName.get(tab) : null;
+    const run = () => {
+      haptic('heavy');
+      if (off) {
+        if (tab) for (const l of lit) store.setLight(l.id, { on: false });
+        else store.setAllLights(false);
+        for (const a of acsOn) store.setAC(a.id, { on: false });
+      } else if (tab) {
+        for (const l of lights) store.setLight(l.id, { on: true });
+      } else {
+        store.setAllLights(true);
+      }
+    };
+    if (arr.powerConfirm === false) { run(); return; }
+    haptic('medium');
+    const parts = off
+      ? [lit.length ? `apaga ${plural(lit.length, 'luz', 'luzes')}` : null, acsOn.length ? `desliga ${plural(acsOn.length, 'ar-condicionado', 'ares-condicionados')}` : null].filter(Boolean)
+      : [`acende ${lights.length === 1 ? 'a luz' : `as ${lights.length} luzes`}`];
+    const what = parts.join(' e ');
+    askConfirm({
+      title: off ? (where ? `Desligar tudo em ${where}?` : 'Desligar a casa toda?') : (where ? `Acender ${where}?` : 'Acender a casa toda?'),
+      text: `${what.charAt(0).toUpperCase()}${what.slice(1)}${where ? '' : ' da casa toda'}.`,
+      ok: off ? 'Desligar' : 'Acender',
+      danger: off,
+    }, run);
+  }
+
+  // A small confirmation over the panel (the power button): two buttons, Esc or a tap outside cancels.
+  let confirmView = null;
+  function askConfirm({ title, text, ok, danger }, onOk) {
+    closeConfirm();
+    const close = () => closeConfirm();
+    const yes = h(`button.confirm-ok${danger ? '.danger' : ''}`, { onclick: () => { close(); onOk(); } }, ok);
+    const box = h('div.confirm-box', { role: 'alertdialog', 'aria-modal': 'true', 'aria-label': title },
+      h('div.confirm-title', title), text ? h('div.confirm-text', text) : null,
+      h('div.confirm-actions', h('button.confirm-cancel', { onclick: close }, 'Cancelar'), yes));
+    confirmView = h('div.confirm', { onclick: (e) => { if (e.target === confirmView) close(); } }, box);
+    clip.append(confirmView);
+    requestAnimationFrame(() => { confirmView?.classList.add('show'); yes.focus({ preventScroll: true }); });
+  }
+  function closeConfirm() {
+    if (!confirmView) return false;
+    const el = confirmView;
+    confirmView = null;
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 200);
+    return true;
   }
 
   /* ---------- tiles ---------- */
@@ -175,16 +426,19 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   function lightTile(cfg) {
     const dimmable = cfg.capabilities.includes('brightness');
+    // the optional tag over the name ("LED", "Cortina"), set in Editar
+    const tag = h('div.tile-label');
     const hasSheet = cfg.capabilities.length > 0;
     const sub = h('div.tile-sub');
     // A phone has no room for the button: touching and holding the tile opens the sheet there.
-    const more = hasSheet && !isPhone
+    const more = hasSheet && !isTouch
       ? h('button.tile-more', { 'aria-label': `Ajustes de ${cfg.name}`, onclick: (e) => { e.stopPropagation(); openSheet({ kind: 'light', id: cfg.id }); } }, icon('sliders', 15))
       : null;
-    const el = h(`div.tile${dimmable ? '.dimmable' : ''}`, { role: 'button', tabindex: 0, 'aria-label': cfg.name },
-      h('div.bubble', icon(lampIcon(cfg), 19)),
-      h('div.tile-text', h('div.tile-name', cfg.name), sub),
+    const el = h(`div.tile.lamp${dimmable ? '.dimmable' : ''}`, { role: 'button', tabindex: 0, 'aria-label': cfg.name },
+      h('div.tile-text', tag, h('div.tile-name', cfg.name), sub),
       more,
+      // a glowing ring at the right, like the switch on the wall: red when off, blue when lit
+      h('span.tile-dot', { 'aria-hidden': 'true' }),
       h('div.tile-level'));
 
     // Tap toggles; dragging sideways dims (HomeKit-style).
@@ -195,7 +449,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       const s = state.lights[cfg.id];
       gesture = { x: ev.clientX, y: ev.clientY, start: s.on ? s.brightness : 0, moved: false, step: null };
       el.classList.add('pressed');
-      if (isPhone && hasSheet) {
+      if (isTouch && hasSheet) {
         gesture.hold = setTimeout(() => {
           if (!gesture || gesture.moved) return;
           gesture = null;
@@ -244,31 +498,45 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         el.style.setProperty('--level', s.on ? String(s.brightness) : '0');
         // On a phone the group heading above the tile already names the room.
         // The room is the group's heading already.
-        sub.textContent = lightStatus(cfg, s);
+        // The switch itself shows on or off; only a dimmable lamp's level is written out.
+        sub.textContent = dimmable && s.on ? lightStatus(cfg, s) : '';
+        const label = arr.showLabels ? arr.labels[cfg.id] || '' : '';
+        tag.textContent = label;
+        tag.hidden = !label;
+        el.setAttribute('aria-pressed', String(s.on));
       },
     };
   }
 
+  // The square cards (air, TV, gate) show the device itself, off and on, as two pictures
+  // made for the panel; the lit one fades in over the other.
+  const scene = (kind, offSrc, onSrc, ...over) => h(`div.card-scene.${kind}`,
+    h('img.card-art', { alt: '', src: offSrc, draggable: false }),
+    h('img.card-art.lit', { alt: '', src: onSrc, draggable: false }),
+    ...over);
+
   function acTile(cfg) {
     const sub = h('div.tile-sub');
-    const value = h('div.value');
-    const bubble = h('div.bubble');
+    const value = h('div.ac-display');
+    const room = h('div.card-note');
     const step = (d) => (e) => {
       e.stopPropagation();
       haptic('tick');
       const s = state.acs[cfg.id];
       store.setAC(cfg.id, { on: true, target: s.target + d });
     };
-    const el = h('div.tile.ac', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'ac', id: cfg.id }) },
-      bubble,
-      h('div.tile-text', h('div.tile-name', cfg.name), sub),
-      h('div.stepper',
-        h('button', { 'aria-label': 'Mais frio', onclick: step(-1) }, icon('minus', 15, 2.2)),
-        value,
-        h('button', { 'aria-label': 'Mais quente', onclick: step(1) }, icon('plus', 15, 2.2))),
-      h('button.mini-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: (e) => { e.stopPropagation(); haptic('medium'); store.setAC(cfg.id, { on: !state.acs[cfg.id].on }); } }, icon('power', 16, 2.2)));
+    const el = h('div.tile.ac.card', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'ac', id: cfg.id }) },
+      // the set temperature is on the unit's own display, as on the real one
+      scene('ac', './img/ac-off.jpg', './img/ac-on.jpg', value),
+      h('div.card-head',
+        h('div.tile-text', h('div.tile-name', cfg.name), sub),
+        h('button.mini-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: (e) => { e.stopPropagation(); haptic('medium'); store.setAC(cfg.id, { on: !state.acs[cfg.id].on }); } }, icon('power', 16, 2.2))),
+      h('div.card-foot',
+        room,
+        h('div.stepper',
+          h('button', { 'aria-label': 'Mais frio', onclick: step(-1) }, icon('minus', 15, 2.2)),
+          h('button', { 'aria-label': 'Mais quente', onclick: step(1) }, icon('plus', 15, 2.2)))));
     el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') openSheet({ kind: 'ac', id: cfg.id }); });
-    let shownMode = null;
     return {
       el, cfg, kind: 'ac',
       update() {
@@ -276,9 +544,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         el.classList.toggle('on', s.on);
         el.classList.toggle('idle', s.on && s.idle);
         el.style.setProperty('--c', MODE_COLORS[s.mode]);
-        if (shownMode !== s.mode) { bubble.replaceChildren(icon(s.mode, 19)); shownMode = s.mode; }
-        value.textContent = `${s.target}°`;
-        sub.textContent = `${!s.on ? 'Desligado' : s.idle ? 'Em espera' : MODE_LABEL[s.mode]} · Ambiente ${s.roomTemp.toFixed(isPhone ? 0 : 1)}°`;
+        value.textContent = String(s.target);
+        sub.textContent = !s.on ? 'Desligado' : s.idle ? 'Em espera' : MODE_LABEL[s.mode];
+        room.textContent = `Ambiente ${s.roomTemp.toFixed(isPhone ? 0 : 1)}°`;
+        el.setAttribute('aria-label', `${cfg.name}, ${sub.textContent}${s.on ? `, ${s.target} graus` : ''}`);
       },
     };
   }
@@ -328,19 +597,24 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const label = h('span');
     const button = gateButton(cfg.id, () => update());
     const action = h('button.gate-action', { onclick: (e) => { e.stopPropagation(); button.press(); } }, label);
-    const bubble = h('div.bubble', icon('gate', 19));
-    let shownIcon = 'gate';
-    const el = h('div.tile.gate', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'gate', id: cfg.id }) },
-      bubble, h('div.tile-text', h('div.tile-name', cfg.name), sub), action);
+    // since when (the medium and long cards have room for it)
+    const since = h('div.card-since');
+    const el = h('div.tile.gate.card', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'gate', id: cfg.id }) },
+      scene('gate', './img/gate-closed.jpg', './img/gate-open.jpg'),
+      h('div.card-head', h('div.tile-text', h('div.tile-name', cfg.name), sub, since)),
+      h('div.card-foot', action));
     el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target === el) openSheet({ kind: 'gate', id: cfg.id }); });
     function update() {
       const g = state.gates[cfg.id];
-      const want = g.state === 'closed' ? 'gate' : 'gateOpen';
-      if (want !== shownIcon) { bubble.replaceChildren(icon(want, 19)); shownIcon = want; }
       el.classList.toggle('on', g.state !== 'closed');
       el.classList.toggle('offline', g.online === false);
       el.style.setProperty('--c', GATE_COLOR[g.state] || '#8b93a7');
+      // how far open, 0…1: the open picture fades in with the gate as it moves
+      const open = g.online === false ? 0 : g.motion ? store.gatePosition(cfg.id) : g.state === 'closed' ? 0 : g.state === 'open' ? 1 : store.gatePosition(cfg.id);
+      el.style.setProperty('--open', String(Math.round(open * 100) / 100));
       sub.textContent = gateText(cfg.id);
+      const r = seen.get(cfg.id);
+      since.textContent = r && !g.motion && g.online !== false ? ago(r.since) : '';
       action.classList.toggle('armed', button.armed);
       action.classList.toggle('stop', store.gateNext(cfg.id) === 'stop');
       label.textContent = button.label(true);
@@ -375,31 +649,48 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
     const group = (title, key, items, label = (x) => x.name, sub = () => null) => (items.length
       ? [h('div.org-title', title), ...ordered(items, arr, key).map((x) => rowFor(key, items, x, label(x), sub(x)))] : []);
-    const KIND_NAME = { ac: 'Ar-condicionado', tv: 'TV', light: 'Luz' };
+    const KIND_NAME = { ac: 'Ar-condicionado', tv: 'TV', light: 'Luz', camera: 'Câmera' };
     // How the room chips read: names, icons, or both.
     const chipStyle = h('div.org-seg', [['name', 'Nome'], ['icon', 'Ícone'], ['both', 'Ícone e nome']].map(([v, label]) =>
       h(`button${arr.chips === v ? '.on' : ''}`, { onclick: () => { arr.chips = v; haptic('light'); changed(); } }, label)));
+    // Where the room chips sit: above the list, or as a menu at the foot of the panel.
+    const roomsAt = h('div.org-seg', [['top', 'Acima da lista'], ['bottom', 'Menu inferior']].map(([v, label]) =>
+      h(`button${arr.roomsAt === v ? '.on' : ''}`, { onclick: () => { arr.roomsAt = v; haptic('light'); changed(); } }, label)));
+    // The power button at the top: the room in view or always the whole home; and whether it asks first.
+    const powerScopeSeg = h('div.org-seg', [['room', 'Cômodo em vista'], ['home', 'Sempre a casa toda']].map(([v, label]) =>
+      h('button', { onclick: () => { arr.powerScope = v; haptic('light'); changed(); update(); } }, label)));
+    const homeOwnSeg = h('div.org-seg', [[false, 'Iguais aos cômodos'], [true, 'Organização própria']].map(([v, label]) =>
+      h('button', { onclick: () => { setHomeOwn(v); changed(); } }, label)));
+    const powerConfirmSeg = h('div.org-seg', [[true, 'Pedir confirmação'], [false, 'Sem confirmação']].map(([v, label]) =>
+      h('button', { onclick: () => { arr.powerConfirm = v; haptic('light'); changed(); } }, label)));
     function draw() {
       chipStyle.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', ['name', 'icon', 'both'][i] === arr.chips));
+      roomsAt.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', ['top', 'bottom'][i] === arr.roomsAt));
+      powerScopeSeg.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', ['room', 'home'][i] === arr.powerScope));
+      powerConfirmSeg.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', [true, false][i] === arr.powerConfirm));
+      homeOwnSeg.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', [false, true][i] === arr.homeOwn));
       body.replaceChildren(
         h('div.org-title', 'Fileira de cômodos'), chipStyle,
+        h('div.org-title', 'Posição dos cômodos'), roomsAt,
+        h('div.org-title', 'Botão de energia (no topo)'), powerScopeSeg, powerConfirmSeg,
+        h('div.org-title', 'Cartões da tela inicial'), homeOwnSeg,
         ...group('Atalhos', 'shortcuts', config.shortcuts),
         ...group('Cômodos', 'rooms', withDevices),
         ...group(config.gates.length > 1 ? 'Portões' : 'Portão', 'gates', config.gates),
-        ...visible(withDevices, arr, 'rooms').flatMap((room) => {
-          const devs = roomDevices(room.id).map((t) => t.cfg);
-          const kindOf = new Map(roomDevices(room.id).map((t) => [t.cfg.id, t.kind]));
-          return group(`Dispositivos · ${room.name}`, `room:${room.id}`, devs, (x) => x.name, (x) => KIND_NAME[kindOf.get(x.id)]);
+        ...visible(withDevices, arr, 'rooms').flatMap((tab) => {
+          const list = tabDevices(tab.id).filter((t) => t.kind !== 'gate');
+          const kindOf = new Map(list.map((t) => [t.cfg.id, t.kind]));
+          return group(`Dispositivos · ${tab.name}`, `room:${tab.id}`, list.map((t) => t.cfg), (x) => x.name, (x) => KIND_NAME[kindOf.get(x.id)]);
         }),
         ...group('Automações', 'toggles', config.toggles));
     }
     draw();
     return {
       nodes: [
-        sheetHead('Organizar o painel', h('div.sheet-sub', 'Ordem e o que aparece, só neste Mac'), null),
+        sheetHead('Organizar o painel', h('div.sheet-sub', `Ordem e o que aparece, só neste ${isTablet ? 'aparelho' : 'Mac'}`), null),
         body,
         h('div.org-foot',
-          h('button.pill.org-btn', { onclick: () => { arr = { order: {}, hidden: new Set(), chips: 'name' }; changed(); } }, icon('rotate', 13), 'Restaurar o padrão'),
+          h('button.pill.org-btn', { onclick: () => { arr = loadArrangement('\u0000padrão'); changed(); } }, icon('rotate', 13), 'Restaurar o padrão'),
           h('button.pill.org-btn.org-done', { onclick: closeSheet }, icon('check', 13, 2.4), 'Pronto')),
       ],
       update() {},
@@ -407,6 +698,56 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   }
 
   const clock = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  // Informação: for each device of a room, its state and since when, and the time before
+  // (how long a lamp stayed on, when the gate was last open). Only the last change of each.
+  const STATE_WORD = {
+    light: { on: 'Acesa', off: 'Apagada' }, ac: { on: 'Ligado', off: 'Desligado' }, tv: { on: 'Ligada', off: 'Desligada' },
+    gate: { open: 'Aberto', closed: 'Fechado', opening: 'Abrindo', closing: 'Fechando' }, toggle: { on: 'Ligada', off: 'Desligada' },
+  };
+  const ACTIVE = { on: true, open: true };
+  const KIND_TITLE = { light: 'Luz', ac: 'Ar-condicionado', tv: 'TV', gate: 'Portão' };
+  function infoSheet(tabId) {
+    const list = h('div.info-list');
+    function row(t) {
+      const words = STATE_WORD[t.kind];
+      const r = seen.get(t.cfg.id);
+      const now = Date.now();
+      let main = 'Sem informação ainda';
+      let sub = null;
+      if (r) {
+        main = `${words[r.raw] || words[r.phase]} ${ago(r.since, now)}`;
+        sub = `desde ${when(r.since, now)}`;
+        const p = r.prev;
+        if (p) {
+          const lower = (words[p.phase] || '').toLowerCase();
+          const range = `${when(p.since, now)} – ${when(p.until, now)}`;
+          sub += ACTIVE[p.phase]
+            ? ` · última vez ${lower}: por ${span(p.until - p.since)} (${range})`
+            : ` · antes ${lower} por ${span(p.until - p.since)}`;
+        }
+      }
+      const active = r && ACTIVE[r.phase];
+      return h(`div.info-row${active ? '.active' : ''}`,
+        h('div.info-name', h('span.info-kind', KIND_TITLE[t.kind] || ''), t.cfg.name),
+        h('div.info-main', main), sub ? h('div.info-sub', sub) : null);
+    }
+    const draw = () => {
+      const items = tabDevices(tabId).filter((t) => !arr.hidden.has(t.cfg.id));
+      list.replaceChildren(...(items.length ? items.map(row) : [h('div.info-sub', 'Nenhum aparelho neste cômodo.')]));
+    };
+    draw();
+    const timer = setInterval(draw, 30000); // "há 5 min" keeps counting
+    return {
+      nodes: [
+        sheetHead('Informação', h('div.sheet-sub', tabName.get(tabId) || ''), null),
+        list,
+        h('p.sheet-note', icon('clock', 18), 'Só a última mudança de cada aparelho, guardada neste aparelho. A hora do estado atual vem do Home Assistant.'),
+      ],
+      update: draw,
+      close: () => clearInterval(timer),
+    };
+  }
 
   // The gate up close: what it is doing, since when, and the same two-press button, bigger.
   function gateSheet(id) {
@@ -475,6 +816,33 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     };
   }
 
+  // A security camera: a card like a lamp's, the camera in a filled badge (grey off, blue while
+  // its picture is on screen). Arranged, hidden and resized like the other cards of its room.
+  function cameraTile(cfg) {
+    const tag = h('div.tile-label');
+    const sub = h('div.tile-sub');
+    const go = () => toggleCamera(cfg.id);
+    const el = h('div.tile.lamp.cam', { role: 'button', tabindex: 0, 'aria-label': `Câmera ${cfg.name}`, onclick: go },
+      h('div.tile-text', tag, h('div.tile-name', cfg.name), sub),
+      // the camera in a filled round badge, like the air's and the TV's switch: grey off, blue on
+      h('span.tile-dot.cam-icon', { 'aria-hidden': 'true' }, icon('cctvFilled', 20)),
+      h('div.tile-level'));
+    el.addEventListener('keydown', (ev) => { if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); go(); } });
+    return {
+      el, cfg, kind: 'camera',
+      update() {
+        const on = camBox.currentId === cfg.id;
+        el.classList.toggle('on', on);
+        sub.textContent = on ? 'Ao vivo' : '';
+        // "Câmera" over the name unless given a tag of its own (a lamp may share the name)
+        const label = (arr.showLabels && arr.labels[cfg.id]) || 'Câmera';
+        tag.textContent = label;
+        tag.hidden = false;
+        el.setAttribute('aria-pressed', String(on));
+      },
+    };
+  }
+
   const TV_BLUE = '#6fa8ff';
   const tvStatus = (t) => (t.online === false ? 'Indisponível' : !t.on ? 'Desligada'
     : t.title || t.app || t.source || (t.state === 'playing' ? 'Reproduzindo' : t.state === 'paused' ? 'Pausada' : 'Ligada'));
@@ -484,8 +852,13 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const power = h('button.mini-power', { 'aria-label': `Ligar ou desligar ${cfg.name}`, onclick: (e) => {
       e.stopPropagation(); haptic('medium'); store.setTV(cfg.id, { on: !state.tvs[cfg.id].on });
     } }, icon('power', 16, 2.2));
-    const el = h('div.tile.tv', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'tv', id: cfg.id }) },
-      h('div.bubble', icon('tv', 19)), h('div.tile-text', h('div.tile-name', cfg.name), sub), power);
+    // What is on, as its logo over the screen: a known app or system, else Home Assistant's picture.
+    const bubble = h('div.bubble.logo.card-logo');
+    const el = h('div.tile.tv.card', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'tv', id: cfg.id }) },
+      scene('tv', './img/tv-off.jpg', './img/tv-on.jpg'),
+      h('div.card-head', h('div.tile-text', h('div.tile-name', cfg.name), sub), power),
+      h('div.card-foot', bubble));
+    let shown = '';
     el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') openSheet({ kind: 'tv', id: cfg.id }); });
     return {
       el, cfg, kind: 'tv',
@@ -495,6 +868,18 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
         el.classList.toggle('offline', t.online === false);
         el.style.setProperty('--c', TV_BLUE);
         sub.textContent = tvStatus(t);
+        const brand = brandOf(t);
+        const want = brand ? `brand:${brand.id}` : t.on && t.picture ? `pic:${t.picture}` : '';
+        if (want !== shown) {
+          shown = want;
+          bubble.hidden = !want;
+          if (brand) bubble.replaceChildren(brandLogo(brand));
+          else if (want) {
+            const img = h('img.bubble-art', { alt: '', src: t.picture });
+            img.addEventListener('error', () => { shown = ''; bubble.hidden = true; });
+            bubble.replaceChildren(img);
+          } else bubble.replaceChildren();
+        }
       },
     };
   }
@@ -528,11 +913,13 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     const readout = h('div.readout', big.el, mute);
     // What is on: the picture Home Assistant has (an app icon or a poster), title, artist, app.
     const art = h('img.np-art', { alt: '' });
-    art.addEventListener('error', () => { art.hidden = true; });
+    art.addEventListener('error', () => { art.hidden = true; art.dataset.bad = art.dataset.src; });
+    const artBrand = h('div.np-art.np-brand');
+    artBrand.hidden = true;
     const npTitle = h('div.np-title');
     const npSub = h('div.np-sub');
     const npState = h('span.np-state');
-    const nowPlaying = h('div.now-playing', art, h('div.np-text', h('div.np-label', 'Reproduzindo agora', npState), npTitle, npSub));
+    const nowPlaying = h('div.now-playing', art, artBrand, h('div.np-text', h('div.np-label', 'Reproduzindo agora', npState), npTitle, npSub));
     const volumeRow = h('div.slider-row',
       h('button.round', { 'aria-label': 'Menos volume', onclick: () => { haptic('tick'); store.tvAction(id, 'volume_down'); set({ volume: Math.max(0, t().volume - 0.01) }); } }, icon('minus', 18, 2.2)),
       slider.el,
@@ -560,8 +947,15 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
           .filter(Boolean).join(' · ');
         npSub.hidden = !npSub.textContent;
         npState.textContent = tv.state === 'playing' ? 'tocando' : tv.state === 'paused' ? 'pausado' : '';
-        if (tv.picture && art.dataset.src !== tv.picture) { art.dataset.src = tv.picture; art.hidden = false; art.src = tv.picture; }
-        if (!tv.picture) art.hidden = true;
+        // A known app or system shows its own logo; anything else, Home Assistant's picture.
+        const brand = brandOf(tv);
+        if (brand && artBrand.dataset.id !== brand.id) { artBrand.dataset.id = brand.id; artBrand.replaceChildren(brandLogo(brand)); }
+        artBrand.hidden = !brand;
+        if (brand) art.hidden = true;
+        else if (tv.picture) {
+          if (art.dataset.src !== tv.picture) { art.dataset.src = tv.picture; art.src = tv.picture; }
+          art.hidden = art.dataset.bad === tv.picture;
+        } else art.hidden = true;
         // A real TV only shows the controls Home Assistant says it has.
         const has = (name) => !tv.controls || tv.controls.includes(name);
         source.hidden = !has('source') || !(tv.sources || []).length;
@@ -580,63 +974,503 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   for (const cfg of config.acs) tiles.set(cfg.id, acTile(cfg));
   for (const cfg of config.tvs) tiles.set(cfg.id, tvTile(cfg));
   for (const cfg of config.lights) tiles.set(cfg.id, lightTile(cfg));
+  // cameras only where they can play (the apps and the Home Assistant edition)
+  if (cameraAccess?.available) for (const cfg of config.cameras || []) tiles.set(cfg.id, cameraTile(cfg));
   // Not in a room: shown above (the gate) and below (automations) the rooms, on "All" only.
   const gateTiles = config.gates.map(gateTile);
   const toggleTiles = config.toggles.map(toggleTile);
 
   function toggleLight(id) {
+    if (ui.editing) { nudge(); return; }
     haptic('light');
     world?.lights.get(id)?.bump();
     store.toggleLight(id);
   }
 
   // A room's tiles: ACs, TVs, then lights, unless rearranged.
-  const KIND_ORDER = { ac: 0, tv: 1, light: 2 };
+  const KIND_ORDER = { ac: 0, tv: 1, light: 2, camera: 3 };
   function roomDevices(roomId) {
     const all = [...tiles.values()].filter((t) => t.cfg.room === roomId).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
     const byId = new Map(all.map((t) => [t.cfg.id, t]));
     return ordered(all.map((t) => t.cfg), arr, `room:${roomId}`).map((c) => byId.get(c.id));
   }
-  const visibleTiles = (list, group) => {
-    const byId = new Map(list.map((t) => [t.cfg.id, t]));
-    return visible(list.map((t) => t.cfg), arr, group).map((c) => byId.get(c.id));
-  };
+  /** A tab's cards: its gates and devices, then those of the rooms merged into it, in one order. */
+  function tabDevices(tabId) {
+    const list = membersOf(tabId).flatMap((r) => [...gateTiles.filter((t) => t.cfg.room === r.id), ...roomDevices(r.id)]);
+    return inOrder(list, `room:${tabId}`);
+  }
 
-  function layoutTiles() {
+  /* ---------- Editar: cards moved, resized, flipped and tagged ---------- */
+
+  // A card's size on a grid of four columns (rows are a third of a column on the Mac, half
+  // on a phone, so a small card is square): small (one column), wide (two, a strip), big
+  // (two, square), full (the whole row).
+  const SIZES = {
+    light: ['small', 'wide', 'big', 'full'], camera: ['small', 'wide', 'big', 'full'], ac: ['wide', 'big'], tv: ['wide', 'big'], gate: ['wide', 'medium', 'big', 'full'], toggle: ['wide', 'full'],
+  };
+  const DEFAULT_SIZE = { light: 'wide', camera: 'wide', ac: 'big', tv: 'big', gate: 'big', toggle: 'full' };
+  const SIZE_NAME = { small: 'Pequeno', wide: 'Largo', big: 'Grande', full: 'Faixa' };
+  // The gate: a strip without the picture, a medium card (the picture beside the name), the
+  // square, and the square stretched sideways (four columns, as tall as the square).
+  const GATE_SIZE_NAME = { wide: 'Faixa', medium: 'Médio', big: 'Quadrado', full: 'Comprido' };
+  const sizeName = (kind, s) => (kind === 'gate' ? GATE_SIZE_NAME[s] : SIZE_NAME[s]);
+  const SIZE_COLS = { small: 1, wide: 2, medium: 2, big: 2, full: 4 };
+  const LABEL_IDEAS = ['LED', 'Luz central', 'Spots', 'Cortina', 'Pendente', 'Abajur', 'Externa'];
+  const allTiles = () => [...tiles.values(), ...gateTiles, ...toggleTiles];
+  const tileById = (id) => allTiles().find((t) => t.cfg.id === id);
+  // The start page with its own layout (an option): its own order groups, sizes and sides.
+  const homeLayout = () => arr.homeOwn && ui.room === 'all';
+  // And the start page sideways (tablet lying down, no map) keeps a layout of its own too:
+  // order ("side:" groups), sizes and sides, apart from the start page with the map.
+  const sideLayout = () => sideways();
+  const gkey = (group) => (sideLayout() ? `side:${group}` : homeLayout() ? `home:${group}` : group);
+  const sizesNow = () => (sideLayout() ? arr.sideSizes : homeLayout() ? arr.homeSizes : arr.sizes);
+  const flipNow = () => (sideLayout() ? arr.sideFlip : homeLayout() ? arr.homeFlip : arr.flip);
+  /** The first time sideways: it starts as the start page was (its own layout, or the rooms'). */
+  function seedSide() {
+    if (arr.sideSeeded) return;
+    const own = arr.homeOwn;
+    for (const [k, ids] of Object.entries(arr.order)) {
+      if (k.startsWith('side:')) continue;
+      if (own ? k.startsWith('home:') : !k.startsWith('home:')) arr.order[`side:${own ? k.slice(5) : k}`] = [...ids];
+    }
+    arr.sideSizes = { ...(own ? arr.homeSizes : arr.sizes) };
+    arr.sideFlip = new Set(own ? arr.homeFlip : arr.flip);
+    arr.sideSeeded = true;
+    saveArr();
+  }
+  const sizeOf = (t) => (SIZES[t.kind].includes(sizesNow()[t.cfg.id]) ? sizesNow()[t.cfg.id] : DEFAULT_SIZE[t.kind]);
+  /** Turns the start page's own layout on (copied from the rooms the first time) or off. */
+  function setHomeOwn(on) {
+    arr.homeOwn = on;
+    if (on && !arr.homeSeeded) {
+      for (const [k, ids] of Object.entries(arr.order)) if (!k.startsWith('home:')) arr.order[`home:${k}`] = [...ids];
+      arr.homeSizes = { ...arr.sizes };
+      arr.homeFlip = new Set(arr.flip);
+      arr.homeSeeded = true;
+    }
+    haptic('light');
+    saveArr();
+    layoutTiles(true);
+    renderEditBar();
+  }
+  const inOrder = (list, group) => {
+    const byId = new Map(list.map((t) => [t.cfg.id, t]));
+    return ordered(list.map((t) => t.cfg), arr, group).map((c) => byId.get(c.id));
+  };
+  const saveArr = () => saveArrangement(config.name, arr);
+
+  /** Puts a tile in the grid: its group (what it can be moved among), size and side. */
+  function dress(t, group) {
+    const el = t.el;
+    el.dataset.id = t.cfg.id;
+    el.dataset.group = group;
+    el.dataset.size = sizeOf(t);
+    el.classList.toggle('flipped', flipNow().has(t.cfg.id));
+    el.classList.toggle('selected', ui.editSel === t.cfg.id);
+    if (!el.querySelector(':scope > .edit-handle')) {
+      el.append(h('span.edit-handle.edit-ui', { 'aria-hidden': 'true' }),
+        h('button.edit-eye.edit-ui', { 'aria-label': `Ocultar ou mostrar ${t.cfg.name}`, onclick: (e) => { e.stopPropagation(); toggleHidden(t); } }));
+      if (t.kind === 'light' || t.kind === 'camera') {
+        el.append(h('button.edit-flip.edit-ui', { title: 'Trocar de lado', 'aria-label': `Trocar ${t.cfg.name} de lado`,
+          onclick: (e) => { e.stopPropagation(); flipTile(t); } }, icon('swap', 12, 2.2)));
+      }
+    }
+  }
+
+  // The eye: in Todos it hides a card from the start page only; in a room, everywhere.
+  function toggleHidden(t) {
+    const id = t.cfg.id;
+    const off = arr.hidden.has(id) || (ui.room === 'all' && arr.hiddenHome.has(id));
+    if (off) { arr.hidden.delete(id); arr.hiddenHome.delete(id); } else (ui.room === 'all' ? arr.hiddenHome : arr.hidden).add(id);
+    haptic('light');
+    saveArr();
+    layoutTiles(true);
+  }
+  function toggleRoomHome(roomId) {
+    if (arr.hiddenHomeRooms.has(roomId)) arr.hiddenHomeRooms.delete(roomId); else arr.hiddenHomeRooms.add(roomId);
+    haptic('light');
+    saveArr();
+    layoutTiles(true);
+  }
+
+  function setSize(t, size) {
+    const sizes = sizesNow();
+    if (size === DEFAULT_SIZE[t.kind]) delete sizes[t.cfg.id];
+    else sizes[t.cfg.id] = size;
+    t.el.dataset.size = size;
+    saveArr();
+  }
+
+  function flipTile(t) {
+    const flip = flipNow();
+    if (flip.has(t.cfg.id)) flip.delete(t.cfg.id); else flip.add(t.cfg.id);
+    t.el.classList.toggle('flipped', flip.has(t.cfg.id));
+    haptic('light');
+    saveArr();
+    renderEditBar();
+  }
+
+  function setEditing(on) {
+    ui.editing = on;
+    ui.editSel = null;
+    panel.classList.toggle('editing', on);
+    card.classList.toggle('editing', on);
+    for (const t of allTiles()) t.el.classList.remove('selected');
+    haptic(on ? 'medium' : 'light');
+    renderEditBar();
+    layoutTiles(true);
+  }
+
+  function select(id) {
+    ui.editSel = ui.editSel === id ? null : id;
+    for (const t of allTiles()) t.el.classList.toggle('selected', t.cfg.id === ui.editSel);
+    renderEditBar();
+  }
+
+  // Over the list while editing: how it works, or the chosen card's size, side and tag.
+  function renderEditBar() {
+    editBar.hidden = !ui.editing;
+    if (!ui.editing) { editBar.replaceChildren(); return; }
+    const done = h('button.pill.edit-done', { onclick: () => setEditing(false) }, icon('check', 13, 2.4), 'Concluir');
+    const t = ui.editSel && tileById(ui.editSel);
+    if (!t) {
+      const labels = h('input', { type: 'checkbox' });
+      labels.checked = arr.showLabels;
+      labels.addEventListener('change', () => { arr.showLabels = labels.checked; saveArr(); for (const x of tiles.values()) x.update(); });
+      const own = h('input', { type: 'checkbox' });
+      own.checked = arr.homeOwn;
+      own.addEventListener('change', () => setHomeOwn(own.checked));
+      const ownNote = laidSideways
+        ? 'Tela deitada sem o mapa: ordem e tamanhos próprios deste modo; a tela com o mapa e os cômodos não mudam.'
+        : ui.room === 'all'
+        ? (arr.homeOwn ? 'Mexendo na organização da tela inicial; os cômodos não mudam.' : 'Mexendo aqui, os cômodos mudam junto.')
+        : (arr.homeOwn ? 'Mexendo neste cômodo; a tela inicial tem a sua.' : 'Mexendo neste cômodo, a tela inicial muda junto.');
+      editBar.replaceChildren(
+        h('div.edit-row', h('div.edit-hint', laidSideways
+          ? 'Arraste para mover. Puxe o canto para mudar o tamanho. Tela deitada sem o mapa: embaixo do título de cada cômodo, escolha a largura e se ele fica ao lado ou embaixo do anterior.'
+          : 'Arraste para mover. Puxe o canto para mudar o tamanho. Toque para mais opções.'), done),
+        h('label.edit-check', labels, 'Mostrar as etiquetas das luzes'),
+        laidSideways
+          ? h('div.edit-check', icon('layout', 13), h('span.edit-check-note', ownNote))
+          : h('label.edit-check', own, 'Tela inicial com organização própria', h('span.edit-check-note', ` · ${ownNote}`)));
+      return;
+    }
+    const size = sizeOf(t);
+    const sizes = h('div.org-seg.edit-sizes', SIZES[t.kind].map((s) => h(`button${s === size ? '.on' : ''}`,
+      { onclick: () => { setSize(t, s); haptic('tick'); renderEditBar(); } }, sizeName(t.kind, s))));
+    const rows = [h('div.edit-row', h('div.edit-name', t.cfg.name), h('button.pill', { onclick: () => select(t.cfg.id) }, 'Ok'), done), sizes];
+    if (t.kind === 'light' || t.kind === 'camera') {
+      const input = h('input.edit-input', { type: 'text', maxlength: 18, placeholder: 'Etiqueta (opcional): LED, Cortina…', value: arr.labels[t.cfg.id] || '' });
+      const setLabel = (v) => {
+        v = v.trim();
+        if (v) arr.labels[t.cfg.id] = v; else delete arr.labels[t.cfg.id];
+        saveArr();
+        t.update();
+      };
+      input.addEventListener('input', () => setLabel(input.value));
+      input.addEventListener('keydown', (e) => e.stopPropagation());
+      rows.push(
+        h('div.edit-row',
+          input,
+          h('button.pill.edit-swap', { onclick: () => flipTile(t), title: 'Trocar o anel de lado' }, icon('swap', 13, 2.2), 'Lado')),
+        h('div.edit-ideas', LABEL_IDEAS.map((idea) => h('button.pill', { onclick: () => { input.value = idea; setLabel(idea); } }, idea)),
+          h('button.pill', { onclick: () => { input.value = ''; setLabel(''); } }, 'Nenhuma')));
+    }
+    editBar.replaceChildren(...rows);
+  }
+
+  // While editing, the tiles stop being switches: a press drags, the corner resizes, a tap picks.
+  const gridMetrics = (el) => {
+    const cs = getComputedStyle(el?.parentElement || grid);
+    const col = parseFloat(cs.gridTemplateColumns);
+    const row = parseFloat(cs.gridAutoRows);
+    const gap = parseFloat(cs.columnGap) || 8;
+    return { col, row, gap };
+  };
+  grid.addEventListener('click', (ev) => {
+    if (!ui.editing) return;
+    if (ev.target.closest('.edit-flip, .edit-eye, .sec-tools')) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+  }, true);
+  grid.addEventListener('pointerdown', (ev) => {
+    if (!ui.editing || ev.button !== 0) return;
+    const el = ev.target.closest('.tile');
+    if (!el || ev.target.closest('.edit-flip, .edit-eye')) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+    const t = tileById(el.dataset.id);
+    if (!t) return;
+    el.setPointerCapture(ev.pointerId);
+    const start = { x: ev.clientX, y: ev.clientY };
+    const resizing = Boolean(ev.target.closest('.edit-handle'));
+    const rect0 = el.getBoundingClientRect();
+    let moved = false;
+    let tx = 0;
+    let ty = 0;
+    const onMove = (e) => {
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!moved && Math.hypot(dx, dy) < 6) return;
+      moved = true;
+      if (resizing) {
+        // the size nearest the corner's place, among the ones this kind of card has
+        const { col, row, gap } = gridMetrics(el);
+        const cols = (e.clientX - rect0.left + gap) / (col + gap);
+        const rows = (e.clientY - rect0.top + gap) / (row + gap);
+        const rowsOf = (s) => parseFloat(getComputedStyle(grid).getPropertyValue(`--rows-${s}`)) || 2;
+        let best = sizeOf(t);
+        let bestD = Infinity;
+        for (const s of SIZES[t.kind]) {
+          const d = (cols - SIZE_COLS[s]) ** 2 + ((rows - rowsOf(s)) / 3) ** 2;
+          if (d < bestD) { bestD = d; best = s; }
+        }
+        if (el.dataset.size !== best) { el.dataset.size = best; haptic('tick'); }
+        return;
+      }
+      el.classList.add('dragging');
+      // where the card would sit, in reading order among its group: before the first card that
+      // starts below the pointer, or on the pointer's row to its right; past them all, at the end
+      // (so it can go under a full row, not only swap with the card beside it)
+      const peers = [...grid.querySelectorAll(`.tile[data-group="${CSS.escape(el.dataset.group)}"]`)].filter((x) => x !== el);
+      let before = null;
+      for (const p of peers) {
+        const r = p.getBoundingClientRect();
+        const onRow = e.clientY >= r.top && e.clientY <= r.bottom;
+        if (e.clientY < r.top || (onRow && e.clientX < r.left + r.width / 2)) { before = p; break; }
+      }
+      const nextPeer = peers.find((p) => el.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
+      if (before !== nextPeer) {
+        if (before) before.before(el);
+        else peers[peers.length - 1]?.after(el);
+        haptic('tick');
+      }
+      // the card follows the pointer from wherever the grid has put it now
+      el.style.transform = '';
+      const base = el.getBoundingClientRect();
+      tx = e.clientX - (start.x - rect0.left) - base.left;
+      ty = e.clientY - (start.y - rect0.top) - base.top;
+      el.style.transform = `translate(${tx}px, ${ty}px) scale(1.03)`;
+    };
+    const onUp = () => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+      el.classList.remove('dragging');
+      el.style.transform = '';
+      if (!moved) { select(t.cfg.id); return; }
+      if (resizing) { setSize(t, el.dataset.size); renderEditBar(); return; }
+      const group = el.dataset.group;
+      const ids = [...grid.querySelectorAll(`.tile[data-group="${CSS.escape(group)}"]`)].map((x) => x.dataset.id);
+      arr.order[group] = [...ids, ...(arr.order[group] || []).filter((id) => !ids.includes(id))];
+      saveArr();
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+  }, true);
+
+  function toggleMap() {
+    haptic('light');
+    arr.mapHidden = !arr.mapHidden;
+    saveArr();
+    update();
+    if (sideways() !== laidSideways) layoutTiles();
+  }
+
+  /* ---------- the start page sideways (tablet lying down, without the map) ----------
+     The sections sit side by side and the page scrolls to the right: each section a grid of
+     its own, as wide as its cards need up to a maximum (6 columns, 8 for a section with many
+     cards; chosen per section while editing). */
+  const sideways = () => isTablet && arr.mapHidden && ui.room === 'all' && innerWidth > innerHeight;
+  let laidSideways = false;
+  const SECTION_WIDTHS = [4, 5, 6, 7, 8, 10];
+  const UNITS = { small: 1, wide: 2, medium: 2, big: 2, full: 4 };
+  function sectionsOf(nodes) {
+    const out = [];
+    const rest = [];
+    let cur = null;
+    for (const n of nodes) {
+      if (n.classList?.contains('group-label')) { cur = { label: n, tiles: [] }; out.push(cur); }
+      else if (n.classList?.contains('tile') && cur) cur.tiles.push(n);
+      else rest.push(n);
+    }
+    return { sections: out.filter((x) => x.tiles.length), rest };
+  }
+  function sideSection({ label, tiles }, index) {
+    const key = tiles[0].dataset.group.replace(/^(home|side):/, '');
+    const units = tiles.reduce((sum, t) => sum + (t.classList.contains('gate') && t.dataset.size === 'full' ? 4 : UNITS[t.dataset.size] || 2), 0);
+    const max = arr.secCols?.[key] || (units > 12 ? 8 : 6);
+    const cols = Math.max(Math.min(max, units), 2);
+    const below = Boolean(arr.secBelow?.[key]) && index > 0;
+    const set = (field, value) => (e) => {
+      e.stopPropagation();
+      arr[field] = { ...(arr[field] || {}), [key]: value };
+      if (value === false) delete arr[field][key];
+      haptic('tick');
+      saveArr();
+      layoutTiles(true);
+    };
+    // editing: under the title, the section's width (columns of cards) and where it goes:
+    // beside the one before, or below it (two rooms in the height)
+    const tools = ui.editing ? h('div.sec-tools.edit-ui',
+      h('span.sec-seg', h('span.sec-seg-name', 'Largura'), ...SECTION_WIDTHS.map((w) =>
+        h(`button${w === max ? '.on' : ''}`, { onclick: set('secCols', w) }, String(w)))),
+      index > 0 ? h('span.sec-seg', h('span.sec-seg-name', 'Posição'),
+        h(`button${!below ? '.on' : ''}`, { onclick: set('secBelow', false) }, 'Ao lado'),
+        h(`button${below ? '.on' : ''}`, { onclick: set('secBelow', true) }, 'Embaixo')) : null) : null;
+    const el = h('section.hsec', label, tools, h('div.grid.hgrid', ...tiles));
+    el.style.setProperty('--sec-cols', String(cols));
+    return { el, below };
+  }
+  /** The sections in columns: one, or two when a section goes below the one before. */
+  function sideColumns(sections) {
+    const cols = [];
+    sections.forEach((sec, i) => {
+      const { el, below } = sideSection(sec, i);
+      const last = cols[cols.length - 1];
+      if (below && last && last.childElementCount === 1) last.append(el);
+      else cols.push(h('div.hcol', el));
+    });
+    return cols;
+  }
+  // with a mouse: drag the empty space to scroll sideways; the wheel scrolls sideways too
+  {
+    const devices = grid.parentElement;
+    let drag = null;
+    devices.addEventListener('pointerdown', (ev) => {
+      if (!laidSideways || ev.pointerType !== 'mouse' || ev.button !== 0 || ui.editing) return;
+      if (ev.target.closest('.tile, button, input, a')) return;
+      drag = { x: ev.clientX, left: devices.scrollLeft };
+      devices.setPointerCapture(ev.pointerId);
+      devices.classList.add('grabbing');
+    });
+    devices.addEventListener('pointermove', (ev) => { if (drag) devices.scrollLeft = drag.left - (ev.clientX - drag.x); });
+    const end = () => { drag = null; devices.classList.remove('grabbing'); };
+    devices.addEventListener('pointerup', end);
+    devices.addEventListener('pointercancel', end);
+    devices.addEventListener('wheel', (ev) => {
+      if (!laidSideways || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return;
+      if (devices.scrollHeight > devices.clientHeight + 4) return; // it scrolls down too: leave the wheel to that
+      devices.scrollLeft += ev.deltaY;
+      ev.preventDefault();
+    }, { passive: false });
+    let wasSideways = null;
+    window.addEventListener('resize', () => {
+      const now = sideways();
+      if (now !== wasSideways && wasSideways !== null && now !== laidSideways) layoutTiles(true);
+      wasSideways = now;
+    });
+  }
+
+  function layoutTiles(keepScroll = false) {
+    if (sideways()) seedSide();
     const nodes = [];
     let i = 0;
-    const add = (t) => { t.el.style.setProperty('--i', i++); nodes.push(t.el); };
-    const shownGates = visibleTiles(gateTiles, 'gates');
-    // A gate is part of its room (the garage) and comes first there; one without a room on
-    // the plan keeps a group of its own at the top.
-    const loose = shownGates.filter((t) => !roomName.has(t.cfg.room));
-    if (ui.room === 'all' && loose.length) {
-      nodes.push(h('div.group-label', loose.length > 1 ? 'Portões' : 'Portão'));
-      loose.forEach(add);
+    const home = ui.room === 'all';
+    const editing = ui.editing;
+    // Hidden: everywhere (Organizar, or the eye in a room) or only on the start page (the eye
+    // in Todos). While editing, hidden cards stay in place, faded, so the eye can bring them back.
+    const isOff = (t) => arr.hidden.has(t.cfg.id) || (home && arr.hiddenHome.has(t.cfg.id));
+    const pick = (list) => (editing ? list : list.filter((t) => !isOff(t)));
+    const add = (group, roomOff = false) => (t) => {
+      t.el.style.setProperty('--i', i++);
+      dress(t, gkey(group));
+      const off = roomOff || isOff(t);
+      t.el.classList.toggle('is-hidden', editing && off);
+      const eye = t.el.querySelector(':scope > .edit-eye');
+      eye.replaceChildren(icon(isOff(t) ? 'eyeOff' : 'eye', 13, 2));
+      eye.title = isOff(t) ? 'Mostrar' : home ? 'Ocultar no início' : 'Ocultar';
+      nodes.push(t.el);
+    };
+    const label = (text, roomId = null) => {
+      const off = Boolean(roomId) && home && arr.hiddenHomeRooms.has(roomId);
+      // on the start page, the room's name brings the model to that room (its saved view)
+      // and stays on the start page; again, back to the whole home
+      const peekable = Boolean(roomId) && home && !editing;
+      return h(`div.group-label${off && editing ? '.is-hidden' : ''}${peekable ? '.peek' : ''}${peekable && ui.peek === roomId ? '.on' : ''}`, {
+        'data-room': roomId || null,
+        role: peekable ? 'button' : null, title: peekable ? `Ver ${text} na maquete` : null,
+        onclick: peekable ? () => peekRoom(roomId) : null,
+      }, h('span', text),
+        roomId && home ? h('button.edit-eye.edit-ui', { title: off ? 'Mostrar no início' : 'Ocultar no início', 'aria-label': `${off ? 'Mostrar' : 'Ocultar'} ${text} no início`,
+          onclick: (e) => { e.stopPropagation(); toggleRoomHome(roomId); } }, icon(off ? 'eyeOff' : 'eye', 13, 2)) : null);
+    };
+    // A gate is part of its room (the garage); one without a room on the plan keeps a group
+    // of its own at the top.
+    const loose = pick(inOrder(gateTiles.filter((t) => !roomName.has(t.cfg.room)), gkey('gates')));
+    if (home && loose.length) {
+      nodes.push(label(loose.length > 1 ? 'Portões' : 'Portão'));
+      loose.forEach(add('gates'));
     }
-    const roomList = ui.room === 'all' ? visible(config.rooms, arr, 'rooms') : config.rooms.filter((r) => r.id === ui.room);
-    for (const room of roomList) {
-      const devices = [...shownGates.filter((t) => t.cfg.room === room.id),
-        ...roomDevices(room.id).filter((t) => !arr.hidden.has(t.cfg.id))];
+    // One group per tab: rooms merged into another (Corredor and Quintal) share a heading,
+    // "Corredor · Quintal", and their cards sit together, side by side.
+    const tabList = home ? visible(withDevices, arr, 'rooms') : withDevices.filter((r) => r.id === ui.room);
+    for (const tab of tabList) {
+      const roomOff = home && arr.hiddenHomeRooms.has(tab.id);
+      if (roomOff && !editing) continue;
+      const devices = pick(inOrder(tabDevices(tab.id), gkey(`room:${tab.id}`)));
       if (!devices.length) continue;
-      if (ui.room === 'all') nodes.push(h('div.group-label', room.name));
-      devices.forEach(add);
+      if (home) nodes.push(label(tab.name, tab.id));
+      devices.forEach(add(`room:${tab.id}`, roomOff));
     }
-    const shownToggles = visibleTiles(toggleTiles, 'toggles');
-    if (ui.room === 'all' && shownToggles.length) {
-      nodes.push(h('div.group-label', 'Automações'));
-      shownToggles.forEach(add);
+    const shownToggles = pick(inOrder(toggleTiles, gkey('toggles')));
+    if (home && shownToggles.length) {
+      nodes.push(label('Automações'));
+      shownToggles.forEach(add('toggles'));
     }
-    if (ui.room === 'all' && !isPhone) {
+    // Below a room's cards: when each of its devices last changed.
+    if (!home && !editing && nodes.length) {
+      nodes.push(h('button.info-link', { onclick: () => openSheet({ kind: 'info', id: ui.room }) }, icon('info', 14), 'Informação'));
+    }
+    if (home && !isPhone && !editing) {
       nodes.push(h('button.organize-link', { onclick: () => openSheet({ kind: 'organize' }) }, icon('list', 14), 'Organizar o painel'));
     }
     if (!nodes.length) nodes.push(h('div.group-label', 'Nenhum dispositivo neste cômodo ainda'));
-    else if (isPhone && config.lights.some((l) => l.capabilities.length && inScope(l))) {
+    else if (isTouch && config.lights.some((l) => l.capabilities.length && inScope(l))) {
       nodes.push(h('div.grid-hint', 'Toque e segure uma luz para brilho e cor'));
     }
-    grid.replaceChildren(...nodes);
-    grid.parentElement.scrollTop = 0;
+    const scroller = grid.parentElement;
+    const top = scroller.scrollTop;
+    const left = scroller.scrollLeft;
+    laidSideways = sideways();
+    grid.classList.toggle('hrow', laidSideways);
+    card.classList.toggle('sideways', laidSideways);
+    if (laidSideways) {
+      const { sections, rest } = sectionsOf(nodes);
+      grid.replaceChildren(...sideColumns(sections), ...rest.filter((n) => n.classList?.contains('organize-link')));
+    } else {
+      grid.replaceChildren(...nodes);
+    }
+    scroller.scrollTop = keepScroll ? top : 0;
+    scroller.scrollLeft = keepScroll && laidSideways ? left : 0;
+    fitSideways();
   }
+
+  // Sideways, nothing scrolls down: the cards' size comes from the height there is. The card
+  // unit starts from the width (as everywhere on the tablet) and shrinks until the tallest
+  // column (two rooms one above the other, say) fits.
+  function fitSideways() {
+    grid.style.removeProperty('--side-col');
+    if (!laidSideways) return;
+    const dev = grid.parentElement;
+    const w = dev.clientWidth;
+    const cols = w >= 1080 ? 10 : w >= 840 ? 8 : w >= 620 ? 6 : 4;
+    let col = (w - (cols - 1) * 8) / cols;
+    // what is really visible: down to the room tabs at the foot when they sit over the list
+    const box = dev.getBoundingClientRect();
+    const foot = arr.roomsAt === 'bottom' ? rooms.getBoundingClientRect().top : Infinity;
+    const room = Math.min(box.bottom, foot) - box.top - 18;
+    if (room <= 0) return;
+    for (let i = 0; i < 8; i++) {
+      grid.style.setProperty('--side-col', `${Math.floor(col)}px`);
+      const need = Math.max(0, ...[...grid.querySelectorAll('.hcol')].map((c) => c.offsetHeight));
+      if (need <= room) break;
+      col = Math.max(56, col * (room / need) * 0.985);
+    }
+  }
+  new ResizeObserver(() => { if (laidSideways) fitSideways(); }).observe(grid.parentElement);
 
   /* ---------- sheets ---------- */
 
@@ -647,7 +1481,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   /** A device picked in the model: its room first, then its menu, so a stray click never
    *  switches anything; the menu's own button does. */
   function show(target) {
-    const room = cfgOf(target)?.room;
+    const own = cfgOf(target)?.room;
+    const room = own && tabOf(own);
     // A lamp needs no menu: its room's list stays below, and over the lamp a label with its
     // switch. Clicked again, the lamp itself switches.
     if (target.kind === 'light') {
@@ -662,7 +1497,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     if (room && ui.room !== room) {
       ui.room = room;
       layoutTiles();
-      roomButtons.get(room)?.b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      showTab(room);
     }
     openSheet(target);
   }
@@ -677,15 +1512,17 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
 
   /** The floor of a room clicked: off a lamp's label first, otherwise into (or out of) the room. */
   function pickRoom(id) {
-    if (ui.pinned && ui.room === id) { unpin(); return; }
+    if (ui.pinned && ui.room === tabOf(id)) { unpin(); return; }
     selectRoom(id);
   }
 
   function openSheet(target) {
+    sheetView?.close?.();
     ui.pinned = null;
     ui.sheet = target;
     sheetView = target.kind === 'ac' ? acSheet(target.id) : target.kind === 'tv' ? tvSheet(target.id)
-      : target.kind === 'gate' ? gateSheet(target.id) : target.kind === 'organize' ? organizeSheet() : lightSheet(target.id);
+      : target.kind === 'gate' ? gateSheet(target.id) : target.kind === 'organize' ? organizeSheet()
+        : target.kind === 'info' ? infoSheet(target.id) : lightSheet(target.id);
     sheet.replaceChildren(...sheetView.nodes);
     panel.classList.add('hidden');
     sheet.classList.remove('hidden');
@@ -694,7 +1531,8 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     card.classList.add('detail');
     hideTooltip();
     const room = target.kind === 'tv' ? store.tvCfg.get(target.id).room : target.kind === 'light' ? store.lightCfg.get(target.id).room : null;
-    onFocus(['ac', 'tv', 'gate'].includes(target.kind) ? target : target.kind === 'organize' ? null : { kind: 'room', id: room });
+    onFocus(['ac', 'tv', 'gate'].includes(target.kind) ? target : target.kind === 'organize' ? null
+      : { kind: 'room', id: target.kind === 'info' ? target.id : tabOf(room) });
     update();
     world?.pin(pinnable(target) ? target : null);
   }
@@ -702,6 +1540,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   function closeSheet() {
     if (!ui.sheet) return false;
     ui.sheet = null;
+    sheetView?.close?.();
     sheetView = null;
     sheet.classList.add('hidden');
     panel.classList.remove('hidden');
@@ -865,7 +1704,7 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       nodes.push(h('div.field-label', h('span', 'Cor'), colorLabel), pad.el, h('div.swatches', swatches));
     } else {
       nodes.push(h('div.sheet-note', icon(cfg.type, 20),
-        `${roomName.get(cfg.room)} · ${isPhone ? 'toque' : 'clique'} no botão ao lado do nome, ou de novo na lâmpada da maquete, para acender ou apagar.`));
+        `${roomName.get(cfg.room)} · ${isTouch ? 'toque' : 'clique'} no botão ao lado do nome, ou de novo na lâmpada da maquete, para acender ou apagar.`));
     }
 
     return {
@@ -993,8 +1832,10 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       weight += w;
     }
     if (!weight) return NAVY.clone();
+    // A hint of the lamps' colour over the deep blue, never more: with many lamps lit it used
+    // to reach 80% and wash the whole backdrop warm.
     sum.multiplyScalar(0.42 / weight);
-    return NAVY.clone().lerp(sum, clamp(weight / 3.5, 0.25, 0.8));
+    return NAVY.clone().lerp(sum, clamp(weight / 8, 0.08, 0.28));
   }
 
   function update() {
@@ -1008,26 +1849,37 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       onCount ? h('span.live') : h('span.eco-leaf', { title: 'Todas as luzes apagadas' }, icon('leaf', 13, 2.2)),
       h('b', onCount ? `${onCount} de ${lights.length}` : '0'), onCount === 1 ? ' luz acesa' : ' luzes acesas',
       acsOn.length ? ` · Ar ${acsOn[0].target}°` : '');
-    power.classList.toggle('on', anyOn);
+    const scope = powerScope();
+    power.classList.toggle('on', scope.lights.some((l) => state.lights[l.id].on) || scope.acs.some((a) => state.acs[a.id].on));
+    const powerTitle = scope.tab ? `Ligar / desligar tudo em ${tabName.get(scope.tab)}` : 'Ligar / desligar a casa toda';
+    if (power.title !== powerTitle) { power.title = powerTitle; power.setAttribute('aria-label', powerTitle); }
     // The room in view, or the home's own name when the whole home is.
-    const inView = ui.sheet && ui.sheet.kind !== 'organize' ? cfgOf(ui.sheet)?.room : ui.room !== 'all' ? ui.room : null;
-    homeName.textContent = roomName.get(inView) || config.name;
+    const info = ui.sheet?.kind === 'info';
+    const inView = info ? ui.sheet.id : ui.sheet && ui.sheet.kind !== 'organize' ? cfgOf(ui.sheet)?.room : ui.room !== 'all' ? ui.room : null;
+    homeName.textContent = (ui.sheet && !info ? roomName.get(inView) : tabName.get(inView)) || config.name;
+    const badgeFor = inView ? tabOf(inView) : 'all';
+    if (badgeFor !== badgeShown) {
+      badgeShown = badgeFor;
+      const r = config.rooms.find((x) => x.id === badgeFor);
+      badgeRoom.replaceChildren(r ? icon(roomIcon(r), 17) : logo());
+      homeBadge.classList.toggle('in-room', Boolean(r));
+    }
 
     for (const [id, b] of sceneButtons) b.classList.toggle('active', state.scene === id);
 
     for (const [id, { b, count }] of roomButtons) {
       b.classList.toggle('active', ui.room === id);
-      const n = config.lights.filter((l) => (id === 'all' || l.room === id) && state.lights[l.id].on).length;
+      const n = config.lights.filter((l) => (id === 'all' || tabOf(l.room) === id) && state.lights[l.id].on).length;
       count.textContent = n;
       count.classList.toggle('zero', n === 0 || id === 'all');
     }
 
-    const redundant = ui.room === 'all' && config.shortcuts.length > 0;
-    bulkOn.hidden = redundant;
-    bulkOff.hidden = redundant;
-    const scoped = config.lights.filter(inScope);
-    const scopedOn = scoped.filter((l) => state.lights[l.id].on).length;
-    listTitle.replaceChildren(h('b', ui.room === 'all' ? 'Casa toda' : roomName.get(ui.room)), ` · ${scopedOn} de ${scoped.length} acesas`);
+    // The start page without the model, if it was put away (remembered); a room always shows it.
+    const mapOff = arr.mapHidden && ui.room === 'all' && !ui.sheet;
+    card.classList.toggle('map-off', mapOff);
+    mapBtn.hidden = ui.room !== 'all' || Boolean(ui.sheet);
+    mapBtn.classList.toggle('on', !arr.mapHidden);
+    card.classList.toggle('cam-open', camBox.isOpen);
 
     updatePin();
     for (const t of tiles.values()) t.update();
@@ -1038,7 +1890,12 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
   }
 
   store.on(() => update());
+  // Out of sight (the panel closed, the tablet asleep, another app in front): the camera stops.
+  document.addEventListener('visibilitychange', () => { if (document.hidden && camBox.isOpen) toggleCamera(); });
   window.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && closeConfirm()) return;
+    if (ev.key === 'Escape' && camBox.isOpen && !ui.sheet) { toggleCamera(); return; }
+    if (ev.key === 'Escape' && ui.editing) { setEditing(false); return; }
     if (ev.key === 'Escape' && !closeSheet() && !unpin()) onMenu(null, 'escape');
   });
 
@@ -1057,11 +1914,26 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
     closeSheet,
     /** Organizar o painel: order and visibility of shortcuts, rooms and devices. */
     organize() { openSheet({ kind: 'organize' }); },
+    /** Editar: drag, resize, flip, hide and tag the cards. */
+    edit() { closeSheet(); setEditing(true); },
     selectRoom,
     toggleLight,
+    /** A camera (its plan id) on, or off if it is the one on screen; no id: off. */
+    toggleCamera,
+    get cameraOpen() { return camBox.isOpen; },
     get room() { return ui.room; },
+    /** Where the room chips sit: "top" (above the list) or "bottom" (a menu at the foot). */
+    get roomsAt() { return arr.roomsAt; },
+    setRoomsAt(where) {
+      arr.roomsAt = where === 'bottom' ? 'bottom' : 'top';
+      saveArrangement(config.name, arr);
+      renderRooms();
+      showTab(ui.room, 'auto');
+    },
     setNotch(x) { card.style.setProperty('--notch-x', `${x}px`); },
     setAgentLive(live) { aiBadge.hidden = !live; },
+    /** Let go of the menu bar (Mac): no notch, dragged by the header. */
+    setDetached: showDetached,
     /** The stage and the controls moved (a Duo folded or opened): the controls settle in place. */
     relayout() {
       card.classList.remove('relayout');
@@ -1071,13 +1943,9 @@ export function createPanel(root, config, store, { onFocus, onMenu }) {
       card.relayoutTimer = setTimeout(() => card.classList.remove('relayout'), 600);
     },
     /** `ai`: something an AI assistant did (who, what), instead of an error. */
-    toast(text, ai = null) {
-      toastEl.replaceChildren(...(ai ? [h('span.toast-ai', icon('sparkles', 13, 2.2), ai), h('span', text)] : [text]));
-      toastEl.classList.toggle('ai', Boolean(ai));
-      toastEl.classList.add('show');
-      clearTimeout(toastEl.timer);
-      toastEl.timer = setTimeout(() => toastEl.classList.remove('show'), 3200);
-    },
+    toast: showToast,
+    /** A confirmation over the panel: { title, text, ok, danger }, then `onOk`. */
+    confirm: (opts, onOk) => askConfirm(opts, onOk),
     anchorMenu: clip,
   };
 }

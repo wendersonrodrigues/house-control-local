@@ -198,7 +198,12 @@ final class AppModel {
         case "welcome": showWelcome = true
         case "newhome": showNewHome = true
         case "home": break
-        default: showWelcome = !sandboxed && !UserDefaults.standard.bool(forKey: "welcomed")
+        default:
+            // HomeOs: no welcome tour; the first thing is connecting Home Assistant.
+            if !sandboxed, homeAssistantName == nil {
+                showSettings = true
+                settingsPath = [.homeAssistant]
+            }
         }
     }
 
@@ -209,7 +214,7 @@ final class AppModel {
         guard on != active else { return }
         active = on
         if on {
-            sync.start()
+            if Edition.phones { sync.start() } // the link to a Mac stays off in HomeOs
             startPolling()
             widgets.takeActions()
         } else {
@@ -263,6 +268,9 @@ final class AppModel {
             startPolling()
         case "command":
             hub.command(message) { [weak self] in self?.web.reply(to: message, $0) }
+        case "camera.access":
+            // The camera box plays live video through Home Assistant with its own socket.
+            web.reply(to: message, hub.homeAssistant.cameraAccess ?? ["error": "Conecte o Home Assistant para ver as câmeras."])
         case "widgets":
             widgets.publish(message)
         case "haptic":
@@ -278,9 +286,19 @@ final class AppModel {
     }
 
     private func reloadLinks() {
-        hub.setLinks(from: plans.activePlan == "custom" ? plans.customPlan() : nil)
+        hub.setLinks(from: plans.activePlan == "custom" ? plans.customPlan() : bundledLinkedPlan(plans.activePlan))
         linkedDevices = hub.linkedDeviceCount
     }
+
+    /// A bundled plan whose devices are real (the house's own, "homeos"), read from the app.
+    private func bundledLinkedPlan(_ id: String) -> [String: Any]? {
+        guard PlanStore.linkedBundled.contains(id),
+              let data = try? Data(contentsOf: HomeWeb.assetRoot.appendingPathComponent("plans/\(id).json")) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    /// The platforms this edition offers, as the editor shows them (Edition.platforms).
+    private var visibleServices: [String: Any] { hub.servicesInfo.filter { Edition.platforms.contains($0.key) } }
 
     /// Re-reads everything that depends on the plan and shows it.
     private func reloadHome() {
@@ -308,7 +326,7 @@ final class AppModel {
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         try plans.importPlan(from: url)
         reloadHome()
-        show(Banner(symbol: "checkmark.circle.fill", text: "Floor plan imported", tint: Theme.green))
+        show(Banner(symbol: "checkmark.circle.fill", text: "Planta importada", tint: Theme.green))
     }
 
     func removeCustomPlan() {
@@ -345,7 +363,7 @@ final class AppModel {
         do {
             try savePlan(plan)
         } catch {
-            show(Banner(symbol: "exclamationmark.triangle.fill", text: "Could not create the home", tint: Theme.red))
+            show(Banner(symbol: "exclamationmark.triangle.fill", text: "Não foi possível criar a casa", tint: Theme.red))
             return
         }
         showSettings = false
@@ -386,7 +404,7 @@ final class AppModel {
         boot["smartLife"] = hub.smartLife?.smartLifeInfo
         boot["tuya"] = hub.smartLife?.tuyaInfo
         #endif
-        boot["services"] = hub.servicesInfo
+        boot["services"] = visibleServices
         if let section = ProcessInfo.processInfo.environment["HOUSE_OPEN_EDITOR"] { boot["section"] = section }
         return boot
     }
@@ -404,7 +422,7 @@ final class AppModel {
                 switch homeKit {
                 case .off: connectHomeKit()
                 case .denied: if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                default: show(Banner(symbol: "homekit", text: "Apple Home is connected"))
+                default: show(Banner(symbol: "homekit", text: "Apple Home conectado"))
                 }
             } else {
                 editorSheet = SettingsRoute(service: service)
@@ -441,7 +459,7 @@ final class AppModel {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url), let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            web.reply(to: message, ["error": "This file is not a floor plan."])
+            web.reply(to: message, ["error": "Este arquivo não é uma planta."])
             return
         }
         web.reply(to: message, ["config": json])
@@ -456,14 +474,14 @@ final class AppModel {
 
     /// A connection screen opened from the editor was closed: the editor's lists follow.
     func editorSheetClosed() {
-        editorWeb?.call("servicesChanged", hub.servicesInfo)
+        editorWeb?.call("servicesChanged", visibleServices)
     }
 
     /// What the web editor asks of the platforms; the same calls the Mac answers.
     private func handleService(_ message: [String: Any], reply: @escaping ([String: Any]) -> Void) {
         switch message["type"] as? String {
         case "services.info":
-            reply(hub.servicesInfo)
+            reply(visibleServices)
         case "devices.all":
             Task { @MainActor in
                 let (devices, errors) = await hub.allDevices()
@@ -478,8 +496,9 @@ final class AppModel {
         case "homeassistant.connect":
             Task { @MainActor in
                 do {
-                    try await connectHomeAssistant(url: message["url"] as? String ?? "", token: message["token"] as? String ?? "")
-                    reply(hub.servicesInfo)
+                    try await connectHomeAssistant(url: message["url"] as? String ?? "", token: message["token"] as? String ?? "",
+                                                   external: message["external"] as? String)
+                    reply(visibleServices)
                 } catch {
                     reply(["error": error.localizedDescription])
                 }
@@ -553,7 +572,7 @@ final class AppModel {
         do {
             try savePlan(editor.plan)
         } catch {
-            show(Banner(symbol: "exclamationmark.triangle.fill", text: "Could not save the floor plan", tint: Theme.red))
+            show(Banner(symbol: "exclamationmark.triangle.fill", text: "Não foi possível salvar a planta", tint: Theme.red))
         }
     }
 
@@ -694,7 +713,7 @@ final class AppModel {
         do {
             try plans.saveCustom(data: data, select: first || plans.activePlan == "custom")
         } catch {
-            show(Banner(symbol: "exclamationmark.triangle.fill", text: "Could not save the floor plan", tint: Theme.red))
+            show(Banner(symbol: "exclamationmark.triangle.fill", text: "Não foi possível salvar a planta", tint: Theme.red))
             return
         }
         syncedRevision = PlanStore.revision(of: data)
@@ -712,7 +731,7 @@ final class AppModel {
         planChoice = nil
         if keepPhone {
             if let data = try? Data(contentsOf: plans.customPlanURL), sync.sendPlan(data) {
-                show(Banner(symbol: "arrow.up.circle.fill", text: "Sent to \(choice.macName)"))
+                show(Banner(symbol: "arrow.up.circle.fill", text: "Enviado para \(choice.macName)"))
             } else {
                 // Next time the Mac shows this plan unchanged, ours goes over.
                 syncedRevision = PlanStore.revision(of: choice.macPlan)
@@ -751,7 +770,7 @@ final class AppModel {
         smartLifeAccount = smartLife.account
         sync.showQR(nil)
         sync.sendConnections(hub.shareableConnections, userCode: smartLifeUserCode)
-        editorWeb?.call("servicesChanged", hub.servicesInfo)
+        editorWeb?.call("servicesChanged", visibleServices)
         Haptics.shared.play("success")
         startPolling()
         return true
@@ -771,8 +790,9 @@ final class AppModel {
 
     // MARK: - Home Assistant, Hue, Apple Home
 
-    func connectHomeAssistant(url: String, token: String) async throws {
-        try await hub.connectHomeAssistant(url: url, token: token)
+    /// `external`: the address used away from home when the local one does not answer.
+    func connectHomeAssistant(url: String, token: String, external: String? = nil) async throws {
+        try await hub.connectHomeAssistant(url: url, token: token, external: external)
         connectionsChanged()
         Haptics.shared.play("success")
     }
@@ -801,7 +821,7 @@ final class AppModel {
         startPolling()
         poll()
         sync.sendConnections(hub.shareableConnections, userCode: smartLifeUserCode)
-        editorWeb?.call("servicesChanged", hub.servicesInfo)
+        editorWeb?.call("servicesChanged", visibleServices)
     }
 
     var homeAssistantInfo: [String: Any] { hub.homeAssistant.info }
@@ -839,7 +859,7 @@ final class AppModel {
             refreshConnections()
             sendCatalog()
             startPolling()
-            editorWeb?.call("servicesChanged", hub.servicesInfo)
+            editorWeb?.call("servicesChanged", visibleServices)
             if case .ready = homeKit { Haptics.shared.play("success") }
         }
     }

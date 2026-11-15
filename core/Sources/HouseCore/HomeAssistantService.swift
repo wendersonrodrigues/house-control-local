@@ -64,6 +64,15 @@ public final class HomeAssistantService: DeviceService {
                 "external": config.external ?? ""]
     }
 
+    /// For the panel's camera box (web/src/camera/): the page plays a camera's live video with
+    /// a WebSocket of its own (WebRTC signalling), so it gets the addresses, the one that
+    /// answered last first, and the token. Only asked when a camera opens, by our own page.
+    public var cameraAccess: [String: Any]? {
+        guard let config else { return nil }
+        let urls = Self.addresses(config, active: active, localDue: false)
+        return ["urls": urls, "url": urls.first ?? config.url, "token": config.token]
+    }
+
     // MARK: - Connecting
 
     /// Checks the address and the token, then keeps them. `external` is optional: the address
@@ -252,6 +261,7 @@ public final class HomeAssistantService: DeviceService {
         let attributes = state["attributes"] as? [String: Any] ?? [:]
         var reading = DeviceReading(online: !["unavailable", "unknown"].contains(value))
         guard reading.online else { return reading }
+        reading.changedAt = (state["last_changed"] as? String).flatMap(Self.time)
 
         if id.hasPrefix("light.") || id.hasPrefix("switch.") {
             var light: [String: Any] = ["on": value == "on"]
@@ -312,6 +322,15 @@ public final class HomeAssistantService: DeviceService {
             reading.temperature = (attributes["unit_of_measurement"] as? String) == "°F" ? (t - 32) * 5 / 9 : t
         }
         return reading
+    }
+
+    /// "2026-11-12T17:02:31.123456+00:00" → ms since 1970.
+    static func time(_ text: String) -> Double? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: text) { return (d.timeIntervalSince1970 * 1000).rounded() }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: text).map { ($0.timeIntervalSince1970 * 1000).rounded() }
     }
 
     struct Call {
@@ -548,6 +567,78 @@ public final class HomeAssistantService: DeviceService {
                 _ = try? await self.request("GET", "/api/")
                 guard !Task.isCancelled else { return }
                 self.listen()
+            }
+        }
+    }
+
+    // MARK: - HomeOs: the plan kept in Home Assistant
+
+    /// The hidden dashboard whose config holds the plan (and the cards' arrangement) sent from
+    /// the Mac: the HA edition (/local/homeos/) reads it from there, so a change made in the
+    /// Mac's editor reaches the iPad without building or copying anything.
+    public static let homeOsDashboard = "homeos-dados"
+
+    /// Sends `plan` and `arrangement` to Home Assistant, creating the hidden dashboard the first
+    /// time. Needs a token of an administrator (creating and saving dashboards).
+    public func publishHomeOs(plan: [String: Any], arrangement: [String: Any]?, from device: String) async throws {
+        try await withSocket { ask in
+            let boards = try await ask(["type": "lovelace/dashboards/list"]) as? [[String: Any]] ?? []
+            if !boards.contains(where: { $0["url_path"] as? String == Self.homeOsDashboard }) {
+                _ = try await ask(["type": "lovelace/dashboards/create", "url_path": Self.homeOsDashboard,
+                                   "title": "HomeOs (dados)", "icon": "mdi:home-export-outline",
+                                   "show_in_sidebar": false, "require_admin": false])
+            }
+            var data: [String: Any] = ["version": 1, "savedAt": Int(Date().timeIntervalSince1970 * 1000), "from": device, "plan": plan]
+            if let arrangement { data["arrangement"] = arrangement }
+            let note = "Esta página guarda a planta e a organização dos cartões do **HomeOs**, enviadas pelo app do Mac "
+                + "(menu do painel → Enviar para o Home Assistant). O painel HomeOs lê daqui. Não precisa abrir nem editar."
+            _ = try await ask(["type": "lovelace/config/save", "url_path": Self.homeOsDashboard, "config": [
+                "title": "HomeOs (dados)", "homeos": data,
+                "views": [["title": "HomeOs", "path": "dados", "cards": [["type": "markdown", "content": note]]]],
+            ]])
+        }
+    }
+
+    /// Runs WebSocket commands on a connection of their own (the live one only listens): `body`
+    /// gets `ask`, which sends one command and returns its result, or throws what HA said.
+    private func withSocket<T>(_ body: (_ ask: ([String: Any]) async throws -> Any?) async throws -> T) async throws -> T {
+        guard let config else { throw ServiceFailure("Conecte o Home Assistant primeiro") }
+        _ = try await request("GET", "/api/") // finds the address that answers (home or away)
+        guard var parts = URLComponents(string: (active ?? config.url) + "/api/websocket") else {
+            throw ServiceFailure("Endereço do Home Assistant inválido")
+        }
+        parts.scheme = parts.scheme == "https" ? "wss" : "ws"
+        guard let url = parts.url else { throw ServiceFailure("Endereço do Home Assistant inválido") }
+        let task = session.webSocketTask(with: url)
+        task.maximumMessageSize = 16 << 20
+        task.resume()
+        defer { task.cancel(with: .goingAway, reason: nil) }
+        func object() async throws -> [String: Any] {
+            guard case .string(let text) = try await task.receive(),
+                  let object = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else { return [:] }
+            return object
+        }
+        _ = try await object() // auth_required
+        try await task.send(.string(Self.json(["type": "auth", "access_token": config.token])))
+        guard try await object()["type"] as? String == "auth_ok" else {
+            throw ServiceFailure("O Home Assistant recusou o token. Crie um novo token de acesso de longa duração e conecte de novo.")
+        }
+        var nextId = 1
+        return try await body { command in
+            let id = nextId
+            nextId += 1
+            var message = command
+            message["id"] = id
+            try await task.send(.string(Self.json(message)))
+            while true {
+                let reply = try await object()
+                guard reply["id"] as? Int == id, reply["type"] as? String == "result" else { continue }
+                if reply["success"] as? Bool == true { return reply["result"] }
+                let error = reply["error"] as? [String: Any]
+                if error?["code"] as? String == "unauthorized" {
+                    throw ServiceFailure("O token não é de um administrador do Home Assistant (é preciso para criar e salvar o painel de dados).")
+                }
+                throw ServiceFailure("O Home Assistant recusou: \(error?["message"] as? String ?? "erro desconhecido")")
             }
         }
     }

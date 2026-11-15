@@ -192,9 +192,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(withTitle: "Mostrar arquivo da planta", action: #selector(revealPlan), keyEquivalent: "").target = self
             menu.addItem(withTitle: "Mostrar registro dos dispositivos", action: #selector(revealLog), keyEquivalent: "").target = self
             menu.addItem(.separator())
-            let islandItem = menu.addItem(withTitle: "Mostrar a Ilha", action: #selector(toggleIsland), keyEquivalent: "")
-            islandItem.target = self
-            islandItem.state = island?.isShown == true ? .on : .off
+            if Edition.island {
+                let islandItem = menu.addItem(withTitle: "Mostrar a Ilha", action: #selector(toggleIsland), keyEquivalent: "")
+                islandItem.target = self
+                islandItem.state = island?.isShown == true ? .on : .off
+            }
             let login = LoginItem.state
             let loginItem = menu.addItem(withTitle: login == .needsApproval ? "Abrir ao iniciar sessão — permitir nos Ajustes…" : "Abrir ao iniciar sessão",
                                          action: #selector(toggleOpenAtLogin), keyEquivalent: "")
@@ -254,6 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default: break
         }
         boot["agentLive"] = agent.isLive
+        boot["detached"] = UserDefaults.standard.bool(forKey: "panelDetached")
         boot["openAtLogin"] = LoginItem.state.rawValue
         // HOUSE_OPEN_DEVICE=<id> starts the panel on that light's or AC's detail sheet.
         if let device = ProcessInfo.processInfo.environment["HOUSE_OPEN_DEVICE"] { boot["openDevice"] = device }
@@ -395,10 +398,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for other in [panel.host, island?.host] where other !== host { other?.call("adopt", state) }
         case "command":
             hub.command(message) { [weak host] in host?.reply(to: message, $0) }
+        case "camera.access":
+            // The camera box plays live video through Home Assistant with its own socket.
+            host.reply(to: message, hub.homeAssistant.cameraAccess ?? ["error": "Conecte o Home Assistant para ver as câmeras."])
         case "widgets":
             if host === panel.host { widgets.publish(message) }
         case "close":
             panel.hide()
+        case "setDetached":
+            panel.setDetached(message["on"] as? Bool ?? false, below: statusItem.button)
+        case "moveWindow":
+            if host === panel.host {
+                panel.move(by: CGFloat((message["dx"] as? NSNumber)?.doubleValue ?? 0), CGFloat((message["dy"] as? NSNumber)?.doubleValue ?? 0))
+            }
         case "selectPlan":
             if let plan = message["plan"] as? String {
                 plans.select(plan)
@@ -411,6 +423,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "openEditor": openEditor()
         case "openSettings": showSettings()
         case "quit": NSApp.terminate(nil)
+        case "sendToHA":
+            // The plan in view and how its cards are arranged here, kept in Home Assistant for
+            // the HA edition (the iPad) to read.
+            guard let plan = message["plan"] as? [String: Any] else { return }
+            Task { @MainActor in
+                do {
+                    try await hub.homeAssistant.publishHomeOs(plan: plan, arrangement: message["arrangement"] as? [String: Any],
+                                                              from: Host.current().localizedName ?? "Mac")
+                    host.reply(to: message, ["ok": true])
+                } catch {
+                    host.reply(to: message, ["error": error.localizedDescription])
+                }
+            }
         case "setOpenAtLogin": setOpenAtLogin(message["on"] as? Bool ?? false)
 
         // Editor
@@ -571,6 +596,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// On unless switched off in the menu (or by HOUSE_ISLAND=0 for one run).
     private var islandEnabled: Bool {
         if let forced = ProcessInfo.processInfo.environment["HOUSE_ISLAND"] { return forced != "0" }
+        guard Edition.island else { return false }
         return UserDefaults.standard.object(forKey: "island") as? Bool ?? true
     }
 

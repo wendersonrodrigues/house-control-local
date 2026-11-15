@@ -1,185 +1,775 @@
 {
-  "version": 1,
-  "name": "Casa",
-  "wallHeight": 2.8,
-  "interiorWallHeight": 1.25,
-  "camera": {
-    "azimuth": 8,
-    "elevation": 52
-  },
-  "outdoorTemp": 28,
-  "rooms": [
+  "acs": [
     {
-      "id": "garagem",
-      "name": "Garagem",
-      "rect": [
-        0,
-        3.55,
-        6.6,
-        4.95
+      "id": "sala.ar",
+      "link": {
+        "id": "climate.central_sala",
+        "service": "homeassistant"
+      },
+      "max": 32,
+      "min": 16,
+      "name": "Ar da Sala",
+      "pos": [
+        11.1,
+        0
       ],
-      "floor": "stone"
+      "room": "sala",
+      "wall": "north",
+      "y": 2.3
     },
     {
-      "id": "sala",
-      "name": "Sala de estar",
-      "rect": [
-        6.6,
-        0,
-        5.9,
-        4.7
+      "id": "suite.ar",
+      "link": {
+        "id": "climate.central_quarto",
+        "service": "homeassistant"
+      },
+      "max": 32,
+      "min": 16,
+      "name": "Ar do Quarto",
+      "pos": [
+        22.8,
+        8.5
       ],
-      "floor": "tile"
-    },
-    {
-      "id": "office",
-      "name": "Home Office",
-      "rect": [
-        12.5,
-        0,
-        3.85,
-        3.45
-      ],
-      "floor": "walnut"
-    },
-    {
-      "id": "passagem",
-      "name": "Passagem",
-      "rect": [
-        12.5,
-        3.45,
-        3.85,
-        1.25
-      ],
-      "floor": "tile"
-    },
-    {
-      "id": "cozinha",
-      "name": "Cozinha",
-      "rect": [
-        16.35,
-        0,
-        7.5,
-        4.7
-      ],
-      "floor": "tile"
-    },
-    {
-      "id": "quarto",
-      "name": "Quarto Stella",
-      "rect": [
-        6.6,
-        4.7,
-        4.05,
-        3.8
-      ],
-      "floor": "oak"
-    },
-    {
-      "id": "circulacao",
-      "name": "Circulação",
-      "rect": [
-        10.65,
-        4.7,
-        4.3,
-        1.2
-      ],
-      "floor": "tile"
-    },
-    {
-      "id": "banheiro",
-      "name": "Banheiro",
-      "rect": [
-        10.65,
-        5.9,
-        1.8,
-        2.6
-      ],
-      "floor": "tile"
-    },
-    {
-      "id": "banho_suite",
-      "name": "Banheiro suíte",
-      "rect": [
-        12.45,
-        5.9,
-        2.5,
-        2.6
-      ],
-      "floor": "tile"
-    },
-    {
-      "id": "closet",
-      "name": "Closet",
-      "rect": [
-        14.95,
-        4.7,
-        4.0,
-        3.8
-      ],
-      "floor": "oak"
-    },
-    {
-      "id": "suite",
-      "name": "Suíte",
-      "rect": [
-        18.95,
-        4.7,
-        4.9,
-        3.8
-      ],
-      "floor": "oak"
-    },
-    {
-      "id": "corredor",
-      "name": "Corredor",
-      "rect": [
-        6.6,
-        8.5,
-        17.25,
-        1.3
-      ],
-      "floor": "stone",
-      "outdoor": true
-    },
-    {
-      "id": "quintal",
-      "name": "Quintal",
-      "rect": [
-        23.85,
-        0,
-        4.0,
-        9.8
-      ],
-      "floor": "stone",
-      "outdoor": true
+      "room": "suite",
+      "wall": "south",
+      "y": 2.3
     }
   ],
+  "camera": {
+    "azimuth": 71,
+    "elevation": 30,
+    "pan": [
+      1.41,
+      -1.13
+    ],
+    "zoom": 0.48
+  },
+  "cameras": [
+    {
+      "id": "cam.garagem",
+      "link": {
+        "id": "camera.garagem",
+        "service": "homeassistant"
+      },
+      "name": "Garagem",
+      "room": "garagem"
+    },
+    {
+      "id": "cam.frente",
+      "link": {
+        "id": "camera.frente",
+        "service": "homeassistant"
+      },
+      "name": "Frente",
+      "ptz": true,
+      "room": "garagem"
+    },
+    {
+      "id": "cam.sala",
+      "link": {
+        "id": "camera.sala",
+        "service": "homeassistant"
+      },
+      "name": "Sala",
+      "ptz": true,
+      "room": "sala"
+    },
+    {
+      "id": "cam.cozinha",
+      "link": {
+        "id": "camera.cozinha",
+        "service": "homeassistant"
+      },
+      "name": "Cozinha",
+      "room": "cozinha"
+    },
+    {
+      "id": "cam.corredor",
+      "link": {
+        "id": "camera.corredor",
+        "service": "homeassistant"
+      },
+      "name": "Corredor",
+      "room": "corredor"
+    },
+    {
+      "id": "cam.quintal",
+      "link": {
+        "id": "camera.quintal",
+        "service": "homeassistant"
+      },
+      "name": "Quintal",
+      "room": "quintal"
+    }
+  ],
+  "furniture": [
+    {
+      "color": "#3a3433",
+      "pos": [
+        9.5,
+        1.7
+      ],
+      "rot": 90,
+      "type": "sofa",
+      "width": 2.6
+    },
+    {
+      "color": "#d9d4cc",
+      "pos": [
+        10.95,
+        1.7
+      ],
+      "size": [
+        1.9,
+        2.6
+      ],
+      "type": "rug"
+    },
+    {
+      "pos": [
+        12.25,
+        1.75
+      ],
+      "rot": -90,
+      "type": "sideboard",
+      "width": 2.4
+    },
+    {
+      "height": 1.3,
+      "pos": [
+        7,
+        0.4
+      ],
+      "type": "plant"
+    },
+    {
+      "pos": [
+        12.9,
+        1.7
+      ],
+      "rot": 90,
+      "type": "desk",
+      "width": 1.8
+    },
+    {
+      "height": 2,
+      "pos": [
+        16.05,
+        2.7
+      ],
+      "rot": -90,
+      "type": "bookshelf",
+      "width": 1.2
+    },
+    {
+      "chairs": 6,
+      "pos": [
+        18.2,
+        2.05
+      ],
+      "rot": 90,
+      "type": "diningSet",
+      "width": 1.8
+    },
+    {
+      "pos": [
+        22,
+        0.36
+      ],
+      "type": "kitchen",
+      "upper": true,
+      "width": 3.6
+    },
+    {
+      "pos": [
+        23.49,
+        1.6
+      ],
+      "rot": -90,
+      "type": "kitchen",
+      "upper": false,
+      "width": 1.9
+    },
+    {
+      "pos": [
+        23.35,
+        2.98
+      ],
+      "rot": -90,
+      "type": "fridge"
+    },
+    {
+      "pos": [
+        21.7,
+        2.4
+      ],
+      "rot": -90,
+      "stools": 2,
+      "type": "island",
+      "width": 1.8
+    },
+    {
+      "color": "#c9a6b6",
+      "pos": [
+        9.35,
+        7.75
+      ],
+      "rot": -90,
+      "type": "bed",
+      "width": 1
+    },
+    {
+      "height": 2.1,
+      "pos": [
+        8.1,
+        5.15
+      ],
+      "type": "wardrobe",
+      "width": 2.4
+    },
+    {
+      "pos": [
+        6.9,
+        7.25
+      ],
+      "rot": 90,
+      "type": "bookshelf",
+      "width": 1
+    },
+    {
+      "pos": [
+        12,
+        7.35
+      ],
+      "rot": 270,
+      "type": "toilet"
+    },
+    {
+      "pos": [
+        12.1,
+        6.55
+      ],
+      "rot": -90,
+      "type": "vanity"
+    },
+    {
+      "pos": [
+        14.5,
+        8.15
+      ],
+      "rot": 180,
+      "type": "toilet"
+    },
+    {
+      "pos": [
+        12.75,
+        6.5
+      ],
+      "rot": 90,
+      "type": "vanity"
+    },
+    {
+      "height": 2.2,
+      "pos": [
+        17.15,
+        8.1
+      ],
+      "rot": 180,
+      "type": "wardrobe",
+      "width": 3.4
+    },
+    {
+      "color": "#d8cbb8",
+      "pos": [
+        22.6,
+        6.65
+      ],
+      "rot": -90,
+      "type": "bed",
+      "width": 1.8
+    },
+    {
+      "pos": [
+        23.5,
+        5.4
+      ],
+      "rot": -90,
+      "type": "nightstand"
+    },
+    {
+      "pos": [
+        23.5,
+        7.9
+      ],
+      "rot": -90,
+      "type": "nightstand"
+    },
+    {
+      "pos": [
+        19.25,
+        7.35
+      ],
+      "rot": 90,
+      "type": "tv",
+      "width": 1.4
+    },
+    {
+      "height": 1.6,
+      "pos": [
+        28.75,
+        1.25
+      ],
+      "type": "plant"
+    },
+    {
+      "height": 1.2,
+      "pos": [
+        28.75,
+        0.55
+      ],
+      "type": "plant"
+    },
+    {
+      "pos": [
+        18.55,
+        7.1
+      ],
+      "rot": 270,
+      "type": "wardrobe"
+    },
+    {
+      "pos": [
+        13,
+        0.5
+      ],
+      "rot": 90,
+      "type": "nightstand"
+    },
+    {
+      "pos": [
+        3.05,
+        6.35
+      ],
+      "rot": 270,
+      "type": "car",
+      "width": -0.1
+    }
+  ],
+  "gates": [
+    {
+      "from": [
+        0,
+        3.55
+      ],
+      "height": 2.2,
+      "id": "portao",
+      "link": {
+        "id": "cover.portao_garagem",
+        "service": "homeassistant"
+      },
+      "name": "Portão",
+      "slide": "to",
+      "to": [
+        0,
+        6.75
+      ],
+      "travel": 7,
+      "travelMode": "manual"
+    }
+  ],
+  "interiorWallHeight": 1.3,
+  "lights": [
+    {
+      "capabilities": [],
+      "id": "sala.central1",
+      "link": {
+        "id": "light.sala_de_estar_luz_central_1",
+        "service": "homeassistant"
+      },
+      "name": "Central 1",
+      "pos": [
+        8.45,
+        2.25
+      ],
+      "power": 0.3,
+      "room": "sala",
+      "shape": "square",
+      "type": "ceiling"
+    },
+    {
+      "capabilities": [],
+      "id": "sala.central2",
+      "link": {
+        "id": "light.sala_de_estar_luz_central_2",
+        "service": "homeassistant"
+      },
+      "name": "Central 2",
+      "pos": [
+        10.1,
+        2.2
+      ],
+      "power": 0.3,
+      "room": "sala",
+      "shape": "square",
+      "type": "ceiling"
+    },
+    {
+      "capabilities": [],
+      "id": "sala.spots",
+      "link": {
+        "id": "light.sala_de_estar_spots_da_sala",
+        "service": "homeassistant"
+      },
+      "name": "Spots",
+      "pos": [
+        7.05,
+        1.75
+      ],
+      "power": 0.1,
+      "room": "sala",
+      "rot": 90,
+      "spacing": 0.8,
+      "type": "spots"
+    },
+    {
+      "capabilities": [],
+      "id": "sala.cortina",
+      "length": 2,
+      "link": {
+        "id": "light.sala_cortina",
+        "service": "homeassistant"
+      },
+      "name": "Cortina",
+      "pos": [
+        9.55,
+        0.35
+      ],
+      "power": 0.2,
+      "room": "sala",
+      "rot": 180,
+      "type": "strip",
+      "use": "ceiling",
+      "y": 2.8
+    },
+    {
+      "capabilities": [],
+      "corner": 4.6,
+      "id": "sala.principal",
+      "length": 2.5,
+      "link": {
+        "id": "light.sala_principal",
+        "service": "homeassistant"
+      },
+      "name": "Principal",
+      "pos": [
+        11.25,
+        2.58
+      ],
+      "room": "sala",
+      "rot": 270,
+      "type": "strip",
+      "use": "ceiling",
+      "y": 2.8
+    },
+    {
+      "capabilities": [],
+      "id": "sala.movel",
+      "length": 1.2,
+      "link": {
+        "id": "light.sala_de_estar_luz_do_movel",
+        "service": "homeassistant"
+      },
+      "name": "Móvel",
+      "pos": [
+        12.4,
+        1.65
+      ],
+      "power": 0.1,
+      "room": "sala",
+      "rot": 90,
+      "type": "strip",
+      "y": 1.25
+    },
+    {
+      "capabilities": [],
+      "id": "cozinha.spots",
+      "link": {
+        "id": "light.cozinha_spots",
+        "service": "homeassistant"
+      },
+      "name": "Spots",
+      "pos": [
+        22.35,
+        0.95
+      ],
+      "power": 0.6,
+      "room": "cozinha",
+      "spacing": 0.7,
+      "type": "spots"
+    },
+    {
+      "beam": 175,
+      "capabilities": [],
+      "id": "garagem.luz",
+      "link": {
+        "id": "light.garagem",
+        "service": "homeassistant"
+      },
+      "name": "Garagem",
+      "pos": [
+        3.75,
+        6.35
+      ],
+      "room": "garagem",
+      "rot": 270,
+      "tilt": 80,
+      "type": "ceiling"
+    },
+    {
+      "beam": 120,
+      "capabilities": [],
+      "id": "corredor.luz",
+      "link": {
+        "id": "light.corredor",
+        "service": "homeassistant"
+      },
+      "name": "Corredor",
+      "pos": [
+        6.85,
+        9.15
+      ],
+      "room": "corredor",
+      "rot": 90,
+      "tilt": 60,
+      "type": "flood"
+    },
+    {
+      "capabilities": [],
+      "id": "quintal.luz",
+      "link": {
+        "id": "light.quintal",
+        "service": "homeassistant"
+      },
+      "name": "Quintal",
+      "pos": [
+        24.05,
+        3.05
+      ],
+      "power": 0.5,
+      "room": "quintal",
+      "rot": 90,
+      "type": "flood",
+      "y": 2.8
+    },
+    {
+      "capabilities": [],
+      "count": 2,
+      "id": "cozinha.light",
+      "name": "Spots Cozinha 2",
+      "pos": [
+        23.1,
+        1.85
+      ],
+      "power": 0.6,
+      "room": "cozinha",
+      "rot": 90,
+      "spacing": 0.7,
+      "type": "spots",
+      "with": "cozinha.spots"
+    },
+    {
+      "capabilities": [],
+      "corner": 2,
+      "id": "cozinha.light2",
+      "length": 2.2,
+      "link": {
+        "id": "light.cozinha_bancada",
+        "service": "homeassistant"
+      },
+      "name": "LED Cozinha",
+      "pos": [
+        22,
+        2.75
+      ],
+      "room": "cozinha",
+      "rot": -90,
+      "type": "strip",
+      "use": "ceiling",
+      "y": 2.7
+    },
+    {
+      "capabilities": [],
+      "corner": 2.3,
+      "id": "cozinha.light3",
+      "length": 2.2,
+      "link": {
+        "id": "light.cozinha_mesa",
+        "service": "homeassistant"
+      },
+      "name": "Led  Mesa de Jantar",
+      "pos": [
+        17.8,
+        2.05
+      ],
+      "room": "cozinha",
+      "rot": -270,
+      "type": "strip",
+      "use": "ceiling",
+      "y": 1.9
+    },
+    {
+      "capabilities": [],
+      "id": "office.centro",
+      "link": {
+        "id": "light.home_office_centro",
+        "service": "homeassistant"
+      },
+      "name": "Centro",
+      "pos": [
+        14.45,
+        1.8
+      ],
+      "power": 0.5,
+      "room": "office",
+      "shape": "square",
+      "type": "ceiling"
+    },
+    {
+      "capabilities": [],
+      "count": 3,
+      "id": "office.spots",
+      "link": {
+        "id": "light.home_office_spots",
+        "service": "homeassistant"
+      },
+      "name": "Spots",
+      "pos": [
+        15.85,
+        1.5
+      ],
+      "room": "office",
+      "rot": 90,
+      "spacing": 0.8,
+      "type": "spots"
+    },
+    {
+      "capabilities": [],
+      "corner": 1.5,
+      "id": "office.led",
+      "length": 1.8,
+      "link": {
+        "id": "light.home_office_led",
+        "service": "homeassistant"
+      },
+      "name": "LED",
+      "pos": [
+        13.1,
+        1.4
+      ],
+      "room": "office",
+      "rot": -270,
+      "type": "strip",
+      "use": "ceiling",
+      "y": 2.6
+    },
+    {
+      "capabilities": [],
+      "corner": 2.3,
+      "id": "suite.led",
+      "length": 1.9,
+      "link": {
+        "id": "light.suite_led",
+        "service": "homeassistant"
+      },
+      "name": "LED",
+      "pos": [
+        20.25,
+        6.2
+      ],
+      "room": "suite",
+      "rot": 90,
+      "type": "strip",
+      "use": "ceiling",
+      "y": 2.35
+    },
+    {
+      "capabilities": [],
+      "id": "suite.centro",
+      "link": {
+        "id": "light.suite_centro",
+        "service": "homeassistant"
+      },
+      "name": "Centro",
+      "pos": [
+        22,
+        6.6
+      ],
+      "power": 0.5,
+      "room": "suite",
+      "shape": "square",
+      "type": "ceiling"
+    },
+    {
+      "capabilities": [],
+      "id": "circulacao.centro",
+      "link": {
+        "id": "light.circulacao_centro",
+        "service": "homeassistant"
+      },
+      "name": "Centro",
+      "pos": [
+        13.65,
+        4.65
+      ],
+      "power": 0.5,
+      "room": "passagem",
+      "shape": "square",
+      "type": "ceiling"
+    },
+    {
+      "capabilities": [],
+      "id": "circulacao.led",
+      "length": 3.5,
+      "link": {
+        "id": "light.circulacao_led",
+        "service": "homeassistant"
+      },
+      "name": "LED",
+      "pos": [
+        12.85,
+        5.6
+      ],
+      "room": "circulacao",
+      "type": "strip",
+      "use": "ceiling",
+      "y": 2.6
+    }
+  ],
+  "name": "Casa",
   "openings": [
     {
-      "type": "door",
       "from": [
-        0,
-        3.65
+        -0.3,
+        3.45
       ],
       "to": [
-        0,
-        6.15
-      ]
+        -0.3,
+        6.65
+      ],
+      "type": "door"
     },
     {
-      "type": "door",
       "from": [
         6.6,
-        3.65
+        3.25
       ],
       "to": [
         6.6,
-        4.6
-      ]
+        4.65
+      ],
+      "type": "door"
     },
     {
-      "type": "door",
       "from": [
         14.25,
         3.45
@@ -187,10 +777,10 @@
       "to": [
         15.05,
         3.45
-      ]
+      ],
+      "type": "door"
     },
     {
-      "type": "open",
       "from": [
         12.5,
         3.45
@@ -198,10 +788,10 @@
       "to": [
         12.5,
         4.7
-      ]
+      ],
+      "type": "open"
     },
     {
-      "type": "open",
       "from": [
         16.35,
         3.45
@@ -209,10 +799,10 @@
       "to": [
         16.35,
         4.7
-      ]
+      ],
+      "type": "open"
     },
     {
-      "type": "open",
       "from": [
         12.7,
         4.7
@@ -220,10 +810,10 @@
       "to": [
         14.95,
         4.7
-      ]
+      ],
+      "type": "open"
     },
     {
-      "type": "door",
       "from": [
         10.65,
         4.9
@@ -231,21 +821,21 @@
       "to": [
         10.65,
         5.75
-      ]
+      ],
+      "type": "door"
     },
     {
-      "type": "door",
       "from": [
-        11.3,
+        10.85,
         5.9
       ],
       "to": [
-        12.05,
+        11.6,
         5.9
-      ]
+      ],
+      "type": "door"
     },
     {
-      "type": "door",
       "from": [
         14.95,
         4.9
@@ -253,21 +843,21 @@
       "to": [
         14.95,
         5.75
-      ]
+      ],
+      "type": "door"
     },
     {
-      "type": "door",
       "from": [
         14.95,
-        6.15
+        6.1
       ],
       "to": [
         14.95,
-        7.05
-      ]
+        6.8
+      ],
+      "type": "door"
     },
     {
-      "type": "open",
       "from": [
         18.95,
         4.75
@@ -275,21 +865,21 @@
       "to": [
         18.95,
         6.1
-      ]
+      ],
+      "type": "open"
     },
     {
-      "type": "door",
       "from": [
         23.85,
-        3.4
+        3.6
       ],
       "to": [
         23.85,
-        4.2
-      ]
+        4.4
+      ],
+      "type": "door"
     },
     {
-      "type": "open",
       "from": [
         23.85,
         8.5
@@ -297,861 +887,467 @@
       "to": [
         23.85,
         9.8
-      ]
+      ],
+      "type": "open"
     },
     {
-      "type": "window",
       "from": [
-        8.85,
+        8.65,
         0
       ],
-      "to": [
-        10.15,
-        0
-      ],
+      "head": 2.2,
       "sill": 0.9,
-      "head": 2.2
+      "to": [
+        10.4,
+        0
+      ],
+      "type": "window"
     },
     {
-      "type": "window",
       "from": [
         13.9,
         0
       ],
+      "head": 2.2,
+      "sill": 0.9,
       "to": [
         15.1,
         0
       ],
-      "sill": 0.9,
-      "head": 2.2
+      "type": "window"
     },
     {
-      "type": "window",
       "from": [
-        17.8,
+        17.5,
         0
       ],
-      "to": [
-        19.2,
-        0
-      ],
+      "head": 2.25,
       "sill": 0.9,
-      "head": 2.2
+      "to": [
+        19.4,
+        0
+      ],
+      "type": "window"
     },
     {
-      "type": "window",
       "from": [
         23.85,
         0.7
       ],
+      "head": 2.2,
+      "sill": 1.1,
       "to": [
         23.85,
-        2.05
+        2.45
       ],
-      "sill": 1.1,
-      "head": 2.2
+      "type": "window"
     },
     {
-      "type": "window",
       "from": [
         8.35,
         8.5
       ],
+      "head": 2.2,
+      "sill": 0.9,
       "to": [
         9.65,
         8.5
       ],
-      "sill": 0.9,
-      "head": 2.2
+      "type": "window"
     },
     {
-      "type": "window",
       "from": [
-        11.5,
+        11.2,
         8.5
       ],
-      "to": [
-        12.15,
-        8.5
-      ],
+      "head": 2.1,
       "sill": 1.6,
-      "head": 2.1
+      "to": [
+        11.85,
+        8.5
+      ],
+      "type": "window"
     },
     {
-      "type": "window",
       "from": [
-        13.6,
+        13.25,
         8.5
       ],
-      "to": [
-        14.4,
-        8.5
-      ],
+      "head": 2.1,
       "sill": 1.6,
-      "head": 2.1
+      "to": [
+        14,
+        8.5
+      ],
+      "type": "window"
     },
     {
-      "type": "window",
       "from": [
         16.45,
         8.5
       ],
+      "head": 2.2,
+      "sill": 1.6,
       "to": [
         17.55,
         8.5
       ],
-      "sill": 0.9,
-      "head": 2.2
+      "type": "window"
     },
     {
-      "type": "window",
       "from": [
-        20.9,
+        20,
         8.5
       ],
+      "head": 2.2,
+      "sill": 0.9,
       "to": [
         21.9,
         8.5
       ],
-      "sill": 0.9,
-      "head": 2.2
+      "type": "window"
+    },
+    {
+      "from": [
+        6.6,
+        8.55
+      ],
+      "to": [
+        6.6,
+        9.85
+      ],
+      "type": "open"
     }
   ],
-  "furniture": [
+  "outdoorTemp": 28,
+  "rooms": [
     {
-      "type": "sofa",
-      "pos": [
-        9.6,
-        1.9
+      "camera": {
+        "azimuth": 45,
+        "elevation": 29,
+        "pan": [
+          -2.07,
+          -1.4
+        ],
+        "zoom": 0.69
+      },
+      "floor": "cement",
+      "id": "garagem",
+      "name": "Garagem",
+      "outdoor": true,
+      "rect": [
+        -0.3,
+        3.2,
+        6.9,
+        6.6
       ],
-      "rot": 90,
-      "width": 2.6,
-      "color": "#3a3433"
-    },
-    {
-      "type": "rug",
-      "pos": [
-        10.9,
-        2.2
-      ],
-      "size": [
-        1.9,
-        2.6
-      ],
-      "color": "#d9d4cc"
-    },
-    {
-      "type": "sideboard",
-      "pos": [
-        12.2,
-        2.2
-      ],
-      "rot": -90,
-      "width": 2.4
-    },
-    {
-      "type": "plant",
-      "pos": [
-        7.0,
-        0.5
-      ],
-      "height": 1.3
-    },
-    {
-      "type": "desk",
-      "pos": [
-        12.85,
-        1.3
-      ],
-      "rot": 90,
-      "width": 1.8
-    },
-    {
-      "type": "bookshelf",
-      "pos": [
-        16.05,
-        1.6
-      ],
-      "rot": -90,
-      "width": 1.2,
-      "height": 2.0
-    },
-    {
-      "type": "diningSet",
-      "pos": [
-        18.4,
-        2.0
-      ],
-      "rot": 90,
-      "width": 1.8,
-      "chairs": 6
-    },
-    {
-      "type": "kitchen",
-      "pos": [
-        21.6,
-        0.31
-      ],
-      "width": 3.6,
-      "upper": true
-    },
-    {
-      "type": "kitchen",
-      "pos": [
-        23.54,
-        1.6
-      ],
-      "rot": -90,
-      "width": 1.6,
-      "upper": false
-    },
-    {
-      "type": "fridge",
-      "pos": [
-        19.75,
-        0.38
+      "roof": [
+        1.8,
+        3.2,
+        4.8,
+        6.6
       ]
     },
     {
-      "type": "island",
-      "pos": [
-        21.9,
-        2.4
-      ],
-      "rot": 90,
-      "width": 1.8,
-      "stools": 2
-    },
-    {
-      "type": "bed",
-      "pos": [
-        8.6,
-        7.4
-      ],
-      "rot": 180,
-      "width": 1.0,
-      "color": "#c9a6b6"
-    },
-    {
-      "type": "wardrobe",
-      "pos": [
-        8.1,
-        5.0
-      ],
-      "width": 2.4,
-      "height": 2.1
-    },
-    {
-      "type": "bookshelf",
-      "pos": [
-        10.3,
-        7.2
-      ],
-      "rot": -90,
-      "width": 1.0
-    },
-    {
-      "type": "toilet",
-      "pos": [
-        11.9,
-        8.15
-      ],
-      "rot": 180
-    },
-    {
-      "type": "vanity",
-      "pos": [
-        11.0,
-        6.2
-      ],
-      "rot": 90
-    },
-    {
-      "type": "toilet",
-      "pos": [
-        14.5,
-        8.15
-      ],
-      "rot": 180
-    },
-    {
-      "type": "vanity",
-      "pos": [
-        12.75,
-        7.0
-      ],
-      "rot": 90
-    },
-    {
-      "type": "wardrobe",
-      "pos": [
-        16.9,
-        4.95
-      ],
-      "width": 3.4,
-      "height": 2.2
-    },
-    {
-      "type": "dresser",
-      "pos": [
-        17.0,
-        8.2
-      ],
-      "rot": 180,
-      "width": 1.4
-    },
-    {
-      "type": "bed",
-      "pos": [
-        22.6,
-        6.65
-      ],
-      "rot": -90,
-      "width": 1.8,
-      "color": "#d8cbb8"
-    },
-    {
-      "type": "nightstand",
-      "pos": [
-        23.5,
-        5.4
-      ],
-      "rot": -90
-    },
-    {
-      "type": "nightstand",
-      "pos": [
-        23.5,
-        7.9
-      ],
-      "rot": -90
-    },
-    {
-      "type": "tv",
-      "pos": [
-        19.1,
-        6.65
-      ],
-      "rot": 90,
-      "width": 1.4
-    },
-    {
-      "type": "plant",
-      "pos": [
-        27.3,
-        0.6
-      ],
-      "height": 1.6
-    },
-    {
-      "type": "plant",
-      "pos": [
-        27.3,
-        2.0
-      ],
-      "height": 1.2
-    }
-  ],
-  "lights": [
-    {
-      "id": "sala.central1",
-      "name": "Central 1",
-      "room": "sala",
-      "type": "ceiling",
-      "pos": [
-        8.5,
-        2.45
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.sala_de_estar_luz_central_1"
+      "camera": {
+        "azimuth": 24,
+        "elevation": 42,
+        "pan": [
+          -0.33,
+          -1.24
+        ],
+        "zoom": 0.67
       },
-      "shape": "square"
+      "floor": "porcelain",
+      "id": "sala",
+      "name": "Sala de estar",
+      "rect": [
+        6.6,
+        0,
+        5.9,
+        4.7
+      ]
     },
     {
-      "id": "sala.central2",
-      "name": "Central 2",
-      "room": "sala",
-      "type": "ceiling",
-      "pos": [
-        10.6,
-        2.45
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.sala_de_estar_luz_central_2"
+      "camera": {
+        "azimuth": 24,
+        "elevation": 43,
+        "pan": [
+          0.18,
+          -1.12
+        ],
+        "zoom": 0.77
       },
-      "shape": "square"
+      "floor": "porcelain",
+      "id": "office",
+      "name": "Home Office",
+      "rect": [
+        12.5,
+        0,
+        3.85,
+        3.45
+      ]
     },
     {
-      "id": "sala.spots",
-      "name": "Spots",
-      "room": "sala",
-      "type": "spots",
-      "pos": [
-        6.9,
-        1.95
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.sala_de_estar_spots_da_sala"
+      "floor": "porcelain",
+      "id": "passagem",
+      "mergeWith": "circulacao",
+      "name": "Passagem",
+      "rect": [
+        12.5,
+        3.45,
+        3.85,
+        1.25
+      ]
+    },
+    {
+      "floor": "porcelain",
+      "id": "cozinha",
+      "name": "Cozinha",
+      "rect": [
+        16.35,
+        0,
+        7.5,
+        4.7
+      ]
+    },
+    {
+      "floor": "porcelain",
+      "id": "quarto",
+      "name": "Quarto Stella",
+      "rect": [
+        6.6,
+        4.7,
+        4.05,
+        3.8
+      ]
+    },
+    {
+      "camera": {
+        "azimuth": 30,
+        "elevation": 57,
+        "pan": [
+          -0.25,
+          -0.51
+        ],
+        "zoom": 0.63
       },
-      "rot": 90,
-      "count": 3,
-      "spacing": 0.9
+      "floor": "porcelain",
+      "id": "circulacao",
+      "name": "Circulação",
+      "rect": [
+        10.65,
+        4.7,
+        4.3,
+        1.2
+      ]
     },
     {
-      "id": "sala.cortina",
-      "name": "Cortina",
-      "room": "sala",
-      "type": "strip",
-      "pos": [
-        9.5,
-        0.15
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.sala_cortina"
+      "floor": "tile",
+      "id": "banheiro",
+      "name": "Banheiro",
+      "rect": [
+        10.65,
+        5.9,
+        1.8,
+        2.6
+      ]
+    },
+    {
+      "floor": "tile",
+      "id": "banho_suite",
+      "name": "Banheiro suíte",
+      "rect": [
+        12.45,
+        5.9,
+        2.5,
+        2.6
+      ]
+    },
+    {
+      "floor": "porcelain",
+      "id": "closet",
+      "name": "Closet",
+      "rect": [
+        14.95,
+        4.7,
+        4,
+        3.8
+      ]
+    },
+    {
+      "camera": {
+        "azimuth": 28,
+        "elevation": 53,
+        "pan": [
+          0.29,
+          -0.78
+        ],
+        "zoom": 0.71
       },
-      "length": 2.0,
-      "y": 2.5
+      "floor": "porcelain",
+      "id": "suite",
+      "name": "Suíte",
+      "rect": [
+        18.95,
+        4.7,
+        4.9,
+        3.8
+      ]
     },
     {
-      "id": "sala.principal",
-      "name": "Principal",
-      "room": "sala",
-      "type": "strip",
-      "pos": [
-        8.975,
-        4.13
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.sala_principal"
+      "camera": {
+        "azimuth": 45,
+        "elevation": 28,
+        "pan": [
+          -7.13,
+          -1.76
+        ],
+        "zoom": 0.49
       },
-      "length": 4.65,
-      "corner": 3.0,
-      "turn": "left",
-      "use": "ceiling"
-    },
-    {
-      "id": "sala.movel",
-      "name": "Móvel",
-      "room": "sala",
-      "type": "strip",
-      "pos": [
-        12.2,
-        2.2
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.sala_de_estar_luz_do_movel"
-      },
-      "rot": 90,
-      "length": 2.2,
-      "y": 0.6
-    },
-    {
-      "id": "cozinha.mesa",
-      "name": "Mesa",
-      "room": "cozinha",
-      "type": "ceiling",
-      "pos": [
-        18.7,
-        2.45
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.cozinha_mesa"
-      },
-      "shape": "square"
-    },
-    {
-      "id": "cozinha.bancada",
-      "name": "Bancada",
-      "room": "cozinha",
-      "type": "ceiling",
-      "pos": [
-        21.2,
-        2.45
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.cozinha_bancada"
-      },
-      "shape": "square"
-    },
-    {
-      "id": "cozinha.spots",
-      "name": "Spots",
-      "room": "cozinha",
-      "type": "spots",
-      "pos": [
-        22.45,
-        0.55
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.cozinha_spots"
-      },
-      "rot": 0,
-      "count": 3,
-      "spacing": 0.6
-    },
-    {
-      "id": "cozinha.spots2",
-      "name": "Spots (lado)",
-      "room": "cozinha",
-      "type": "spots",
-      "pos": [
-        23.3,
-        1.55
-      ],
-      "rot": 90,
-      "count": 2,
-      "spacing": 0.95,
-      "capabilities": [],
-      "with": "cozinha.spots"
-    },
-    {
-      "id": "garagem.luz",
-      "name": "Garagem",
-      "room": "garagem",
-      "type": "ceiling",
-      "pos": [
-        3.3,
-        6.0
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.garagem"
-      }
-    },
-    {
-      "id": "corredor.luz",
+      "floor": "cement",
+      "id": "corredor",
       "name": "Corredor",
-      "room": "corredor",
-      "type": "flood",
-      "pos": [
-        6.75,
-        9.15
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.corredor"
-      },
-      "rot": 90,
-      "y": 2.4
+      "outdoor": true,
+      "rect": [
+        6.6,
+        8.5,
+        17.25,
+        1.3
+      ]
     },
     {
-      "id": "quintal.luz",
+      "camera": {
+        "azimuth": 18,
+        "elevation": 34,
+        "pan": [
+          -0.45,
+          -1.1
+        ],
+        "zoom": 0.66
+      },
+      "floor": "cement",
+      "id": "quintal",
       "name": "Quintal",
-      "room": "quintal",
-      "type": "spots",
-      "pos": [
-        26.0,
-        6.5
-      ],
-      "capabilities": [],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.quintal"
-      }
-    },
-    {
-      "id": "office.centro",
-      "name": "Centro",
-      "room": "office",
-      "type": "ceiling",
-      "pos": [
-        14.4,
-        1.7
-      ],
-      "shape": "square",
-      "link": {
-        "service": "homeassistant",
-        "id": "light.home_office_centro"
-      },
-      "capabilities": []
-    },
-    {
-      "id": "office.spots",
-      "name": "Spots",
-      "room": "office",
-      "type": "spots",
-      "pos": [
-        14.4,
-        0.5
-      ],
-      "rot": 0,
-      "count": 3,
-      "spacing": 0.8,
-      "link": {
-        "service": "homeassistant",
-        "id": "light.home_office_spots"
-      },
-      "capabilities": []
-    },
-    {
-      "id": "office.led",
-      "name": "LED",
-      "room": "office",
-      "type": "strip",
-      "pos": [
-        14.4,
-        3.2
-      ],
-      "length": 3,
-      "y": 2.6,
-      "link": {
-        "service": "homeassistant",
-        "id": "light.home_office_led"
-      },
-      "capabilities": []
-    },
-    {
-      "id": "suite.led",
-      "name": "LED",
-      "room": "suite",
-      "type": "strip",
-      "pos": [
-        21.4,
-        4.95
-      ],
-      "rot": 180,
-      "length": 3,
-      "y": 2.6,
-      "link": {
-        "service": "homeassistant",
-        "id": "light.suite_led"
-      },
-      "capabilities": []
-    },
-    {
-      "id": "suite.centro",
-      "name": "Centro",
-      "room": "suite",
-      "type": "ceiling",
-      "pos": [
-        21.4,
-        6.6
-      ],
-      "shape": "square",
-      "link": {
-        "service": "homeassistant",
-        "id": "light.suite_centro"
-      },
-      "capabilities": []
-    },
-    {
-      "id": "circulacao.centro",
-      "name": "Centro",
-      "room": "circulacao",
-      "type": "ceiling",
-      "pos": [
-        12.8,
-        5.3
-      ],
-      "link": {
-        "service": "homeassistant",
-        "id": "light.circulacao_centro"
-      },
-      "capabilities": []
-    },
-    {
-      "id": "circulacao.led",
-      "name": "LED",
-      "room": "circulacao",
-      "type": "strip",
-      "pos": [
-        12.8,
-        5.75
-      ],
-      "length": 3.5,
-      "y": 2.6,
-      "link": {
-        "service": "homeassistant",
-        "id": "light.circulacao_led"
-      },
-      "capabilities": []
-    }
-  ],
-  "acs": [
-    {
-      "id": "sala.ar",
-      "name": "Ar da Sala",
-      "room": "sala",
-      "wall": "north",
-      "pos": [
-        11.1,
-        0
-      ],
-      "y": 2.3,
-      "min": 16,
-      "max": 32,
-      "link": {
-        "service": "homeassistant",
-        "id": "climate.central_sala"
-      }
-    },
-    {
-      "id": "suite.ar",
-      "name": "Ar do Quarto",
-      "room": "suite",
-      "wall": "south",
-      "pos": [
-        23.0,
-        8.5
-      ],
-      "y": 2.3,
-      "min": 16,
-      "max": 32,
-      "link": {
-        "service": "homeassistant",
-        "id": "climate.central_quarto"
-      }
+      "outdoor": true,
+      "rect": [
+        23.85,
+        0,
+        5.3,
+        9.8
+      ]
     }
   ],
   "scenes": [],
-  "gates": [
-    {
-      "id": "portao",
-      "name": "Portão",
-      "link": {
-        "service": "homeassistant",
-        "id": "cover.portao_garagem"
-      },
-      "from": [
-        0,
-        3.65
-      ],
-      "to": [
-        0,
-        6.15
-      ],
-      "slide": "to",
-      "height": 2.2,
-      "travel": 14
-    }
-  ],
   "shortcuts": [
     {
-      "id": "apagar_todas",
-      "name": "Apagar todas",
       "icon": "lightsOff",
+      "id": "apagar_todas",
       "link": {
-        "service": "homeassistant",
-        "id": "script.apagar_todas_as_luzes"
-      }
+        "id": "script.apagar_todas_as_luzes",
+        "service": "homeassistant"
+      },
+      "name": "Apagar todas"
     },
     {
-      "id": "ligar_todas",
-      "name": "Ligar todas",
       "icon": "bulb",
+      "id": "ligar_todas",
       "link": {
-        "service": "homeassistant",
-        "id": "script.ligar_todas_as_luzes"
-      }
+        "id": "script.ligar_todas_as_luzes",
+        "service": "homeassistant"
+      },
+      "name": "Ligar todas"
     },
     {
-      "id": "externas_on",
-      "name": "Externas",
       "icon": "outside",
+      "id": "externas_on",
       "link": {
-        "service": "homeassistant",
-        "id": "script.ligar_luzes_externas"
-      }
+        "id": "script.ligar_luzes_externas",
+        "service": "homeassistant"
+      },
+      "name": "Externas"
     },
     {
-      "id": "externas_off",
-      "name": "Apagar externas",
       "icon": "moon",
+      "id": "externas_off",
       "link": {
-        "service": "homeassistant",
-        "id": "script.apagar_luzes_externas"
-      }
+        "id": "script.apagar_luzes_externas",
+        "service": "homeassistant"
+      },
+      "name": "Apagar externas"
     }
   ],
   "toggles": [
     {
-      "id": "presenca",
-      "name": "Luzes por presença",
       "icon": "presence",
+      "id": "presenca",
       "link": {
-        "service": "homeassistant",
-        "id": "input_boolean.luzes_por_presenca"
-      }
+        "id": "input_boolean.luzes_por_presenca",
+        "service": "homeassistant"
+      },
+      "name": "Luzes por presença"
     },
     {
-      "id": "portao_auto",
-      "name": "Automações do portão",
       "icon": "gate",
+      "id": "portao_auto",
       "link": {
-        "service": "homeassistant",
-        "id": "input_boolean.automacoes_do_portao"
-      }
+        "id": "input_boolean.automacoes_do_portao",
+        "service": "homeassistant"
+      },
+      "name": "Automações do portão"
     },
     {
-      "id": "vigilancia",
-      "name": "Vigilância da sala",
       "icon": "eye",
+      "id": "vigilancia",
       "link": {
-        "service": "homeassistant",
-        "id": "input_boolean.vigilancia_da_sala"
-      }
+        "id": "input_boolean.vigilancia_da_sala",
+        "service": "homeassistant"
+      },
+      "name": "Vigilância da sala"
     },
     {
-      "id": "cameras",
-      "name": "Aviso de pessoa nas câmeras",
       "icon": "automation",
+      "id": "cameras",
       "link": {
-        "service": "homeassistant",
-        "id": "automation.cameras_pessoa_detectada_notificar_com_foto"
-      }
+        "id": "automation.cameras_pessoa_detectada_notificar_com_foto",
+        "service": "homeassistant"
+      },
+      "name": "Aviso de pessoa nas câmeras"
     }
   ],
   "tvs": [
     {
       "id": "sala.tv",
-      "name": "TV LG",
-      "room": "sala",
-      "pos": [
-        12.32,
-        2.2
-      ],
-      "rot": -90,
-      "width": 1.7,
       "link": {
-        "service": "homeassistant",
-        "id": "media_player.tv_lg"
-      }
+        "id": "media_player.tv_lg",
+        "service": "homeassistant"
+      },
+      "name": "TV LG",
+      "pos": [
+        12.22,
+        1.7
+      ],
+      "room": "sala",
+      "rot": -90,
+      "width": 1.7
     },
     {
       "id": "office.monitor",
-      "name": "Monitor LG",
-      "room": "office",
       "link": {
-        "service": "homeassistant",
-        "id": "media_player.home_office_monitor_lg_webos"
+        "id": "media_player.home_office_monitor_lg_webos",
+        "service": "homeassistant"
       },
-      "width": 0.72,
       "mount": "desk",
+      "name": "Monitor LG",
       "pos": [
-        12.85,
-        1.3
+        12.9,
+        1.7
       ],
-      "rot": 90
+      "room": "office",
+      "rot": 90,
+      "width": 0.72
     }
-  ]
+  ],
+  "version": 1,
+  "wallHeight": 2.8
 }
