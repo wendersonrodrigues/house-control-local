@@ -1350,6 +1350,23 @@
       "room": "office",
       "rot": 90,
       "width": 0.72
+    },
+    {
+      "id": "sala.appletv",
+      "link": {
+        "id": "media_player.apple_tv",
+        "service": "homeassistant"
+      },
+      "mount": "box",
+      "name": "Apple TV",
+      "picture": "appletv",
+      "pos": [
+        12.22,
+        1.7
+      ],
+      "room": "sala",
+      "rot": -90,
+      "width": 0.2
     }
   ],
   "version": 1,

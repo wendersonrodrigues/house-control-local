@@ -187,8 +187,11 @@ export function normalize(raw) {
     unique(t.id, 'Uma TV');
     need(roomIds.has(t.room), `A TV "${t.id}" aponta para o cômodo desconhecido "${t.room}"`);
     need(isPoint(t.pos), `A TV "${t.id}" precisa de "pos": [x, z]`);
-    // mount "desk": a monitor standing on a desk placed at the same spot, instead of a TV on a rack.
-    return { ...t, name: t.name || t.id, rot: t.rot || 0, width: t.width ?? 1.6, mount: t.mount === 'desk' ? 'desk' : undefined };
+    // mount "desk": a monitor standing on a desk placed at the same spot, instead of a TV on a rack;
+    // "box": a streaming box (Apple TV) on the rack of the TV placed at the same spot, `offset`
+    // metres to the side along it. `picture`: the card's photos (img/<picture>-off/-on.jpg).
+    return { ...t, name: t.name || t.id, rot: t.rot || 0, width: t.width ?? 1.6,
+      mount: ['desk', 'box'].includes(t.mount) ? t.mount : undefined, offset: t.offset ?? 0.62, picture: t.picture || 'tv' };
   });
 
   // Security cameras (Frigate, through Home Assistant): not drawn, each belongs to a room,

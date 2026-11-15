@@ -97,7 +97,16 @@ const builders = {
     );
   },
 
-  tv({ width = 1.7, mount }) {
+  tv({ width = 1.7, mount, offset = 0.62 }) {
+    // A streaming box on the TV's rack (placed like that TV): a small black box with a status
+    // light at the front, which is what lights up.
+    if (mount === 'box') {
+      const led = new THREE.MeshStandardMaterial({ color: '#05070c', roughness: 0.3, emissive: '#27407a', emissiveIntensity: 0.35 });
+      return group(
+        at(box(0.1, 0.035, 0.1, mat('#0b0c10', { rough: 0.35 }), { r: 0.012 }), offset, 0.46, 0.05),
+        Object.assign(at(box(0.008, 0.005, 0.002, led, { r: 0 }), offset, 0.475, 0.101), { name: 'screen' }),
+      );
+    }
     const sw = width * 0.84;
     const sh = sw * 0.5625;
     const screen = new THREE.MeshStandardMaterial({

@@ -115,6 +115,16 @@ async function boot() {
   splashSays('Montando a casa…');
   try {
     raw = synced?.plan || await loadRawConfig();
+    // Devices added to the bundled plan after the Mac last sent its own (the Apple TV): added too.
+    if (synced?.plan) {
+      try {
+        const bundled = await loadRawConfig();
+        const rooms = new Set((raw.rooms || []).map((r) => r.id));
+        const have = new Set((raw.tvs || []).map((t) => t.id));
+        const extra = (bundled.tvs || []).filter((t) => !have.has(t.id) && rooms.has(t.room));
+        if (extra.length) raw = { ...raw, tvs: [...(raw.tvs || []), ...extra] };
+      } catch { /* the plan as sent */ }
+    }
     // A plan sent from the Mac before the gate's camera view existed: taken from the bundled plan.
     if (synced?.plan && raw.cameras?.length && !raw.cameras.some((c) => c.gateView)) {
       try {

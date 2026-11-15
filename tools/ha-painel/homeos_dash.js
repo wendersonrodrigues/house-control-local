@@ -127,11 +127,14 @@ ${TV_BRANDS.map(([k, bg, url]) => `  {% elif '${k}' in said %}background: ${bg} 
   {% elif pic %}background: #0b1826 url('{{ pic }}') center / cover no-repeat;
   {% else %}background: #0b1826 ${TV_MARK} center / 62% no-repeat; box-shadow: 0 4px 14px -4px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(145,204,255,0.18);
   {% endif %} }`;
-const tvCard = (e, n, i) => ({ type: 'tile', entity: e, name: n, icon: i, color: BLUE, vertical: false,
+// picture: as fotos do card (img/<name>-off/-on.jpg) e onde ficam; a TV por padrão, o Apple TV a caixinha.
+const TV_PICTURE = { name: 'tv', box: 'width: 118%; aspect-ratio: 1; left: -4%; top: 12%;' };
+const APPLE_TV_PICTURE = { name: 'appletv', box: 'width: 112%; aspect-ratio: 1; left: -6%; top: 6%;' };
+const tvCard = (e, n, i, picture = TV_PICTURE) => ({ type: 'tile', entity: e, name: n, icon: i, color: BLUE, vertical: false,
   tap_action: { action: 'more-info' }, icon_tap_action: { action: 'toggle' },
   state_content: ['media_title', 'source'],
   grid_options: { columns: 12, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }],
-  ...sceneStyle(TV_ON, '#6fa8ff', { name: 'tv', box: 'width: 118%; aspect-ratio: 1; left: -4%; top: 12%;' }, TV_BADGE) });
+  ...sceneStyle(TV_ON, '#6fa8ff', picture, TV_BADGE) });
 
 const section = (title, cards, icon, span = 1) => ({ type: 'grid', column_span: span, cards: [heading(title, icon), ...cards] });
 
@@ -153,7 +156,7 @@ const camSettings = (id) => section(CAMS[id], [camCard([id]),
     features: [{ type: 'select-options' }], features_position: 'bottom' }),
   tile(`input_boolean.exigir_zona_${id}`, 'Só na zona', 'mdi:vector-polygon', BLUE, half)], 'mdi:cctv', 2);
 const camRoom = (id) => ['Câmera', [camCard([id])], 2];
-const appleTv = () => media('media_player.apple_tv', 'Apple TV', 'mdi:television-box');
+const appleTv = () => tvCard('media_player.apple_tv', 'Apple TV', 'mdi:apple', APPLE_TV_PICTURE);
 
 // Cômodos com aparelhos, na ordem do app.
 const ROOMS = [

@@ -766,7 +766,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   function infoSheet(tabId) {
     const list = h('div.info-list');
     function row(t) {
-      const words = STATE_WORD[t.kind];
+      const words = t.kind === 'tv' && masculine(t.cfg) ? { on: 'Ligado', off: 'Desligado' } : STATE_WORD[t.kind];
       const r = seen.get(t.cfg.id);
       const now = Date.now();
       let main = 'Sem informação ainda';
@@ -900,8 +900,10 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   }
 
   const TV_BLUE = '#6fa8ff';
-  const tvStatus = (t) => (t.online === false ? 'Indisponível' : !t.on ? 'Desligada'
-    : t.title || t.app || t.source || (t.state === 'playing' ? 'Reproduzindo' : t.state === 'paused' ? 'Pausada' : 'Ligada'));
+  // A TV is "ligada" / "desligada"; a monitor or a streaming box (Apple TV), "ligado" / "desligado".
+  const masculine = (cfg) => Boolean(cfg?.mount);
+  const tvStatus = (t, cfg) => (t.online === false ? 'Indisponível' : !t.on ? (masculine(cfg) ? 'Desligado' : 'Desligada')
+    : t.title || t.app || t.source || (t.state === 'playing' ? 'Reproduzindo' : t.state === 'paused' ? (masculine(cfg) ? 'Pausado' : 'Pausada') : masculine(cfg) ? 'Ligado' : 'Ligada'));
 
   function tvTile(cfg) {
     const sub = h('div.tile-sub');
@@ -909,9 +911,10 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
       e.stopPropagation(); haptic('medium'); store.setTV(cfg.id, { on: !state.tvs[cfg.id].on });
     } }, icon('power', 16, 2.2));
     // What is on, as its logo over the screen: a known app or system, else Home Assistant's picture.
-    const bubble = h('div.bubble.logo.card-logo');
+    const bubble = h('div.bubble.logo.card-logo', { hidden: true }); // shown once there is something on
     const el = h('div.tile.tv.card', { role: 'button', tabindex: 0, 'aria-label': cfg.name, onclick: () => openSheet({ kind: 'tv', id: cfg.id }) },
-      scene('tv', './img/tv-off.jpg', './img/tv-on.jpg'),
+      // the TV's own photos, or another device's (img/appletv-off/-on.jpg for the Apple TV)
+      scene(cfg.picture === 'tv' ? 'tv' : `tv.${cfg.picture}`, `./img/${cfg.picture}-off.jpg`, `./img/${cfg.picture}-on.jpg`),
       h('div.card-head', h('div.tile-text', h('div.tile-name', cfg.name), sub), power),
       h('div.card-foot', bubble));
     let shown = '';
@@ -923,7 +926,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
         el.classList.toggle('on', t.on);
         el.classList.toggle('offline', t.online === false);
         el.style.setProperty('--c', TV_BLUE);
-        sub.textContent = tvStatus(t);
+        sub.textContent = tvStatus(t, cfg);
         // a known app or system's logo, else Home Assistant's picture, else (a TV channel, an
         // input without a logo) the TV symbol: never an empty corner while it is on
         const brand = brandOf(t);
@@ -994,7 +997,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
       update() {
         const tv = t();
         powerBtn.classList.toggle('on', tv.on);
-        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', tvStatus(tv)));
+        sub.replaceChildren(roomName.get(cfg.room), ' · ', h('b', tvStatus(tv, cfg)));
         big.set(Math.round(tv.volume * 100), !tv.on || tv.muted);
         slider.set(Math.round(tv.volume * 100));
         mute.classList.toggle('on', Boolean(tv.muted));
@@ -1825,7 +1828,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     } else if (hit.kind === 'tv') {
       const cfg = store.tvCfg.get(hit.id);
       const t = state.tvs[hit.id];
-      name = cfg.name; status = tvStatus(t); on = t.on; color = TV_BLUE;
+      name = cfg.name; status = tvStatus(t, cfg); on = t.on; color = TV_BLUE;
     } else if (hit.kind === 'gate') {
       const cfg = store.gateCfg.get(hit.id);
       const g = state.gates[hit.id];

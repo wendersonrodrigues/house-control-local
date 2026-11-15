@@ -1265,6 +1265,8 @@ html.ios .tile.card { height: auto; padding: 13px; }
 .tile.card.gate .gate-action.stop { background: #ff8f5a; color: #1c0b02; }
 /* the TV: on the wall, running off the right edge */
 .card-scene.tv { width: 118%; aspect-ratio: 1; left: -4%; top: 12%; }
+/* the Apple TV: the box in the middle of its photo, a little higher than the TV's screen */
+.card-scene.tv.appletv { width: 112%; left: -6%; top: 6%; }
 .tile.card.tv { --glow: #3d8bff; }
 .card-logo { width: 34px; height: 34px; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.7); }
 .card-logo[hidden] { display: none; }
