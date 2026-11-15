@@ -210,10 +210,45 @@ const GREETING = `{% set h = now().hour %}{% set luzes = states.light | selectat
 ## {{ 'Bom dia' if 5 <= h < 12 else 'Boa tarde' if 12 <= h < 18 else 'Boa noite' }}
 {{ 'Nenhuma luz acesa' if luzes == 0 else (luzes ~ ' luz acesa' if luzes == 1 else luzes ~ ' luzes acesas') }} · Portão {{ 'aberto' if is_state('cover.portao_garagem','open') else 'fechado' if is_state('cover.portao_garagem','closed') else states('cover.portao_garagem') }}`;
 
-const area = (path, a, name, cols) => ({ type: 'area', area: a, display_type: 'compact', name, color: WARM,
+// Os cômodos como no app: o ícone de cada um igual ao das abas do app (Lucide, web/src/ui/icons.js
+// roomIcon) num anel fino, e o botão das luzes do cômodo como o botão de energia do app: anel
+// vermelho com o ícone de energia quando todas estão apagadas, azul aceso quando alguma está
+// acesa (diferente do anel vazio dos interruptores de cada lâmpada).
+const ROOM_ICON = {
+  garagem: "<path d='M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2'/><circle cx='7' cy='17' r='2'/><path d='M9 17h6'/><circle cx='17' cy='17' r='2'/>",
+  sala: "<path d='M20 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3'/><path d='M2 16a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z'/><path d='M4 18v2'/><path d='M20 18v2'/><path d='M12 4v9'/>",
+  office: "<path d='M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z'/><path d='M20.054 15.987H3.946'/>",
+  cozinha: "<path d='M2 12h20'/><path d='M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8'/><path d='m4 8 16-4'/><path d='m8.86 6.78-.45-1.81a2 2 0 0 1 1.45-2.43l1.94-.48a2 2 0 0 1 2.43 1.46l.45 1.8'/>",
+  circulacao: "<path d='M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z'/><path d='M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z'/><path d='M16 17h4'/><path d='M4 13h4'/>",
+  suite: "<path d='M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8'/><path d='M4 10V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4'/><path d='M12 4v6'/><path d='M2 18h20'/>",
+  corredor: "<path d='M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z'/><path d='M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z'/><path d='M16 17h4'/><path d='M4 13h4'/>",
+  quintal: "<path d='M10 10v.2A3 3 0 0 1 8.9 16H5a3 3 0 0 1-1-5.8V10a3 3 0 0 1 6 0Z'/><path d='M7 16v6'/><path d='M13 19v3'/><path d='M12 19h8.3a1 1 0 0 0 .7-1.7L18 14h.3a1 1 0 0 0 .7-1.7L16 9h.2a1 1 0 0 0 .8-1.7L13 3l-1.4 1.5'/>",
+};
+const svgMask = (inner) => `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>${inner}</svg>`)}")`;
+const POWER_MASK = svgMask("<path d='M12 2v10'/><path d='M18.4 6.6a9 9 0 1 1-12.77.04'/>");
+const AREA_LIT = "{% set on = area_entities(config.area) | select('match', 'light\\\\.') | select('is_state', 'on') | list | count > 0 %}";
+const area = (path, a, name, cols, room = path) => ({ type: 'area', area: a, display_type: 'compact', name, color: WARM,
   ...(path && { navigation_path: `${BASE}/${path}` }),
   features: [{ type: 'area-controls', controls: ['light'] }], features_position: 'inline',
-  grid_options: { columns: cols }, ...mod() });
+  grid_options: { columns: cols }, card_mod: { style: {
+    '.': GLASS.replace('ha-card {', 'ha-card { border-radius: 18px !important;') + `
+ha-tile-icon { --tile-icon-color: #a1c3e1; }`,
+    // the room's icon is drawn inside the tile icon (its own shadow)
+    'ha-tile-icon $': `.container { box-sizing: border-box; background: none !important; border: 1.5px solid rgba(140,203,233,0.32); }
+.container::before, .container::after { display: none !important; }
+${ROOM_ICON[room] ? `ha-icon { display: block; width: 20px; height: 20px; color: #a1c3e1; background: currentColor;
+  -webkit-mask: ${svgMask(ROOM_ICON[room])} center / 20px no-repeat; mask: ${svgMask(ROOM_ICON[room])} center / 20px no-repeat; }` : ''}`,
+    ...(ROOM_ICON[room] && { 'ha-tile-icon $ ha-icon $': 'ha-svg-icon { visibility: hidden; }' }),
+    'hui-card-features $ hui-card-feature $ hui-area-controls-card-feature $': `${AREA_LIT}
+ha-control-button { --control-button-border-radius: 50%; --control-button-padding: 0; width: 38px; height: 38px; box-sizing: border-box; border-radius: 50%;
+  --control-button-background-color: {{ 'rgba(0,80,141,0.38)' if on else 'rgba(4,13,23,0.55)' }}; --control-button-background-opacity: 1;
+  --control-button-icon-color: {{ '#eaf6ff' if on else '#ff9a9a' }}; color: {{ '#eaf6ff' if on else '#ff9a9a' }};
+  border: 2px solid {{ '#bfe3ff' if on else '#ff4d4d' }};
+  box-shadow: {{ '0 0 14px 2px rgba(120,190,255,0.85), inset 0 0 8px rgba(145,204,255,0.55)' if on else '0 0 12px rgba(255,70,70,0.55), inset 0 0 8px rgba(255,70,70,0.3)' }}; }
+ha-domain-icon { display: block; width: 18px; height: 18px; background: currentColor; filter: drop-shadow(0 0 3px currentColor);
+  -webkit-mask: ${POWER_MASK} center / 18px no-repeat; mask: ${POWER_MASK} center / 18px no-repeat; }`,
+    'hui-card-features $ hui-card-feature $ hui-area-controls-card-feature $ ha-domain-icon $': 'ha-icon { visibility: hidden; }',
+  } } });
 
 const view = (title, path, icon, sections, extra = {}) => ({ title, path, icon, type: 'sections', max_columns: 4,
   dense_section_placement: true, background: BG, sections, ...extra });
@@ -246,7 +281,7 @@ const home = view('Casa', 'casa', 'mdi:home', [
 ], { badges: ['weather.forecast_casa', 'person.wenderson'].map((entity) => ({ type: 'entity', entity, show_name: false, show_icon: true, show_state: true })) });
 
 const rooms = ROOMS.map(([p, a, n, i, groups]) => view(n, p, i, [
-  { type: 'grid', column_span: 4, cards: [area(null, a, n, 'full')] },
+  { type: 'grid', column_span: 4, cards: [area(null, a, n, 'full', p)] },
   ...groups.map(([t, cards, span]) => section(t, cards, null, span))]));
 
 const cameras = view('Câmeras', 'cameras', 'mdi:cctv', [
