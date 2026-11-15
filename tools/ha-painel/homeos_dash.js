@@ -51,7 +51,7 @@ ha-card { position: relative; }
 ha-tile-container { position: absolute !important; inset: 0; z-index: 1; }
 ha-tile-info { flex: 1 1 auto; min-width: 0; }
 ${extra}`,
-  'ha-tile-container $': `.background { display: none; }
+  'ha-tile-container $': `.background { background: none !important; border: 0 !important; } /* transparent, not hidden: it takes the tap (more-info) */
 :host { height: 100%; }
 .container { height: 100% !important; box-sizing: border-box; display: flex !important; flex-direction: column; justify-content: space-between !important; }
 .content { flex-direction: row-reverse !important; width: 100%; }
