@@ -31,6 +31,52 @@ const ac = (e, n) => tile(e, n, null, BLUE, { tap_action: { action: 'more-info' 
     { type: 'climate-hvac-modes', style: 'icons', hvac_modes: ['off', 'cool', 'dry', 'fan_only', 'auto'] }] });
 const media = (e, n, i) => tile(e, n, i, BLUE, { tap_action: { action: 'more-info' }, grid_options: { columns: 12 },
   features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }] });
+// ---------- os cards do app: o ar e a TV com a foto do aparelho (web/src/style.css .tile.card) ----------
+// Um card quadrado: nome em cima, o ícone (liga/desliga) à direita, a foto do aparelho desligado
+// ou ligado (as mesmas do app, servidas pelo HA em /local/homeos/img/), o brilho azul por baixo
+// quando ligado e os controles embaixo. Feito com uix (card_mod) sobre o card "tile" do HA.
+const IMG = '/local/homeos/img';
+const SCENE_FADE = 'linear-gradient(90deg, #000 0, #000 86%, transparent 100%), linear-gradient(180deg, transparent 0, #000 22%, #000 78%, transparent 100%)';
+const sceneStyle = (onTest, glow, picture, extra = '') => ({ card_mod: { style: {
+  '.': `{% set on = ${onTest} %}
+ha-card { aspect-ratio: 1 / 1; height: auto !important; min-height: 0 !important; overflow: hidden; isolation: isolate; container-type: inline-size;
+  border-radius: 20px !important; color: #e9edf2; --primary-text-color: #e9edf2; --secondary-text-color: {{ '#cfe8ff' if on else 'rgba(233,237,242,0.64)' }};
+  background: {{ 'radial-gradient(130% 70% at 50% 118%, ${glow}d9 0%, #00508d 30%, #0b2741 62%, #050e19 100%)' if on else 'radial-gradient(130% 80% at 50% 115%, #0b2741 0%, #07131f 60%, #050e19 100%)' }} !important;
+  border: 1px solid {{ 'rgba(145,204,255,0.34)' if on else 'rgba(145,204,255,0.13)' }} !important;
+  box-shadow: {{ '0 18px 34px -22px ${glow}, inset 0 1px 0 rgba(233,237,242,0.1)' if on else 'none' }} !important; }
+ha-card::before { content: ''; position: absolute; z-index: 0; pointer-events: none; ${picture.box}
+  background: url('${IMG}/${picture.name}-{{ 'on' if on else 'off' }}.jpg') center / cover no-repeat;
+  -webkit-mask-image: ${picture.fade || SCENE_FADE}; -webkit-mask-composite: source-in; mask-image: ${picture.fade || SCENE_FADE}; mask-composite: intersect; }
+ha-card { position: relative; }
+ha-tile-container { position: absolute !important; inset: 0; z-index: 1; }
+ha-tile-info { flex: 1 1 auto; min-width: 0; }
+${extra}`,
+  'ha-tile-container $': `.background { display: none; }
+:host { height: 100%; }
+.container { height: 100% !important; box-sizing: border-box; display: flex !important; flex-direction: column; justify-content: space-between !important; }
+.content { flex-direction: row-reverse !important; width: 100%; }
+::slotted(ha-tile-info) { flex: 1 1 auto !important; min-width: 0; }
+.row { flex: 0 0 auto !important; align-items: flex-start !important; }`,
+  'ha-tile-container ha-tile-info $': `.primary { font-size: 15px; font-weight: 650; text-shadow: 0 1px 8px rgba(4,13,23,0.9); }
+.secondary { text-shadow: 0 1px 8px rgba(4,13,23,0.9); }`,
+} } });
+// O ar: a foto larga saindo pela esquerda e o visor com a temperatura, como no app.
+const AC_ON = "not is_state(config.entity, 'off') and not is_state(config.entity, 'unavailable')";
+const acCard = (e, n) => ({ type: 'tile', entity: e, name: n, color: BLUE, vertical: false,
+  tap_action: { action: 'more-info' }, icon_tap_action: { action: 'perform-action', perform_action: 'climate.toggle', target: { entity_id: e } },
+  grid_options: { columns: 12, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'target-temperature' }],
+  ...sceneStyle(AC_ON, '#2fa8ff', { name: 'ac', box: 'width: 150%; aspect-ratio: 640 / 478; left: -42%; top: 5%;' },
+    `ha-card::after { content: '{{ state_attr(config.entity, "temperature") | int if on else "" }}'; position: absolute; z-index: 0; pointer-events: none;
+  left: 47.25%; top: 46%; width: 19.8%; height: 10.1%; display: grid; place-items: center; border-radius: 3px; background: #03121c;
+  font: 600 6.6cqw/1 ui-monospace, 'SF Mono', Menlo, monospace; color: #6ff0ff; letter-spacing: 0.04em; text-shadow: 0 0 6px rgba(111,240,255,0.9);
+  transform: skewY(-4deg); opacity: {{ 1 if on else 0 }}; }`) });
+// A TV: a tela que acende, como no app.
+const TV_ON = "states(config.entity) not in ['off', 'standby', 'unavailable', 'unknown']";
+const tvCard = (e, n, i) => ({ type: 'tile', entity: e, name: n, icon: i, color: BLUE, vertical: false,
+  tap_action: { action: 'more-info' }, icon_tap_action: { action: 'toggle' },
+  grid_options: { columns: 12, rows: 'auto' }, features_position: 'bottom', features: [{ type: 'media-player-volume-slider' }],
+  ...sceneStyle(TV_ON, '#6fa8ff', { name: 'tv', box: 'width: 118%; aspect-ratio: 1; left: -4%; top: 12%;' }) });
+
 const section = (title, cards, icon, span = 1) => ({ type: 'grid', column_span: span, cards: [heading(title, icon), ...cards] });
 
 const CAMS = { frente: 'Frente', garagem: 'Garagem', quintal: 'Quintal', corredor: 'Corredor', sala: 'Sala' };
@@ -61,13 +107,13 @@ const ROOMS = [
     ['Luzes', [light('light.sala_principal', 'Principal'), light('light.sala_cortina', 'Cortina'),
       light('light.sala_de_estar_luz_central_1', 'Central 1'), light('light.sala_de_estar_luz_central_2', 'Central 2'),
       light('light.sala_de_estar_spots_da_sala', 'Spots'), light('light.sala_de_estar_luz_do_movel', 'Móvel')]],
-    ['Ar-condicionado', [ac('climate.central_sala', 'Ar da Sala')]],
-    ['TV', [media('media_player.tv_lg', 'TV LG', 'mdi:television'),
+    ['Ar-condicionado', [acCard('climate.central_sala', 'Ar da Sala')]],
+    ['TV', [tvCard('media_player.tv_lg', 'TV LG', 'mdi:television'),
       tile('switch.sala_de_estar_tv_lg_screen', 'Tela da TV', 'mdi:monitor'), appleTv()]], camRoom('sala')]],
   ['office', 'home_office', 'Home Office', 'mdi:chair-rolling', [
     ['Luzes', [light('light.home_office_centro', 'Centro'), light('light.home_office_spots', 'Spots'),
       light('light.home_office_led', 'LED')]],
-    ['Monitor e Alexa', [media('media_player.home_office_monitor_lg_webos', 'Monitor LG', 'mdi:monitor'),
+    ['Monitor e Alexa', [tvCard('media_player.home_office_monitor_lg_webos', 'Monitor LG', 'mdi:monitor'),
       tile('switch.lg_webos_u701sb_screen', 'Tela do monitor', 'mdi:monitor'),
       media('media_player.home_office_echo_show_familia', 'Echo Show', 'mdi:speaker-message')]]]],
   ['cozinha', 'cozinha', 'Cozinha', 'mdi:stove', [
@@ -77,7 +123,7 @@ const ROOMS = [
     ['Luzes', [light('light.circulacao_centro', 'Centro'), light('light.circulacao_led', 'LED')]]]],
   ['suite', 'quarto', 'Suíte', 'mdi:bed-king', [
     ['Luzes', [light('light.suite_centro', 'Centro'), light('light.suite_led', 'LED')]],
-    ['Ar-condicionado', [ac('climate.central_quarto', 'Ar do Quarto')]]]],
+    ['Ar-condicionado', [acCard('climate.central_quarto', 'Ar do Quarto')]]]],
   ['corredor', 'corredor', 'Corredor', 'mdi:road-variant', [['Luzes', [light('light.corredor', 'Luz do Corredor')]], camRoom('corredor')]],
   ['quintal', 'quintal', 'Quintal', 'mdi:pine-tree-variant-outline', [['Luzes', [light('light.quintal', 'Luz do Quintal')]], camRoom('quintal')]],
 ];
@@ -103,11 +149,11 @@ const home = view('Casa', 'casa', 'mdi:home', [
     script('script.apagar_luzes_externas', 'Externas: apagar', 'mdi:coach-lamp')], 'mdi:lightning-bolt'),
   section('Cômodos', ROOMS.map(([p, a, n]) => area(p, a, n, 6)), 'mdi:floor-plan', 2),
   { type: 'grid', column_span: 2, cards: [heading('Câmeras', 'mdi:cctv', `${BASE}/cameras`), camCard(Object.keys(CAMS))] },
-  section('Clima', [ac('climate.central_sala', 'Ar da Sala'), ac('climate.central_quarto', 'Ar do Quarto'),
+  section('Clima', [acCard('climate.central_sala', 'Ar da Sala'), acCard('climate.central_quarto', 'Ar do Quarto'),
     { type: 'weather-forecast', entity: 'weather.forecast_casa', forecast_type: 'daily', show_forecast: true, name: 'Tempo', ...mod() }],
     'mdi:thermometer'),
-  section('Mídia', [media('media_player.tv_lg', 'TV LG', 'mdi:television'), appleTv(),
-    media('media_player.home_office_monitor_lg_webos', 'Monitor LG', 'mdi:monitor'),
+  section('Mídia', [tvCard('media_player.tv_lg', 'TV LG', 'mdi:television'), appleTv(),
+    tvCard('media_player.home_office_monitor_lg_webos', 'Monitor LG', 'mdi:monitor'),
     media('media_player.home_office_echo_show_familia', 'Echo Show', 'mdi:speaker-message')], 'mdi:play-circle-outline'),
   section('Automações', [
     tile('input_boolean.luzes_por_presenca', 'Luzes por presença', 'mdi:motion-sensor'),
