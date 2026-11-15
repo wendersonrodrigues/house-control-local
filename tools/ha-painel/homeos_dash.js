@@ -58,8 +58,27 @@ ha-card::after { content: '{{ "Parar" if states(config.entity) in ["opening", "c
   position: absolute; z-index: 1; left: 12px; right: 12px; bottom: 12px; height: 34px; border-radius: 12px; pointer-events: none;
   display: grid; place-items: center; font: 600 14px/1 var(--ha-font-family-body); color: #e9edf2;
   background: rgba(4,13,23,0.62); box-shadow: inset 0 0 0 1px rgba(145,204,255,0.24); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }`) });
-const script = (e, n, i) => tile(e, n, i, BLUE, {
-  tap_action: { action: 'perform-action', perform_action: 'script.turn_on', target: { entity_id: e } } });
+// Os atalhos como no app (web/src/style.css .scene / .glyph-ring): uma caixinha com o ícone num
+// anel brilhante, vermelho para o que apaga, azul para o que liga, e o nome embaixo. Um toque roda.
+const OFF_SCRIPT = /apagar|desligar|fechar/i;
+const script = (e, n, i) => {
+  const off = OFF_SCRIPT.test(e) || OFF_SCRIPT.test(n);
+  const ring = off
+    ? 'border: 2px solid #ff5a5a; color: #ffd6d6; box-shadow: 0 0 10px rgba(255,70,70,0.6), inset 0 0 6px rgba(255,70,70,0.35);'
+    : 'border: 2px solid #9fd2ff; color: #e3f3ff; box-shadow: 0 0 10px rgba(120,190,255,0.65), inset 0 0 6px rgba(145,204,255,0.4);';
+  return { type: 'tile', entity: e, name: n, icon: i, color: BLUE, vertical: true,
+    tap_action: { action: 'perform-action', perform_action: 'script.turn_on', target: { entity_id: e } },
+    hold_action: { action: 'more-info' }, icon_tap_action: { action: 'perform-action', perform_action: 'script.turn_on', target: { entity_id: e } },
+    card_mod: { style: {
+      '.': `ha-card { border-radius: 18px !important; background: rgba(145,204,255,0.07) !important; border: 1px solid rgba(145,204,255,0.15) !important; box-shadow: none !important; }
+ha-tile-icon { --tile-icon-color: ${off ? '#ffd6d6' : '#e3f3ff'}; --tile-icon-size: 16px; }
+ha-tile-info [slot=secondary] { display: none; }`,
+      'ha-tile-container $': '.background { background: none !important; }',
+      'ha-tile-icon $': `.container { width: 30px !important; height: 30px !important; box-sizing: border-box; border-radius: 50% !important; background: none !important; ${ring} }
+.container::before, .container::after { display: none !important; }`,
+      'ha-tile-container ha-tile-info $': '.primary { font-size: 13px; font-weight: 600; text-align: center; }',
+    } } };
+};
 const ac = (e, n) => tile(e, n, null, BLUE, { tap_action: { action: 'more-info' }, grid_options: { columns: 12 },
   features_position: 'bottom', features: [{ type: 'target-temperature' },
     { type: 'climate-hvac-modes', style: 'icons', hvac_modes: ['off', 'cool', 'dry', 'fan_only', 'auto'] }] });
