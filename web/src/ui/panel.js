@@ -620,7 +620,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
    *  away with the page: another room, the start page, or leaving the gate's sheet. */
   let gateCamOn = false;
   function showGateCamera(gateId) {
-    if (ui.editing || !camsHere || camBox.isOpen) return;
+    if (ui.editing || !camsHere) return;
     const gate = config.gates.find((g) => g.id === gateId);
     const cams = gate?.room ? camerasOf(tabOf(gate.room)) : [];
     // The plan's gate view (`gateView` on cameras: which half of each to show; `gateSlot`: its
@@ -630,6 +630,12 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     const view = (config.cameras || []).filter((c) => order[c.gateView] != null)
       .sort((a, b) => slot(a) - slot(b)).map((c) => ({ camera: c, part: c.gateView }));
     const cam = cams.find((c) => c.room === gate.room) || cams[0];
+    // Already open: the gate's view replaces one of its own cameras shown alone; it is left as
+    // it is when it already shows the gate's view, or another camera chosen on purpose.
+    if (camBox.isOpen) {
+      const own = view.length ? view.map((p) => p.camera.id) : cam ? [cam.id] : [];
+      if (!camBox.currentId || !own.includes(camBox.currentId) || !view.length) return;
+    }
     if (view.length) camBox.openView(view);
     else if (cam) camBox.open([cam]);
     else return;
@@ -1353,7 +1359,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
      The sections sit side by side and the page scrolls to the right: each section a grid of
      its own, as wide as its cards need up to a maximum (6 columns, 8 for a section with many
      cards; chosen per section while editing). */
-  const sideways = () => isTablet && arr.mapHidden && ui.room === 'all' && innerWidth > innerHeight;
+  const sideways = () => isTablet && arr.mapHidden && ui.room === 'all' && innerWidth > innerHeight && !camBox.isOpen;
   let laidSideways = false;
   const SECTION_WIDTHS = [4, 5, 6, 7, 8, 10];
   const UNITS = { small: 1, wide: 2, medium: 2, big: 2, full: 4 };
@@ -1949,11 +1955,14 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     }
 
     // The start page without the model, if it was put away (remembered); a room always shows it.
-    const mapOff = arr.mapHidden && ui.room === 'all' && !ui.sheet;
+    // (a camera on screen brings the model's side back while it is open: the box sits there)
+    const mapOff = arr.mapHidden && ui.room === 'all' && !ui.sheet && !camBox.isOpen;
     card.classList.toggle('map-off', mapOff);
     mapBtn.hidden = ui.room !== 'all' || Boolean(ui.sheet);
     mapBtn.classList.toggle('on', !arr.mapHidden);
     card.classList.toggle('cam-open', camBox.isOpen);
+    // the start page laid sideways without the map, and a camera opening or closing over it
+    if (sideways() !== laidSideways) layoutTiles(true);
 
     updatePin();
     for (const t of tiles.values()) t.update();
