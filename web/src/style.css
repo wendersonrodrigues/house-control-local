@@ -1708,31 +1708,55 @@ html.ios .tile.cam .tile-dot .icon { width: 21px; height: 21px; }
 .tile.lamp.cam[data-size='big'] .tile-dot { width: 50px; height: 50px; border: 0; }
 .tile.lamp.cam[data-size='big'] .tile-dot .icon { width: 28px; height: 28px; }
 
+/* the room's cameras: thin cards (half a card's height) in a strip at the top of the panel,
+   two to a row at most, that stay put while the cards below scroll */
+.cam-strip {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(150px, calc(50% - 4px)), 1fr));
+  gap: 8px;
+  margin: 2px 0 10px;
+}
+.cam-strip[hidden] { display: none; }
+.tile.cam.thin { height: 46px; border-radius: 15px; padding: 0 6px 0 13px; gap: 8px; animation: none; }
+.tile.cam.thin .tile-text { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.tile.cam.thin .tile-label { font-size: 8.5px; line-height: 1; margin: 0 0 3px; }
+.tile.cam.thin .tile-name { font-size: 13.5px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile.cam.thin .tile-sub { display: none; }
+.tile.cam.thin .tile-dot { width: 34px; height: 34px; margin-left: auto; }
+.tile.cam.thin .tile-dot .icon { width: 19px; height: 19px; }
+html.ios .tile.cam.thin { height: 50px; }
+html.ios .tile.cam.thin .tile-dot { width: 36px; height: 36px; }
+
 /* while a camera is open the model behind it goes dark and soft, back when it closes */
 .stage canvas { transition: opacity 500ms ease, filter 380ms ease; }
 .card.cam-open .stage canvas { filter: brightness(0.32) saturate(0.6) blur(5px); }
 html.lite .card.cam-open .stage canvas { filter: brightness(0.3); }
 
+.card { --cam-top: calc(var(--head-bottom, 76px) + 8px); }
+html.ios:not(.tablet) .card { --cam-top: calc(var(--safe-top) + 4px + var(--head-h, 66px) + 8px); }
+/* the Mac, a phone, an iPad standing: as wide as the panel (camera/view.js sizes it), and
+   the cards start below it while it is open */
 .cam-dock {
   position: absolute;
   z-index: 3;
   left: 12px; right: 12px;
-  top: calc(var(--head-bottom, 76px) + 8px);
-  height: calc(var(--stage-h) - var(--head-bottom, 76px) - 46px);
+  top: var(--cam-top);
   display: flex; justify-content: center; align-items: flex-start;
   pointer-events: none;
 }
 .cam-dock[hidden] { display: none; }
-html.ios .cam-dock { --head-bottom: calc(var(--safe-top) + 4px + var(--head-h, 66px)); left: max(10px, var(--safe-left)); right: max(10px, var(--safe-right)); }
-/* the iPad lying down: the model's side, below the header, as tall as it can be */
+html.ios .cam-dock { left: max(12px, var(--safe-left)); right: max(12px, var(--safe-right)); }
+html:not(.split) .card.cam-open .panel { top: calc(var(--cam-top) + var(--cam-h, 0px) + 10px); }
+/* the iPad lying down: the model's side, below the header and above the room tabs */
 html.split .cam-dock {
   left: max(16px, calc(var(--safe-left) + 8px)); right: auto;
   width: calc(var(--split-start) - max(16px, calc(var(--safe-left) + 8px)) - 16px);
   top: calc(var(--head-bottom, 76px) + 14px);
-  height: auto; bottom: max(16px, var(--safe-bottom));
+  bottom: max(16px, var(--safe-bottom));
   align-items: center;
 }
-html.table .cam-dock { height: calc(var(--split-start) - var(--head-bottom, 76px) - 24px); }
+html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(var(--safe-bottom) + 68px + 14px); }
 
 .cam-box {
   position: relative;

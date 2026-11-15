@@ -11,7 +11,7 @@ import { playCamera } from './live.js';
 
 const MAX_ZOOM = 8;
 
-export function createCameraBox({ access }) {
+export function createCameraBox({ access, onSize = () => {} }) {
   const frame = h('div.cam-frame');
   // A new <video> for each play: a late answer for an older one can only clear its own.
   let video = null;
@@ -46,18 +46,40 @@ export function createCameraBox({ access }) {
   let serial = 0;        // each play; a late answer for an older one is dropped
   let aspect = 16 / 9;
 
-  /* ---------- size: the camera's own proportions, as large as the dock allows ---------- */
+  /* ---------- size: the camera's own proportions, as large as the screen allows ----------
+     Beside the model (an iPad lying down, html.split): inside the model's side, above the
+     room tabs. Everywhere else (the Mac, a phone, an iPad standing): as wide as the panel
+     less a margin, as tall as that makes it (up to what leaves room for some cards), and the
+     cards move down below it (onSize: the panel sets --cam-h). */
+  const RESERVE = 190; // px kept below the box for the cards, in the full-width layout
   function fit() {
     const w = dock.clientWidth;
-    const hgt = dock.clientHeight;
-    if (!w || !hgt) return;
-    const bw = Math.min(w, hgt * aspect);
+    if (!w || dock.hidden) return;
+    let bw;
+    let bh;
+    if (document.documentElement.classList.contains('split')) {
+      const hgt = dock.clientHeight;
+      if (!hgt) return;
+      bw = Math.min(w, hgt * aspect);
+      bh = bw / aspect;
+    } else {
+      const clip = dock.parentElement;
+      // the room tabs at the foot (a phone, an iPad) take their height off too
+      const tabs = clip?.querySelector('.panel.rooms-bottom:not(.hidden) .rooms');
+      const foot = tabs ? clip.getBoundingClientRect().bottom - tabs.getBoundingClientRect().top : 0;
+      const room = (clip?.clientHeight || innerHeight) - dock.offsetTop - RESERVE - foot;
+      bw = w;
+      bh = bw / aspect;
+      if (bh > room && room > 120) { bh = room; bw = bh * aspect; }
+    }
     box.style.width = `${Math.round(bw)}px`;
-    box.style.height = `${Math.round(bw / aspect)}px`;
+    box.style.height = `${Math.round(bh)}px`;
+    onSize(Math.round(bh));
     clampView();
     apply();
   }
   new ResizeObserver(fit).observe(dock);
+  addEventListener('resize', () => requestAnimationFrame(fit));
 
   /* ---------- digital zoom ---------- */
   const view = { s: 1, x: 0, y: 0 };

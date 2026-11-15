@@ -90,7 +90,11 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   // A room with a security camera: its live picture over the model, only while asked for
   // (camera/view.js). Red while off, like a lamp; blue while the camera is on screen.
   const camerasOf = (tab) => (tab === 'all' ? [] : (config.cameras || []).filter((c) => tabOf(c.room) === tab));
-  const camBox = createCameraBox({ access: cameraAccess || { use: () => Promise.reject(new Error('indisponível')), release() {}, warm() {} } });
+  const camBox = createCameraBox({
+    access: cameraAccess || { use: () => Promise.reject(new Error('indisponível')), release() {}, warm() {} },
+    // the cards below the box start where it ends (style.css: --cam-h)
+    onSize: (px) => card.style.setProperty('--cam-h', `${px}px`),
+  });
   /** A camera card's switch: `id` on (another one in view switches to it), or off when it is
    *  the one on screen. Without `id`: closes whatever is on. From the start page, the card
    *  first goes to its room (the box belongs to the room in view). */
@@ -134,10 +138,13 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   // The count of lit lamps is in the header, and a room's lights switch with the power button
   // at the top: this row stays empty (kept as the anchor of the room chips above the list).
   const listHead = h('div.list-head', { hidden: true });
+  // The cameras of the room in view: thin cards that stay at the top of the panel, above the
+  // cards that scroll (camera/view.js plays the one that is on).
+  const camStrip = h('div.cam-strip', { hidden: true });
   const editBar = h('div.edit-bar', { hidden: true });
   const panel = h('section.panel',
     scenes, rooms,
-    listHead, editBar,
+    listHead, editBar, camStrip,
     h('div.devices', grid));
   const sheet = h('section.sheet.hidden');
   sheet.inert = true;
@@ -343,6 +350,8 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     // Leaving the room ends its camera: nothing streams in the background.
     camBox.close();
     if (camerasOf(id).length) cameraAccess?.warm();
+    ui.room = id;
+    renderCamStrip();
     if (ui.pinned) { ui.pinned = null; world?.pin(null); }
     ui.room = id;
     layoutTiles();
@@ -816,13 +825,13 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     };
   }
 
-  // A security camera: a card like a lamp's, the camera in a filled badge (grey off, blue while
-  // its picture is on screen). Arranged, hidden and resized like the other cards of its room.
+  // A security camera: a thin card (half a lamp card's height) in the strip at the top of its
+  // room, the camera in a filled badge (grey off, blue while its picture is on screen).
   function cameraTile(cfg) {
     const tag = h('div.tile-label');
     const sub = h('div.tile-sub');
     const go = () => toggleCamera(cfg.id);
-    const el = h('div.tile.lamp.cam', { role: 'button', tabindex: 0, 'aria-label': `Câmera ${cfg.name}`, onclick: go },
+    const el = h('div.tile.lamp.cam.thin', { role: 'button', tabindex: 0, 'aria-label': `Câmera ${cfg.name}`, onclick: go },
       h('div.tile-text', tag, h('div.tile-name', cfg.name), sub),
       // the camera in a filled round badge, like the air's and the TV's switch: grey off, blue on
       h('span.tile-dot.cam-icon', { 'aria-hidden': 'true' }, icon('cctvFilled', 20)),
@@ -974,8 +983,13 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
   for (const cfg of config.acs) tiles.set(cfg.id, acTile(cfg));
   for (const cfg of config.tvs) tiles.set(cfg.id, tvTile(cfg));
   for (const cfg of config.lights) tiles.set(cfg.id, lightTile(cfg));
-  // cameras only where they can play (the apps and the Home Assistant edition)
-  if (cameraAccess?.available) for (const cfg of config.cameras || []) tiles.set(cfg.id, cameraTile(cfg));
+  // cameras only where they can play (the apps and the Home Assistant edition), in the strip
+  const camTiles = cameraAccess?.available ? (config.cameras || []).map(cameraTile) : [];
+  function renderCamStrip() {
+    const list = ui.room === 'all' ? [] : camTiles.filter((t) => tabOf(t.cfg.room) === ui.room);
+    camStrip.replaceChildren(...list.map((t) => t.el));
+    camStrip.hidden = !list.length;
+  }
   // Not in a room: shown above (the gate) and below (automations) the rooms, on "All" only.
   const gateTiles = config.gates.map(gateTile);
   const toggleTiles = config.toggles.map(toggleTile);
@@ -1883,7 +1897,7 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
 
     updatePin();
     for (const t of tiles.values()) t.update();
-    for (const t of [...gateTiles, ...toggleTiles]) t.update();
+    for (const t of [...gateTiles, ...toggleTiles, ...camTiles]) t.update();
     sheetView?.update();
     const m = css(mood());
     card.style.setProperty('--mood', m);
