@@ -42,9 +42,22 @@ ha-tile-info [slot=secondary] { display: none; }`,
 const info = (e, n, i, kw = {}) => tile(e, n, i, BLUE, { tap_action: { action: 'more-info' }, ...kw });
 const heading = (text, icon, nav) => ({ type: 'heading', heading: text, heading_style: 'subtitle',
   ...(icon && { icon }), ...(nav && { tap_action: { action: 'navigate', navigation_path: nav } }) });
-const gate = () => tile('cover.portao_garagem', 'Portão', 'mdi:garage-variant', BLUE, {
+// O portão como no app: a foto do portão fechado ou aberto (com o brilho âmbar enquanto aberto) e
+// o botão embaixo (Abrir / Fechar / Parar). O toque aciona o portão (cover.toggle) e o HA pede
+// confirmação antes, o equivalente aos dois toques do app; segurar abre os detalhes.
+const GATE_ON = "states(config.entity) in ['open', 'opening', 'closing']";
+const GATE_FADE = 'linear-gradient(90deg, transparent 0, #000 14%, #000 86%, transparent 100%), linear-gradient(180deg, transparent 0, #000 16%, #000 80%, transparent 100%)';
+const gate = () => ({ type: 'tile', entity: 'cover.portao_garagem', name: 'Portão', color: BLUE, vertical: false,
   tap_action: { action: 'perform-action', perform_action: 'cover.toggle', target: { entity_id: 'cover.portao_garagem' },
-    confirmation: { text: 'Acionar o portão da garagem?' } }, grid_options: { columns: 12 } });
+    confirmation: { text: 'Acionar o portão da garagem?' } },
+  hold_action: { action: 'more-info' }, icon_tap_action: { action: 'more-info' },
+  grid_options: { columns: 12, rows: 'auto' },
+  ...sceneStyle(GATE_ON, '#c88a3a', { name: 'gate', on: 'gate-open', off: 'gate-closed', fade: GATE_FADE, box: 'width: 118%; aspect-ratio: 1; left: -9%; top: -13%;' },
+    `ha-tile-icon { display: none !important; }
+ha-card::after { content: '{{ "Parar" if states(config.entity) in ["opening", "closing"] else "Fechar" if is_state(config.entity, "open") else "Abrir" }}';
+  position: absolute; z-index: 1; left: 12px; right: 12px; bottom: 12px; height: 34px; border-radius: 12px; pointer-events: none;
+  display: grid; place-items: center; font: 600 14px/1 var(--ha-font-family-body); color: #e9edf2;
+  background: rgba(4,13,23,0.62); box-shadow: inset 0 0 0 1px rgba(145,204,255,0.24); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }`) });
 const script = (e, n, i) => tile(e, n, i, BLUE, {
   tap_action: { action: 'perform-action', perform_action: 'script.turn_on', target: { entity_id: e } } });
 const ac = (e, n) => tile(e, n, null, BLUE, { tap_action: { action: 'more-info' }, grid_options: { columns: 12 },
@@ -66,7 +79,7 @@ ha-card { aspect-ratio: 1 / 1; height: auto !important; min-height: 0 !important
   border: 1px solid {{ 'rgba(145,204,255,0.34)' if on else 'rgba(145,204,255,0.13)' }} !important;
   box-shadow: {{ '0 18px 34px -22px ${glow}, inset 0 1px 0 rgba(233,237,242,0.1)' if on else 'none' }} !important; }
 ha-card::before { content: ''; position: absolute; z-index: 0; pointer-events: none; ${picture.box}
-  background: url('${IMG}/${picture.name}-{{ 'on' if on else 'off' }}.jpg') center / cover no-repeat;
+  background: url('${IMG}/{{ '${picture.on || picture.name + '-on'}' if on else '${picture.off || picture.name + '-off'}' }}.jpg') center / cover no-repeat;
   -webkit-mask-image: ${picture.fade || SCENE_FADE}; -webkit-mask-composite: source-in; mask-image: ${picture.fade || SCENE_FADE}; mask-composite: intersect; }
 ha-card { position: relative; }
 ha-tile-container { position: absolute !important; inset: 0; z-index: 1; }
