@@ -1888,7 +1888,7 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .cam-live { display: inline-flex; align-items: center; gap: 5px; color: #ff9a9a; font-weight: 700; font-size: 9.5px; letter-spacing: 0.07em; }
-.cam-live i { width: 6px; height: 6px; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 6px #ff4d4d; animation: cam-blink 1.6s ease-in-out infinite; }
+.cam-live i { width: 6px; height: 6px; border-radius: 50%; background: #ff4d4d; } /* static: nothing blinks */
 @keyframes cam-blink { 50% { opacity: 0.35; } }
 .cam-box.waiting .cam-live, .cam-box.waiting .cam-zoom { display: none; }
 .cam-name { color: var(--text); font-weight: 600; }
@@ -2153,11 +2153,10 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
 }
 .cp-title { padding: 5px 10px; border-radius: 10px; font-size: 12px; font-weight: 650; background: rgba(2, 7, 13, 0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cp-back {
-  margin-left: auto; pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
-  border-radius: 15px; font: inherit; font-size: 12px; font-weight: 700; color: #ffd6d6; cursor: pointer;
-  background: rgba(2, 7, 13, 0.7); border: 1px solid rgba(255, 120, 120, 0.45);
+  margin-left: auto; pointer-events: auto; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  color: #fff; cursor: pointer; background: rgba(2, 7, 13, 0.65); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
-.cp-back i { width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 6px #ff4d4d; }
+.cp-rec { flex: none; height: 20px; padding: 0 7px; border-radius: 10px; display: inline-flex; align-items: center; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: #fff; background: rgba(229, 72, 77, 0.92); }
 .cam-clip.drawer .cp-top { right: var(--drawer-w); }
 /* foot: play, time, the progress bar, sound, details, download, the drawer */
 .cp-foot {
@@ -2200,7 +2199,7 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
 .cp-info-row { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
 .cp-info-row .icon { color: rgba(234, 246, 255, 0.7); }
 /* the other clips, in a drawer at the right (the whole width on a narrow box) */
-.cam-clip { --drawer-w: min(300px, 44%); }
+.cam-clip { --drawer-w: clamp(150px, 40%, 300px); }
 .cp-drawer {
   position: absolute; z-index: 4; top: 0; right: 0; bottom: 0; width: var(--drawer-w); overflow-y: auto; scrollbar-width: thin;
   padding: 8px; background: rgba(11, 24, 38, 0.92); border-left: 1px solid rgba(145, 204, 255, 0.14);
@@ -2213,4 +2212,10 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
 .cp-drawer .cc-row-pic { width: 84px; }
 .cp-drawer .cc-row-top b { font-size: 13px; }
 .cp-drawer .cc-row-time { font-size: 14px; }
-@container (max-width: 520px) { .cam-clip { --drawer-w: 100%; } .cam-clip.drawer .cp-foot { right: 0; z-index: 5; background: none; opacity: 1; } .cam-clip.drawer .cp-drawer { padding-bottom: 54px; } .cam-clip.drawer .cp-foot > :not(:last-child) { visibility: hidden; } }
+@container (max-width: 520px) {
+  .cam-clip { --drawer-w: clamp(140px, 46%, 240px); }
+  .cp-drawer .cc-row { flex-direction: column; align-items: stretch; gap: 4px; }
+  .cp-drawer .cc-row-pic { width: 100%; aspect-ratio: 16 / 10; }
+  .cp-drawer .cc-row-sub:last-child { display: none; }
+  .cam-clip.drawer .cp-foot .cp-time, .cam-clip.drawer .cp-foot .cp-btn:not(:first-child):not(:last-child) { display: none; }
+}

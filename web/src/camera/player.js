@@ -25,7 +25,9 @@ export function createClipPlayer() {
   const spin = h('span.cp-spin', { hidden: true });
   const failMsg = h('div.cp-fail', { hidden: true });
   const title = h('span.cp-title');
-  const back = h('button.cp-back', { title: 'Voltar ao vivo' }, h('i'), 'Ao vivo');
+  // a recording: the static REC tag (no live mark, nothing blinking); ✕ goes back to the camera
+  const rec = h('span.cp-rec', 'REC');
+  const back = h('button.cp-back', { title: 'Fechar a gravação', 'aria-label': 'Fechar a gravação' }, icon('close', 16, 2.4));
   const playBtn = h('button.cp-btn', { 'aria-label': 'Tocar ou pausar' }, icon('play', 17, 2.2));
   const now = h('span.cp-time', '00:00');
   const total = h('span.cp-time.total', '--:--');
@@ -51,7 +53,7 @@ export function createClipPlayer() {
 
   const el = h('div.cam-clip', { hidden: true },
     video, big, spin, failMsg,
-    h('div.cp-top', title, back),
+    h('div.cp-top', rec, title, back),
     foot, info, drawer);
 
   let opts = {};
@@ -86,7 +88,10 @@ export function createClipPlayer() {
   });
   big.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
   playBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
-  video.addEventListener('click', () => { if (el.classList.contains('awake')) toggle(); else wake(); });
+  video.addEventListener('click', () => {
+    if (el.classList.contains('drawer')) { setDrawer(false); return; } // a tap beside the drawer folds it
+    if (el.classList.contains('awake')) toggle(); else wake();
+  });
   soundBtn.addEventListener('click', (e) => { e.stopPropagation(); video.muted = !video.muted; wake(); });
   seek.addEventListener('input', () => {
     scrubbing = true;
@@ -136,7 +141,8 @@ export function createClipPlayer() {
       listBtn.hidden = !(o.list || []).length;
       back.onclick = (e) => { e.stopPropagation(); o.onBack?.(); };
       // the drawer opens with the first clip, as the card does once a clip plays (wide boxes only)
-      if (!wasOpen) setDrawer(el.clientWidth >= 560 && (o.list || []).length > 1);
+      // the drawer opens only from its button (as the Frigate card)
+      if (!wasOpen) setDrawer(false);
       else drawerList.querySelector('.playing')?.scrollIntoView({ block: 'nearest' });
       video.src = o.url;
       video.muted = true;
