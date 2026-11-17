@@ -316,6 +316,7 @@ const home = view('Casa', 'casa', 'mdi:home', [
     tile('input_boolean.luzes_por_presenca', 'Luzes por presença', 'mdi:motion-sensor'),
     tile('input_boolean.automacoes_do_portao', 'Automações do portão', 'mdi:garage-alert'),
     tile('input_boolean.vigilancia_da_sala', 'Vigilância da sala', 'mdi:shield-home'),
+    tile('input_boolean.vigilancia_da_cozinha', 'Vigilância da cozinha', 'mdi:shield-home'),
     tile('automation.cameras_pessoa_detectada_notificar_com_foto', 'Aviso de pessoa', 'mdi:account-alert')], 'mdi:robot-outline'),
   section('Casa', [
     { type: 'todo-list', entity: 'todo.lista_de_compras', title: 'Lista de compras', ...mod() },
@@ -333,8 +334,8 @@ const rooms = ROOMS.map(([p, a, n, i, groups]) => view(n, p, i, [
 // galeria, linha do tempo, tela cheia e PTZ do próprio card do Frigate) e todos os ajustes dela;
 // a primeira aba, Todas, com as seis câmeras e os controles gerais.
 const CAM_EXTRA = {   // controles que são de uma câmera só (no app: `cameras` em cameraControls)
-  sala: [['input_boolean.vigilancia_da_sala', 'Vigilância (Sala + Cozinha)', 'mdi:shield-home']],
-  cozinha: [['input_boolean.vigilancia_da_sala', 'Vigilância (Sala + Cozinha)', 'mdi:shield-home']],
+  sala: [['input_boolean.vigilancia_da_sala', 'Vigilância da Sala', 'mdi:shield-home']],
+  cozinha: [['input_boolean.vigilancia_da_cozinha', 'Vigilância da Cozinha', 'mdi:shield-home']],
   garagem: [['input_boolean.automacoes_do_portao', 'Automações do portão', 'mdi:garage-alert']],
   frente: [['input_boolean.automacoes_do_portao', 'Automações do portão', 'mdi:garage-alert']],
 };
@@ -358,7 +359,8 @@ const camView = (id) => ({ title: CAMS[id], path: id, type: 'sections', max_colu
 const geral = section('Controles gerais', [
   script('script.ligar_deteccao_cameras', 'Ligar detecção em todas', 'mdi:cctv'),
   script('script.desligar_deteccao_cameras', 'Desligar detecção em todas', 'mdi:cctv-off'),
-  tile('input_boolean.vigilancia_da_sala', 'Vigilância (Sala + Cozinha)', 'mdi:shield-home', BLUE, half),
+  tile('input_boolean.vigilancia_da_sala', 'Vigilância da Sala', 'mdi:shield-home', BLUE, half),
+  tile('input_boolean.vigilancia_da_cozinha', 'Vigilância da Cozinha', 'mdi:shield-home', BLUE, half),
   tile('automation.cameras_pessoa_detectada_notificar_com_foto', 'Notificações', 'mdi:bell-ring', BLUE, half),
   tile('input_boolean.luzes_por_presenca', 'Luzes por presença', 'mdi:motion-sensor', BLUE, half),
   tile('input_boolean.automacoes_do_portao', 'Automações do portão', 'mdi:garage-alert', BLUE, half),

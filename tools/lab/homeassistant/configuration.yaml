@@ -76,6 +76,8 @@ input_boolean:
     name: Automações do portão
   vigilancia_da_sala:
     name: Vigilância da sala
+  vigilancia_da_cozinha:
+    name: Vigilância da cozinha
   lab_echo_dnd:
     name: lab Echo Não perturbe
 

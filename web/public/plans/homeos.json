@@ -1320,6 +1320,15 @@
       "name": "Vigilância da sala"
     },
     {
+      "icon": "eye",
+      "id": "vigilancia_cozinha",
+      "link": {
+        "id": "input_boolean.vigilancia_da_cozinha",
+        "service": "homeassistant"
+      },
+      "name": "Vigilância da cozinha"
+    },
+    {
       "icon": "automation",
       "id": "cameras",
       "link": {
@@ -1417,10 +1426,17 @@
     "switches": [
       {
         "entity": "input_boolean.vigilancia_da_sala",
-        "name": "Vigilância (Sala + Cozinha)",
+        "name": "Vigilância da Sala",
         "icon": "shield",
         "cameras": [
-          "cam.sala",
+          "cam.sala"
+        ]
+      },
+      {
+        "entity": "input_boolean.vigilancia_da_cozinha",
+        "name": "Vigilância da Cozinha",
+        "icon": "shield",
+        "cameras": [
           "cam.cozinha"
         ]
       },

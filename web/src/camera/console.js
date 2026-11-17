@@ -398,7 +398,8 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
   const gallery = h('div.cc-gallery');
   const timeline = h('div.cc-timeline');
   const empty = h('div.cc-note');
-  const clipsSection = h('section.cc-section.cc-clips', toolbar, filterPanel, infoPanel, listHead, strip, gallery, timeline, empty);
+  const offNote = h('div.cc-off-note', { hidden: true });
+  const clipsSection = h('section.cc-section.cc-clips', toolbar, filterPanel, infoPanel, listHead, offNote, strip, gallery, timeline, empty);
 
   // the two folded sections: shown on a tap, remembered per device
   function fold(key, title, glyph, body) {
@@ -563,12 +564,22 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
 
     const list = filtered();
     const det = current && states.get(camEntities(current).detect);
+    // the switch of this camera's vigilância, if the plan has one (it turns detection on)
+    const vigil = current && (ctl.switches || []).find((g) => g.cameras && g.cameras.length === 1 && forCam(g, current))?.name;
     const word = shownSource === 'reviews' ? 'revisões' : 'detecções';
+    // Detection off (Sala and Cozinha while their vigilância is off): Frigate records nothing
+    // new, the list stops at the last detection. Said plainly, with since when.
+    const off = usable(det) && !onOff(det);
     listHead.replaceChildren(...[
       h('span', mode === 'live' ? 'Últimas detecções' : mode === 'gallery' ? 'Galeria' : 'Linha do tempo'),
       h('small', list.length ? `${list.length} ${word}` : ''),
       shownSource === 'reviews' && list.some((it) => !it.reviewed)
         ? h('button.cc-mark-all', { onclick: markAllViewed }, icon('check', 13, 2.4), 'Marcar tudo como visto') : null].filter(Boolean));
+    offNote.hidden = !off || !list.length;
+    if (off) {
+      const since = det.last_changed ? new Date(det.last_changed) : null;
+      offNote.replaceChildren(icon('eyeOff', 14, 2), h('span', `Detecção desligada${since ? ` desde ${dayWord(since).toLowerCase()}, ${clock(since).slice(0, 2).join(':')}` : ''}: nada novo é registrado. Ligue em Ajustes da câmera${vigil ? ` ou na ${vigil}` : ''}.`));
+    }
     strip.replaceChildren(...(mode === 'live' ? list.slice(0, 16).map(tile) : []));
     gallery.replaceChildren(...(mode === 'gallery' ? list.map(tile) : []));
     timeline.replaceChildren(...(mode === 'timeline' ? list.map(row) : []));
@@ -576,7 +587,7 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
     empty.hidden = list.length > 0;
     empty.textContent = failed ? 'Não foi possível ler as detecções do Frigate.'
       : items.length ? 'Nada com esses filtros.'
-        : onOff(det) ? 'Nenhuma detecção ainda nesta câmera.' : 'Nenhuma detecção. A detecção desta câmera está desligada (em Ajustes da câmera).';
+        : onOff(det) ? 'Nenhuma detecção ainda nesta câmera.' : `Nenhuma detecção. A detecção desta câmera está desligada (em Ajustes da câmera${vigil ? ` ou na ${vigil}` : ''}).`;
   }
 
   /* ================= reading Home Assistant while on screen ================= */

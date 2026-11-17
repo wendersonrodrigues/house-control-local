@@ -146,7 +146,7 @@ const AUTOS = [
     mode: 'single' },
 
   { id: 'cameras_sugerida_vigilancia_sair', alias: 'Câmeras - Sugerida: vigilância da Sala ao sair de casa',
-    description: 'Liga a vigilância da Sala e da Cozinha quando todos saem de casa e desliga quando alguém chega (privacidade de quem está em casa).',
+    description: 'Liga a vigilância da Sala quando todos saem de casa e desliga quando alguém chega (privacidade de quem está em casa). Só a Sala; a Cozinha tem a sua.',
     triggers: [{ trigger: 'state', entity_id: 'zone.home', to: '0', for: { minutes: 5 }, id: 'saiu' },
       { trigger: 'state', entity_id: 'zone.home', from: '0', id: 'chegou' }],
     conditions: [{ condition: 'template', value_template: "{{ trigger.id == 'saiu' or trigger.to_state.state not in ['unknown', 'unavailable'] }}" }],
@@ -300,9 +300,9 @@ const T = {
 **Como funciona:** usa a zona Casa do HA (hoje só o seu celular conta). Ao voltar alguém, os avisos voltam ao normal sozinhos.
 
 **Quando usar:** viagens e saídas longas. O iPhone pode pedir para permitir "Alertas críticos" ao app Home Assistant.`,
-  vigilancia: `**O que faz:** liga a **vigilância da Sala e da Cozinha** quando todos saem de casa (5 minutos depois) e desliga quando alguém chega.
+  vigilancia: `**O que faz:** liga a **vigilância da Sala** quando todos saem de casa (5 minutos depois) e desliga quando alguém chega.
 
-**Como funciona:** usa a mesma chave "Vigilância (Sala + Cozinha)" do painel Câmeras: detecção, fotos, gravação da Sala e notificação das duas. Dentro de casa, as câmeras internas ficam sem detecção (privacidade).
+**Como funciona:** usa a chave "Vigilância da Sala" do painel Câmeras: detecção, fotos, gravação e notificação da Sala. A Cozinha tem a sua própria chave ("Vigilância da Cozinha"), que esta automação não mexe.
 
 **Quando usar:** se quiser que as câmeras de dentro só vigiem com a casa vazia, sem lembrar de ligar.`,
   calcada: `**O que faz:** avisa com a foto da Frente quando alguém fica **parado na calçada** (zona "Calçada Frente") por mais de X segundos.
@@ -354,7 +354,7 @@ Cada automação liga e desliga no botão dela; todas começaram **desligadas**.
   ...SUGERIDAS.map((k) => blocks[k]()),
 ] };
 
-const CAM_SUG = { frente: ['calcada', 'semImagem'], garagem: ['portaoAbriu', 'semImagem'], sala: ['vigilancia', 'semImagem'], cozinha: ['vigilancia', 'semImagem'], corredor: ['semImagem'], quintal: ['semImagem'] };
+const CAM_SUG = { frente: ['calcada', 'semImagem'], garagem: ['portaoAbriu', 'semImagem'], sala: ['vigilancia', 'semImagem'], cozinha: ['semImagem'], corredor: ['semImagem'], quintal: ['semImagem'] };
 const camView = (c) => ({ title: CAMS[c], path: c, type: 'sections', max_columns: 4, dense_section_placement: true, background: BG, sections: [
   intro(`## ${CAMS[c]}
 O que vale para a câmera ${CAMS[c]}: o horário dela, os ajustes de notificação e as automações que mexem com ela. As que valem para todas as câmeras (modo visita, pessoas conhecidas) ligam e desligam aqui também.`),

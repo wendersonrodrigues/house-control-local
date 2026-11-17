@@ -1986,6 +1986,14 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
   background: rgba(5, 10, 20, 0.62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 
+/* detection off: the list stops at the last detection (camera/console.js) */
+.cc-off-note {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; font-size: 12.5px;
+  color: #ffd79a; background: rgba(255, 170, 60, 0.1); border: 1px solid rgba(255, 170, 60, 0.28);
+}
+.cc-off-note[hidden] { display: none; }
+.cc-off-note .icon { flex: none; }
+
 /* the bar under the picture: Ao vivo | Galeria | Linha do tempo, and filters / info / full screen */
 .cc-section { display: flex; flex-direction: column; gap: 10px; }
 .cc-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
