@@ -1837,14 +1837,14 @@ html.ios .cam-dock { left: max(12px, var(--safe-left)); right: max(12px, var(--s
 html:not(.split) .card.cam-open .panel,
 html:not(.split) .card.cam-open .sheet { top: calc(var(--cam-top) + var(--cam-h, 0px) + 10px); }
 /* the iPad lying down: the model's side, below the header and above the room tabs */
-html.split .cam-dock {
+html.split .cam-dock:not(.inline) {
   left: max(16px, calc(var(--safe-left) + 8px)); right: auto;
   width: calc(var(--split-start) - max(16px, calc(var(--safe-left) + 8px)) - 16px);
   top: calc(var(--head-bottom, 76px) + 14px);
   bottom: max(16px, var(--safe-bottom));
   align-items: center;
 }
-html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(var(--safe-bottom) + 68px + 14px); }
+html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock:not(.inline) { bottom: calc(var(--safe-bottom) + 68px + 14px); }
 
 .cam-box {
   position: relative;
@@ -1964,6 +1964,30 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
 
 /* the picture, the page's whole width */
 .cc-viewer { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+
+/* Wide: the picture on the left (camera/view.js sets its width, --cc-video-w) and the
+   detections in a column on its right, as tall as the picture, scrolling on their own. */
+.cam-console.wide {
+  display: grid; grid-template-columns: var(--cc-video-w, minmax(0, 1fr)) minmax(0, 1fr);
+  gap: 14px; align-items: start;
+}
+.cam-console.wide > .cc-hint, .cam-console.wide > .cc-all, .cam-console.wide > .cc-fold { grid-column: 1 / -1; }
+.cam-console.wide > .cc-viewer { grid-column: 1; }
+.cam-console.wide > .cc-clips {
+  grid-column: 2; min-width: 0; max-height: var(--cc-video-h, 70vh); overflow-y: auto; scrollbar-width: thin;
+  align-content: start;
+}
+.cam-console.wide .cc-detections {
+  grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); overflow: visible;
+}
+.cam-console.wide .cc-toolbar { gap: 6px; }
+/* a narrow column (a 16:9 picture takes most of the width): the modes as icons */
+.cam-console.wide > .cc-clips { container-type: inline-size; }
+@container (max-width: 380px) {
+  .cc-mode > span:not(.cc-badge) { display: none; }
+}
+/* the cameras' page starts a little below the top fade of the list (the picture's edge whole) */
+.card.cam-page .devices { padding-top: 14px; overflow-anchor: none; }
 
 /* "Todas": every camera at once, a still of each that renews (camera/console.js) */
 .cc-all { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

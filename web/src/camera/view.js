@@ -109,13 +109,32 @@ export function createCameraBox({ access, onSize = () => {}, reserve = () => 190
      cards move down below it (onSize: the panel sets --cam-h). */
   // px kept below the box for the cards, in the full-width layout (`reserve()`: more on the
   // cameras' page, whose detections and settings sit there)
+  const SIDE = 280; // the detections' column beside the picture on a wide cameras' page
   function fit() {
     const w = dock.clientWidth;
     if (!w || dock.hidden) return;
     let bw;
     let bh;
-    if (dock.classList.contains('inline')) {
-      // inside the cameras' page (camera/console.js): as wide as its place, up to most of the screen
+    const page = dock.classList.contains('inline') ? dock.closest('.cam-console') : null;
+    if (page?.classList.contains('wide')) {
+      // the cameras' page on a wide screen (camera/console.js): the picture on the left, as tall
+      // as the page's visible height, the detections in what is left on the right (at least
+      // SIDE px). A camera taller than wide grows in height instead of floating small.
+      const scroller = page.closest('.devices');
+      const maxW = page.clientWidth - SIDE - 14;
+      // what the list shows: its height less its own padding (the room tabs over its foot)
+      const cs = scroller && getComputedStyle(scroller);
+      const visible = scroller ? scroller.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) : innerHeight * 0.7;
+      const maxH = Math.max(240, visible - 4);
+      bh = maxH;
+      bw = bh * aspect;
+      if (bw > maxW) { bw = maxW; bh = bw / aspect; }
+      page.style.setProperty('--cc-video-w', `${Math.round(bw)}px`);
+      page.style.setProperty('--cc-video-h', `${Math.round(bh)}px`);
+    } else if (page) {
+      // inside the cameras' page, narrow: as wide as its place, up to most of the screen
+      page.style.removeProperty('--cc-video-w');
+      page.style.removeProperty('--cc-video-h');
       bw = w;
       bh = bw / aspect;
       const max = Math.max(200, innerHeight * 0.62);

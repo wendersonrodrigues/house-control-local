@@ -381,7 +381,7 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
   const viewer = h('div.cc-viewer', videoSlot);
   const modeBtns = [['live', 'Ao vivo', 'cctv'], ['gallery', 'Galeria', 'layout'], ['timeline', 'Linha do tempo', 'list']].map(([m, label, g]) => {
     const badge = h('span.cc-badge', { hidden: true });
-    const b = h('button.cc-mode', { 'data-m': m, onclick: () => { haptic('tick'); mode = m; store.set('mode', m); renderClips(); } }, icon(g, 15, 2), h('span', label), badge);
+    const b = h('button.cc-mode', { 'data-m': m, title: label, 'aria-label': label, onclick: () => { haptic('tick'); mode = m; store.set('mode', m); renderClips(); } }, icon(g, 15, 2), h('span', label), badge);
     b.badge = badge;
     return b;
   });
@@ -480,6 +480,17 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
   }
 
   const el = h('div.cam-console', hint, grid, viewer, clipsSection, settingsFold, generalFold);
+  // Wide (the Mac's window, an iPad lying down): the picture on the left, as big as the height
+  // allows, and the detections (live, gallery, timeline) in a column on its right; the
+  // settings below both. camera/view.js sizes the picture and sets --cc-video-w.
+  const WIDE = 860;
+  new ResizeObserver(() => {
+    const wide = el.clientWidth >= WIDE;
+    if (wide !== el.classList.contains('wide')) {
+      el.classList.toggle('wide', wide);
+      dispatchEvent(new Event('resize')); // the box sizes itself again (camera/view.js)
+    }
+  }).observe(el);
   let camParts = [];
 
   function buildCam(cam) {
@@ -655,6 +666,8 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
       if (cam) gridOn = false;
       if (cam === current) { render(); if (!cam) kickGrid(); return; }
       current = cam;
+      // another camera: the page from its top (the picture whole, not half scrolled away)
+      el.closest('.devices')?.scrollTo({ top: 0 });
       if (cam) { store.set('last', cam.id); buildCam(cam); } else { camParts = []; settingsGrid.replaceChildren(); clearTimeout(pollTimer); items = []; }
       render();
       if (cam && live && ha) load();

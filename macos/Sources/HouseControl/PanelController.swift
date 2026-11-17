@@ -155,7 +155,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         let big = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
                            styleMask: [.titled, .closable, .miniaturizable, .resizable],
                            backing: .buffered, defer: false)
-        big.title = Edition.name
+        big.title = "Home OS"
         big.titlebarAppearsTransparent = true
         big.backgroundColor = NSColor(calibratedRed: 0.04, green: 0.055, blue: 0.1, alpha: 1)
         big.appearance = NSAppearance(named: .darkAqua)

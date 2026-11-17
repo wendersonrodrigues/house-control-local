@@ -55,6 +55,14 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/HouseControl"
 cp -R "$ROOT/web/dist" "$APP/Contents/Resources/web"
 [ -f "$ROOT/macos/AppIcon.icns" ] && cp "$ROOT/macos/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+# macOS 26+ puts an old-style icon (its own rounded tile inside the icns) in a grey frame: the
+# icon is an Icon Composer one (macos/AppIcon.icon, the logo full bleed, the system draws the
+# shape), compiled into Assets.car, with an AppIcon.icns for older systems.
+if [ -d "$ROOT/macos/AppIcon.icon" ] && xcrun --find actool >/dev/null 2>&1; then
+  xcrun actool "$ROOT/macos/AppIcon.icon" --compile "$APP/Contents/Resources" --platform macosx \
+    --minimum-deployment-target 13.0 --app-icon AppIcon --include-all-app-icons \
+    --output-partial-info-plist "$(mktemp -d)/icon.plist" >/dev/null
+fi
 if [ -n "${APPEX:-}" ]; then
   mkdir -p "$APP/Contents/PlugIns"
   cp -R "$APPEX" "$APP/Contents/PlugIns/"
@@ -70,6 +78,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>io.github.0xprobabillity.HouseControl</string>
   <key>CFBundleExecutable</key><string>HouseControl</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$BUILD</string>
