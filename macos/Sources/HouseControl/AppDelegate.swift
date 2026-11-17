@@ -102,6 +102,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["HOUSE_OPEN_ON_LAUNCH"] != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.togglePanel() }
         }
+        // HOUSE_OPEN_EXPANDED=1 starts with the panel open as a window of its own (UI automation).
+        if ProcessInfo.processInfo.environment["HOUSE_OPEN_EXPANDED"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self else { return }
+                self.panel.setExpanded(true, below: self.statusItem.button)
+            }
+        }
     }
 
     /// `housecontrol://open[?device=…]`: a click on a widget opens the panel (on that lamp, AC or room).
@@ -114,6 +121,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// A click on the Dock icon (shown while the panel is open as a window): that window in front.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if panel.expanded { panel.focusExpanded(); return false }
+        return true
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
         agent.stop(reason: "House Control quit")
@@ -257,6 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         boot["agentLive"] = agent.isLive
         boot["detached"] = UserDefaults.standard.bool(forKey: "panelDetached")
+        boot["expanded"] = panel?.expanded == true
         boot["openAtLogin"] = LoginItem.state.rawValue
         // HOUSE_OPEN_DEVICE=<id> starts the panel on that light's or AC's detail sheet.
         if let device = ProcessInfo.processInfo.environment["HOUSE_OPEN_DEVICE"] { boot["openDevice"] = device }
@@ -407,6 +421,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.hide()
         case "setDetached":
             panel.setDetached(message["on"] as? Bool ?? false, below: statusItem.button)
+        case "setExpanded":
+            if host === panel.host { panel.setExpanded(message["on"] as? Bool ?? false, below: statusItem.button) }
         case "moveWindow":
             if host === panel.host {
                 panel.move(by: CGFloat((message["dx"] as? NSNumber)?.doubleValue ?? 0), CGFloat((message["dy"] as? NSNumber)?.doubleValue ?? 0))

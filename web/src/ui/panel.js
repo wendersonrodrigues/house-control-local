@@ -133,19 +133,27 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     update();
   }
   const gear = h('button.round', { title: 'Ajustes e plantas', 'aria-label': 'Ajustes e plantas', onclick: () => onMenu(gear) }, icon('settings', 17));
-  // The Mac: let the panel go from the menu bar (a floating window that stays open), or put it back.
+  // The Mac: let the panel go from the menu bar (a floating window that stays open), or put it
+  // back. Kept for the shell's sake; the header's button now expands the panel instead (below).
   let detached = Boolean(window.__HOUSE_BOOT__?.detached);
-  const detachBtn = isNative && !isPhone
-    ? h('button.round.detach-btn', { onclick: () => { post('setDetached', { on: !detached }); } })
-    : null;
   function showDetached(on) {
     detached = Boolean(on);
     card.classList.toggle('detached', detached);
-    if (!detachBtn) return;
-    const label = detached ? 'Prender de volta na barra de menu' : 'Soltar da barra de menu (fica aberto)';
-    detachBtn.title = label;
-    detachBtn.setAttribute('aria-label', label);
-    detachBtn.replaceChildren(icon(detached ? 'pinOff' : 'pin', 16, 2));
+  }
+  // The Mac: open the panel big, as an app window of its own (the iPad's layout lying down:
+  // the model on the left, the controls on the right), or put it back in the menu bar.
+  let expanded = Boolean(window.__HOUSE_BOOT__?.expanded);
+  const expandBtn = isNative && !isPhone
+    ? h('button.round.expand-btn', { onclick: () => { post('setExpanded', { on: !expanded }); } })
+    : null;
+  function showExpanded(on) {
+    expanded = Boolean(on);
+    card.classList.toggle('expanded', expanded);
+    if (!expandBtn) return;
+    const label = expanded ? 'Voltar para a barra de menu' : 'Abrir grande, numa janela';
+    expandBtn.title = label;
+    expandBtn.setAttribute('aria-label', label);
+    expandBtn.replaceChildren(icon(expanded ? 'shrink' : 'expand', 16, 2));
   }
   // Shown while an AI assistant has a link to this home (AI Access on the Mac).
   const aiBadge = h('button.ai-badge', { hidden: true, title: 'Um assistente de IA tem acesso — clique para gerenciar', 'aria-label': 'Acesso por IA',
@@ -178,11 +186,12 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     h('header.top',
       h('div.home', homeBadge,
         h('div', homeName, homeSub)),
-      aiBadge, mapBtn, detachBtn, gear, power),
+      aiBadge, mapBtn, expandBtn, gear, power),
     tooltip, panel, sheet, toastEl);
   const card = h('div.card.booting', h('div.notch'), clip);
   root.replaceChildren(card);
   showDetached(detached);
+  showExpanded(expanded);
   // Solto, the window is dragged by its header (not by its buttons).
   {
     const head = clip.querySelector('header.top');
@@ -2195,6 +2204,12 @@ export function createPanel(root, config, store, { onFocus, onMenu, cameraAccess
     setAgentLive(live) { aiBadge.hidden = !live; },
     /** Let go of the menu bar (Mac): no notch, dragged by the header. */
     setDetached: showDetached,
+    /** Opened as a window of its own (Mac), or back in the menu bar: the cards laid out again. */
+    setExpanded(on) {
+      showExpanded(on);
+      layoutTiles(true);
+      update();
+    },
     /** The stage and the controls moved (a Duo folded or opened): the controls settle in place. */
     relayout() {
       card.classList.remove('relayout');

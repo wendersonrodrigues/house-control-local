@@ -1,7 +1,8 @@
 // The cameras' page (the "Câmeras" tab at the end of the menu), Frigate brought into HomeOs:
 //
-//   [ Garagem · Frente · Sala · Cozinha · Corredor · Quintal ]   the camera (opens the first)
-//   [ live picture, PTZ over it ]  [ timeline beside it, on a wide screen ]
+//   [ Todas · Garagem · Frente · Sala · Cozinha · Corredor · Quintal ]   the camera (opens the last seen)
+//   [ live picture, PTZ over it, the page's whole width ]
+//     or, on "Todas", every camera at once in a grid (a still that renews: a quick look)
 //   [ Ao vivo | Galeria | Linha do tempo ]   [ filters · info · full screen ]
 //   the latest detections (live) / the gallery / the timeline, filtered
 //   ▸ Ajustes da câmera   (this camera only: detection, notify, zone, confidence, interval…)
@@ -25,6 +26,12 @@ const LABEL = { person: ['Pessoa', 'person'], car: ['Carro', 'car'], dog: ['Cach
 const labelOf = (l) => LABEL[l]?.[0] || l || 'Detecção';
 const FRIGATE = 'frigate'; // the integration's instance id
 const POLL_MS = 15000;
+// "Todas": each camera's still from Home Assistant (camera_proxy, the Frigate camera's latest
+// frame of its detect stream, the light substream), renewed this often while the grid is seen.
+// Six stills every 2 s cost far less than six live videos in high resolution, and need no
+// WebRTC session per camera; a tap opens the camera live.
+const GRID_MS = 2000;
+const ALL = 'all';
 const DAY = 86400000;
 const hls = (() => { try { return document.createElement('video').canPlayType('application/vnd.apple.mpegurl') !== ''; } catch { return false; } })();
 
@@ -81,11 +88,13 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
 
   /* ================= the picker ================= */
   const chips = new Map();
-  const picker = h('div.cam-picker', { role: 'tablist', 'aria-label': 'Câmeras' },
+  let gridOn = false; // "Todas": every camera in a grid, none live
+  const allChip = h('button.cam-pick', { role: 'tab', onclick: () => showAll() }, icon('layout', 15), h('span', 'Todas'));
+  const picker = h('div.cam-picker', { role: 'tablist', 'aria-label': 'Câmeras' }, allChip,
     ...cams.map((c) => {
       const dot = h('span.cam-chip-dot');
       const count = h('span.cam-chip-count', { hidden: true });
-      const b = h('button.cam-pick', { role: 'tab', onclick: () => { if (!isCurrent(c.id)) onPick(c.id); } }, icon('cctvFilled', 15), h('span', c.name), count, dot);
+      const b = h('button.cam-pick', { role: 'tab', onclick: () => { gridOn = false; if (!isCurrent(c.id)) onPick(c.id); else render(); } }, icon('cctvFilled', 15), h('span', c.name), count, dot);
       chips.set(c.id, { b, dot, count });
       return b;
     }));
@@ -369,8 +378,7 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
 
   /* ================= the layout ================= */
   const videoSlot = h('div.cc-video');                 // the camera box is put here (panel.js)
-  const side = h('div.cc-side');                       // the timeline beside the picture (wide)
-  const viewer = h('div.cc-viewer', videoSlot, side);
+  const viewer = h('div.cc-viewer', videoSlot);
   const modeBtns = [['live', 'Ao vivo', 'cctv'], ['gallery', 'Galeria', 'layout'], ['timeline', 'Linha do tempo', 'list']].map(([m, label, g]) => {
     const badge = h('span.cc-badge', { hidden: true });
     const b = h('button.cc-mode', { 'data-m': m, onclick: () => { haptic('tick'); mode = m; store.set('mode', m); renderClips(); } }, icon(g, 15, 2), h('span', label), badge);
@@ -425,7 +433,52 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
   const generalFold = fold('general', 'Controles gerais', 'shield',
     h('div.cc-general', actions.length ? h('div.cc-actions', ...actions) : null, h('div.cc-grid', ...general.map((p) => p.el))));
 
-  const el = h('div.cam-console', hint, viewer, clipsSection, settingsFold, generalFold);
+  /* ================= "Todas": every camera in a grid ================= */
+  const gridTiles = cams.map((c) => {
+    const img = h('img', { alt: '', decoding: 'async' });
+    const dot = h('span.cam-chip-dot');
+    const el = h('button.cc-all-tile', { title: `Abrir ${c.name} ao vivo`, onclick: () => { haptic('light'); gridOn = false; onPick(c.id); } },
+      img, h('span.cc-all-wait', icon('cctv', 22)), h('span.cc-all-name', dot, c.name));
+    return { cam: c, el, img, dot, busy: false, shown: false };
+  });
+  const grid = h('div.cc-all', ...gridTiles.map((t) => t.el));
+  let gridTimer = 0;
+  /** The still of each camera, again: the next one is asked for only once the last arrived. */
+  function refreshGrid() {
+    clearTimeout(gridTimer);
+    gridTimer = 0;
+    if (!gridOn || current || !live || !ha) return;
+    const base = (ha.base || location.origin).replace(/\/$/, '');
+    for (const t of gridTiles) {
+      // the camera's own picture address, with the short-lived token Home Assistant gives it
+      const pic = states.get(t.cam.link?.id)?.attributes?.entity_picture;
+      if (!pic || t.busy) continue;
+      t.busy = true;
+      const next = new Image();
+      next.decoding = 'async';
+      next.onload = () => { t.busy = false; t.img.src = next.src; t.shown = true; t.el.classList.add('ready'); };
+      next.onerror = () => { t.busy = false; };
+      next.src = `${base}${pic}${pic.includes('?') ? '&' : '?'}_=${Date.now()}`;
+    }
+    gridTimer = setTimeout(refreshGrid, GRID_MS);
+  }
+  /** Starts the renewing unless it already runs (render() comes often: it must not hurry it). */
+  const kickGrid = () => { if (!gridTimer) refreshGrid(); };
+  function showAll() {
+    haptic('tick');
+    gridOn = true;
+    store.set('last', ALL);
+    if (current) onPick(null); // the camera on screen closes (panel.js), the grid takes its place
+    current = null;
+    clearTimeout(pollTimer);
+    camParts = [];
+    settingsGrid.replaceChildren();
+    items = [];
+    render();
+    refreshGrid();
+  }
+
+  const el = h('div.cam-console', hint, grid, viewer, clipsSection, settingsFold, generalFold);
   let camParts = [];
 
   function buildCam(cam) {
@@ -519,9 +572,6 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
     strip.replaceChildren(...(mode === 'live' ? list.slice(0, 16).map(tile) : []));
     gallery.replaceChildren(...(mode === 'gallery' ? list.map(tile) : []));
     timeline.replaceChildren(...(mode === 'timeline' ? list.map(row) : []));
-    // beside the picture on a wide screen: the timeline while live
-    side.replaceChildren(...(mode === 'live' ? list.slice(0, 30).map(row) : []));
-    viewer.classList.toggle('with-side', mode === 'live' && list.length > 0 && !playing);
     if (playing) camBox.setClipList(list.slice(0, 40).map(row));
     empty.hidden = list.length > 0;
     empty.textContent = failed ? 'Não foi possível ler as detecções do Frigate.'
@@ -533,6 +583,7 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
   const wanted = () => {
     const ids = [];
     for (const c of cams) {
+      if (c.link?.id) ids.push(c.link.id); // its picture, for the grid of "Todas"
       ids.push(...Object.values(camEntities(c)).filter((v) => v.includes('.')));
       for (const z of c.zones || []) ids.push(`binary_sensor.${Array.isArray(z) ? z[0] : z.id || z}_all_occupancy`);
     }
@@ -551,11 +602,17 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
       states = new Map(now);
       render();
       if (current && (first || !items.length)) load();
+      kickGrid();
     });
-    return () => { live = false; clearTimeout(pollTimer); stop(); };
+    return () => { live = false; clearTimeout(pollTimer); clearTimeout(gridTimer); gridTimer = 0; stop(); };
   });
 
   function render() {
+    const all = gridOn && !current;
+    allChip.classList.toggle('on', all);
+    allChip.setAttribute('aria-selected', String(all));
+    grid.hidden = !all;
+    for (const t of gridTiles) t.dot.classList.toggle('armed', onOff(states.get(camEntities(t.cam).detect)));
     for (const c of cams) {
       const chip = chips.get(c.id);
       const det = states.get(camEntities(c).detect);
@@ -564,7 +621,7 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
       chip.dot.classList.toggle('armed', onOff(det));
       chip.dot.title = onOff(det) ? 'Detecção ligada' : 'Detecção desligada';
     }
-    hint.hidden = Boolean(current);
+    hint.hidden = Boolean(current) || all;
     viewer.hidden = !current;
     clipsSection.hidden = !current;
     settingsFold.hidden = !current;
@@ -584,14 +641,21 @@ export function createCamConsole({ access, config, camBox, onPick, isCurrent }) 
     /** The camera picked on this page (its live picture is open), or null. */
     show(id) {
       const cam = cams.find((c) => c.id === id) || null;
-      if (cam === current) { render(); return; }
+      if (cam) gridOn = false;
+      if (cam === current) { render(); if (!cam) kickGrid(); return; }
       current = cam;
       if (cam) { store.set('last', cam.id); buildCam(cam); } else { camParts = []; settingsGrid.replaceChildren(); clearTimeout(pollTimer); items = []; }
       render();
       if (cam && live && ha) load();
+      if (!cam) kickGrid();
     },
-    /** The camera this page opens with: the last one seen here, else the first. */
-    firstCamera() { const last = store.get('last', null); return (cams.find((c) => c.id === last) || cams[0])?.id || null; },
+    /** The camera this page opens with: the last one seen here, else the first; null when it
+     *  was left on "Todas" (the grid shows, no camera goes live). */
+    firstCamera() {
+      const last = store.get('last', null);
+      if (last === ALL) { gridOn = true; return null; }
+      return (cams.find((c) => c.id === last) || cams[0])?.id || null;
+    },
     refresh: render,
   };
 }

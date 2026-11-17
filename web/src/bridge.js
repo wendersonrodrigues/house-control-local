@@ -13,12 +13,22 @@ export const platform = window.__HOUSE_BOOT__?.platform
 export const isPhone = platform === 'ios';
 export const isHA = platform === 'ha';
 // A finger, not a pointer: the phone, and the tablet running the Home Assistant edition.
-export const isTouch = isPhone || isHA;
+// (`let`: the Mac's expanded window takes the tablet's layout for a while, setWide below.)
+export let isTouch = isPhone || isHA;
 // The tablet layout (model beside a wider panel, more card columns): the Home Assistant
 // edition, and the iOS app on an iPad (its shell boots with `tablet: true`; ?tablet=1 in a
 // browser together with ?platform=ios).
-export const isTablet = isHA || (isPhone && Boolean(window.__HOUSE_BOOT__?.tablet
+export let isTablet = isHA || (isPhone && Boolean(window.__HOUSE_BOOT__?.tablet
   || new URLSearchParams(location.search).get('tablet')));
+const bootTouch = isTouch;
+const bootTablet = isTablet;
+/** The Mac app opened as a window of its own (the expand button): the iPad's layout in
+ *  landscape, the model on the left and the controls on the right, until it goes back to
+ *  the menu bar. ES modules hand out live bindings: the other modules see the new values. */
+export function setWide(on) {
+  isTouch = on || bootTouch;
+  isTablet = on || bootTablet;
+}
 
 // Without a native shell, something else may carry the commands (Home Assistant's own
 // connection on a tablet): `fn(type, payload)` answers `call` instead of the shell.

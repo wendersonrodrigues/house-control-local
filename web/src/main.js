@@ -6,7 +6,7 @@ import { createAgent } from './agent/tools.js';
 import { h, openMenu } from './ui/dom.js';
 import { phoneLayout, sameLayout } from './ui/layout.js';
 import { icon } from './ui/icons.js';
-import { isNative, isPhone, isHA, isTouch, isTablet, post, call, incoming, haptic, setTransport } from './bridge.js';
+import { isNative, isPhone, isHA, isTouch, isTablet, setWide, post, call, incoming, haptic, setTransport } from './bridge.js';
 import { rawArrangement, adoptArrangement } from './ui/arrange.js';
 import { connectHA } from './ha/connection.js';
 import { attachHomeAssistant } from './ha/provider.js';
@@ -220,7 +220,8 @@ async function boot() {
   // and the sheets start just below it. Only its height is measured here (--head-h); where it
   // sits comes from the safe area in style.css (--head-bottom), so the iPad's status bar
   // arriving late or a rotation moving the bar never leaves the panel under it.
-  if (isTablet) {
+  // (the Mac too: its expanded window takes the tablet's layout)
+  if (isTablet || isNative) {
     const head = app.querySelector('.card .top');
     const setHead = () => head && root.style.setProperty('--head-h', `${Math.round(head.offsetHeight)}px`);
     if (head) new ResizeObserver(setHead).observe(head);
@@ -232,7 +233,16 @@ async function boot() {
   let layout = null;
   let wasWide = innerWidth >= 600;
   function applyLayout() {
-    if (!isTouch) return;
+    if (!isTouch) {
+      // the Mac's window back in the menu bar: the card as it always was
+      if (layout) {
+        layout = null;
+        root.classList.remove('split', 'table');
+        root.style.removeProperty('--split-start');
+        root.style.removeProperty('--split-end');
+      }
+      return;
+    }
     const next = phoneLayout(innerWidth, innerHeight, fold, { tablet: isTablet });
     const wide = innerWidth >= 600;
     // Opening a Duo replays the sweep the panel plays when it appears.
@@ -269,6 +279,21 @@ async function boot() {
   incoming.hidden = () => { hide(); panel.closeSheet(); if (panel.room !== 'all') panel.selectRoom('all'); };
   incoming.setNotch = (x) => panel.setNotch(x);
   incoming.setDetached = (on) => panel.setDetached(on);
+  // The Mac: the panel opened as a window of its own (the expand button), or back under the
+  // menu bar. The window takes the iPad's layout lying down (style.css: html.ios.tablet.split).
+  function setExpanded(on) {
+    on = Boolean(on);
+    setWide(on);
+    root.classList.toggle('ios', on);
+    root.classList.toggle('tablet', on);
+    root.classList.toggle('expanded', on);
+    applyLayout();
+    applyInsets();
+    panel.setExpanded(on);
+    world.resize();
+  }
+  incoming.setExpanded = setExpanded;
+  if (window.__HOUSE_BOOT__?.expanded) setExpanded(true);
   if (isTouch) {
     // Swiping in from the left edge goes back from a device sheet, as it does everywhere on iOS
     // (beside the 3D stage, from the sheet's own left edge).

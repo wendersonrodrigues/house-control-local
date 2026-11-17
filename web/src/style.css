@@ -1715,7 +1715,6 @@ html.ios .grid { --rows-medium: 3; }
 .card.detached .notch { display: none; }
 .card.detached header.top { cursor: grab; }
 .card.detached header.top.dragging { cursor: grabbing; }
-.detach-btn.on, .card.detached .detach-btn { color: var(--accent); }
 
 /* ---------- Tela inicial deitada, sem o mapa: seções lado a lado, rolagem para a direita ----------
    Cada seção é uma grade própria (as mesmas medidas de cartão do tablet), com no máximo
@@ -1924,7 +1923,11 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
    =================================================================================== */
 .card.cam-page .scenes { display: none; }
 .card.cam-page .stage, .card.cam-page .tint { display: none; }
-.cam-dock.inline { position: relative; inset: auto; z-index: auto; display: flex; justify-content: center; pointer-events: auto; }
+/* (also lying down: html.split's place beside the model is not this page's, it sits in the page) */
+.cam-dock.inline, html.split .cam-dock.inline {
+  position: relative; inset: auto; width: auto; z-index: auto; display: flex; justify-content: center;
+  align-items: flex-start; pointer-events: auto;
+}
 .cam-dock.inline .cam-box { animation: none; }
 .cam-strip.picker { display: block; margin: 12px 0 10px; }
 .cam-picker {
@@ -1959,13 +1962,28 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
 .cc-hint div { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
 .cc-hint b { color: var(--text); font-size: 14px; }
 
-/* the picture, and the timeline beside it when there is room */
+/* the picture, the page's whole width */
 .cc-viewer { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
-.cc-side { display: none; }
-@container (min-width: 820px) {
-  .cc-viewer.with-side { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
-  .cc-viewer.with-side .cc-side { display: flex; flex-direction: column; gap: 6px; max-height: var(--cam-h, 62vh); overflow-y: auto; scrollbar-width: thin; }
-  .cc-viewer.with-side ~ .cc-clips .cc-detections { display: none; }
+
+/* "Todas": every camera at once, a still of each that renews (camera/console.js) */
+.cc-all { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cc-all[hidden] { display: none; }
+@container (min-width: 760px) { .cc-all { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.cc-all-tile {
+  position: relative; aspect-ratio: 16 / 9; padding: 0; overflow: hidden; border-radius: 14px;
+  background: #05080f; border: 1px solid var(--line); cursor: pointer; font: inherit; color: var(--text);
+  transition: transform 260ms var(--spring), border-color 200ms;
+}
+@media (hover: hover) { .cc-all-tile:hover { border-color: rgba(191, 227, 255, 0.55); } }
+.cc-all-tile:active { transform: scale(0.97); }
+.cc-all-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 240ms; }
+.cc-all-tile.ready img { opacity: 1; }
+.cc-all-wait { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(233, 237, 242, 0.25); }
+.cc-all-tile.ready .cc-all-wait { display: none; }
+.cc-all-name {
+  position: absolute; left: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px 3px 8px; border-radius: 10px; font-size: 12px; font-weight: 650;
+  background: rgba(5, 10, 20, 0.62); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 
 /* the bar under the picture: Ao vivo | Galeria | Linha do tempo, and filters / info / full screen */
@@ -2052,7 +2070,6 @@ html.split .card:has(.panel.rooms-bottom:not(.hidden)) .cam-dock { bottom: calc(
 .cc-row-time { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cc-row-time small { font-size: 11px; color: var(--muted); font-weight: 600; }
 .cc-row-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cc-side .cc-row-pic { width: 76px; }
 
 /* the folded sections: Ajustes da câmera, Controles gerais */
 .cc-fold { border-radius: 18px; background: var(--glass); border: 1px solid var(--line); overflow: hidden; }

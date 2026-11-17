@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import HouseCore
 
 private final class FloatingPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -13,6 +14,11 @@ private final class FloatingPanel: NSPanel {
 /// windows wherever it was dragged (by the header), stays open when you click elsewhere, and
 /// the menu bar icon shows or hides it. Nothing new is loaded: the page is the one the popover
 /// already keeps in memory, and the 3D view only draws while something changes.
+///
+/// Grande (expanded): the expand button at the top of the panel moves the same web view into
+/// an ordinary app window (title bar, resizable, Dock icon, Cmd+W / Cmd+Q) where the page
+/// takes the iPad's layout lying down. The button again, or closing the window, puts it back
+/// in the menu bar.
 final class PanelController: NSObject, NSWindowDelegate {
     private static let card = NSSize(width: 440, height: 800)
     // Transparent margin around the card, matching `html.native #app` padding in style.css.
@@ -26,9 +32,14 @@ final class PanelController: NSObject, NSWindowDelegate {
     var onVisibilityChange: ((Bool) -> Void)?
     /// Keeps the panel open when it loses focus (HOUSE_PIN=1, for UI automation and screenshots).
     private let pinned = ProcessInfo.processInfo.environment["HOUSE_PIN"] != nil
-    /// Let go of the menu bar (remembered, with where it was left).
-    private(set) var detached = UserDefaults.standard.bool(forKey: "panelDetached")
+    /// Let go of the menu bar. The panel's button expands it now (below), so this starts off:
+    /// a panel left solto by an older version would have no way back.
+    private(set) var detached = false
     private static let originKey = "panelDetachedOrigin"
+    /// Open as an app window of its own (not remembered: the app starts in the menu bar).
+    private(set) var expanded = false
+    private var bigWindow: NSWindow?
+    private let dockAlways = ProcessInfo.processInfo.environment["HOUSE_DOCK"] != nil
 
     init(host: WebHost) {
         self.host = host
@@ -48,9 +59,11 @@ final class PanelController: NSObject, NSWindowDelegate {
         window.delegate = self
         window.contentView = host.webView
         window.alphaValue = 0
+        UserDefaults.standard.set(false, forKey: "panelDetached")
     }
 
     func toggle(below button: NSStatusBarButton) {
+        if expanded { focusExpanded(); return }
         if isVisible { hide(); return }
         // The click that dismissed the panel (resign key) must not immediately reopen it.
         if Date().timeIntervalSince(lastHide) < 0.25 { return }
@@ -58,6 +71,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     func show(below button: NSStatusBarButton) {
+        if expanded { focusExpanded(); return }
         if detached { showDetached(); return }
         guard let buttonWindow = button.window else { return }
         let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
@@ -91,7 +105,8 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     func hide() {
-        guard isVisible else { return }
+        // the expanded window is an app window: it stays until it is closed or shrunk
+        guard isVisible, !expanded else { return }
         isVisible = false
         lastHide = Date()
         if let monitor = outsideClickMonitor { NSEvent.removeMonitor(monitor) }
@@ -108,12 +123,96 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
         if !pinned && !detached { hide() }
     }
 
     func windowDidMove(_ notification: Notification) {
-        guard detached else { return }
+        guard detached, notification.object as? NSWindow === window else { return }
         UserDefaults.standard.set(NSStringFromPoint(window.frame.origin), forKey: Self.originKey)
+    }
+
+    // MARK: - Grande
+
+    /// Opens the panel as an app window of its own, or puts it back under the menu bar icon.
+    func setExpanded(_ on: Bool, below button: NSStatusBarButton?) {
+        if on == expanded {
+            if on { focusExpanded() }
+            return
+        }
+        if on { expand() } else { shrink(reopenBelow: button) }
+    }
+
+    /// The expanded window in front (the menu bar icon, the Dock icon).
+    func focusExpanded() {
+        guard expanded, let big = bigWindow else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        if big.isMiniaturized { big.deminiaturize(nil) }
+        big.makeKeyAndOrderFront(nil)
+    }
+
+    private func makeBigWindow() -> NSWindow {
+        let big = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
+                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                           backing: .buffered, defer: false)
+        big.title = Edition.name
+        big.titlebarAppearsTransparent = true
+        big.backgroundColor = NSColor(calibratedRed: 0.04, green: 0.055, blue: 0.1, alpha: 1)
+        big.appearance = NSAppearance(named: .darkAqua)
+        big.minSize = NSSize(width: 760, height: 560)
+        big.isReleasedWhenClosed = false
+        big.collectionBehavior = [.fullScreenPrimary]
+        big.delegate = self
+        big.center()
+        big.setFrameAutosaveName("HomeOsBarExpanded")
+        return big
+    }
+
+    private func expand() {
+        expanded = true
+        if let monitor = outsideClickMonitor { NSEvent.removeMonitor(monitor) }
+        outsideClickMonitor = nil
+        // the popover goes away at once (no fade: the page moves to the other window)
+        window.alphaValue = 0
+        window.orderOut(nil)
+        window.contentView = NSView()
+        let big = bigWindow ?? makeBigWindow()
+        bigWindow = big
+        big.contentView = host.webView
+        NSApp.setActivationPolicy(.regular)
+        host.call("setExpanded", true)
+        host.call("shown")
+        isVisible = true
+        NSApp.activate(ignoringOtherApps: true)
+        big.makeKeyAndOrderFront(nil)
+        big.makeFirstResponder(host.webView)
+        onVisibilityChange?(true)
+    }
+
+    /// Back to the menu bar: under the icon again when the button asked (`button`), only put
+    /// away when the window was closed.
+    private func shrink(reopenBelow button: NSStatusBarButton?) {
+        expanded = false
+        if let big = bigWindow {
+            if big.isVisible { big.orderOut(nil) }
+            big.contentView = NSView()
+        }
+        window.contentView = host.webView
+        host.call("setExpanded", false)
+        if !dockAlways { NSApp.setActivationPolicy(.accessory) }
+        isVisible = false
+        if let button {
+            show(below: button)
+        } else {
+            host.call("hidden")
+            onVisibilityChange?(false)
+        }
+    }
+
+    /// Cmd+W or the red button: the window goes, the panel returns to the menu bar.
+    func windowWillClose(_ notification: Notification) {
+        guard expanded, let big = bigWindow, notification.object as? NSWindow === big else { return }
+        shrink(reopenBelow: nil)
     }
 
     // MARK: - Solto
